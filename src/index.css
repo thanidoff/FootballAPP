@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --font-heading: "Barlow Condensed", sans-serif;
+  --font-body: "Barlow", sans-serif;
+
+  --color-brand: #FD5461;
+  --color-brand-dark: #e03d4a;
+
+  --color-pitch: #0a3d1f;
+  --color-pitch-light: #0f5c2e;
+  --color-gold: #c9a227;
+  --color-gold-light: #f0c040;
+  --color-silver: #8c9db5;
+
+  --color-pos-gk: #f59e0b;
+  --color-pos-def: #3b82f6;
+  --color-pos-mf: #22c55e;
+  --color-pos-fwd: #ef4444;
+
+  --color-stat-low: #ef4444;
+  --color-stat-mid: #f59e0b;
+  --color-stat-high: #22c55e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: #FEFEFE;
+  color: #111827;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeSlideUp {
+  animation: fadeSlideUp 0.3s ease-out both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out both;
+}
