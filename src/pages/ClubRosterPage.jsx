@@ -50,7 +50,7 @@ function IconList() {
 
 function EmptySlotCard({ isOver, canDrop }) {
   return (
-    <div className={`h-full min-h-[400px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors
+    <div className={`h-full min-h-[320px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors
       ${isOver && canDrop ? 'border-gray-400 bg-gray-50' : 'border-gray-200'}
       ${isOver && !canDrop ? 'border-red-300 bg-red-50' : ''}
       text-gray-300`}>
