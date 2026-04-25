@@ -68,6 +68,7 @@ function ClubBadge({ club, size = 'md' }) {
 export default function ClubsPage() {
   const [clubs, setClubs] = useState([])
   const [ovrMap, setOvrMap] = useState({}) // club_id → avg ovr
+  const [sizeMap, setSizeMap] = useState({}) // club_id/nat → count
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [modal, setModal] = useState(null)
@@ -106,25 +107,35 @@ export default function ClubsPage() {
       const clubAcc = {}, natAcc = {}
       for (const p of players ?? []) {
         if (p.club_id) {
-          if (!clubAcc[p.club_id]) clubAcc[p.club_id] = { sum: 0, count: 0 }
-          clubAcc[p.club_id].sum += p.ovr
+          if (!clubAcc[p.club_id]) clubAcc[p.club_id] = { ovrs: [], count: 0 }
+          clubAcc[p.club_id].ovrs.push(p.ovr)
           clubAcc[p.club_id].count += 1
         }
         if (p.nationality) {
-          if (!natAcc[p.nationality]) natAcc[p.nationality] = { sum: 0, count: 0 }
-          natAcc[p.nationality].sum += p.ovr
+          if (!natAcc[p.nationality]) natAcc[p.nationality] = { ovrs: [], count: 0 }
+          natAcc[p.nationality].ovrs.push(p.ovr)
           natAcc[p.nationality].count += 1
         }
       }
       const map = {}
-      for (const [id, { sum, count }] of Object.entries(clubAcc)) {
-        map[id] = Math.round(sum / count)
+      const sizes = {}
+      for (const [id, { ovrs, count }] of Object.entries(clubAcc)) {
+        ovrs.sort((a, b) => b - a)
+        let sum = 0
+        for (let i = 0; i < 5 && i < ovrs.length; i++) sum += ovrs[i]
+        map[id] = Math.round(sum / 5)
+        sizes[id] = count
       }
       // store national OVR under a special key prefix to avoid collision
-      for (const [nat, { sum, count }] of Object.entries(natAcc)) {
-        map[`nat:${nat}`] = Math.round(sum / count)
+      for (const [nat, { ovrs, count }] of Object.entries(natAcc)) {
+        ovrs.sort((a, b) => b - a)
+        let sum = 0
+        for (let i = 0; i < 5 && i < ovrs.length; i++) sum += ovrs[i]
+        map[`nat:${nat}`] = Math.round(sum / 5)
+        sizes[`nat:${nat}`] = count
       }
       setOvrMap(map)
+      setSizeMap(sizes)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -179,6 +190,10 @@ export default function ClubsPage() {
 
   function clubOvr(club) {
     return club.is_national ? ovrMap[`nat:${club.name}`] : ovrMap[club.id]
+  }
+
+  function clubSize(club) {
+    return club.is_national ? (sizeMap[`nat:${club.name}`] || 0) : (sizeMap[club.id] || 0)
   }
 
   const filtered = clubs
@@ -307,6 +322,7 @@ export default function ClubsPage() {
                       {tab === 'national' && getZone(club.short_name) && (
                         <span className="ml-2 text-gray-300">· {getZone(club.short_name)}</span>
                       )}
+                      <span className="ml-2 text-gray-300">· {clubSize(club)} PLAYERS</span>
                     </p>
                   </div>
                   {(club.is_national || clubOvr(club) != null) && (
