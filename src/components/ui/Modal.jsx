@@ -1,53 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 export default function Modal({ open, onClose, title, children, width = 'max-w-lg' }) {
-  const [visible, setVisible] = useState(false)
-  const [rendered, setRendered] = useState(false)
-
-  useEffect(() => {
-    let raf1, raf2, timer
-    if (open) {
-      setRendered(true)
-      raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => setVisible(true))
-      })
-      document.body.style.overflow = 'hidden'
-    } else {
-      setVisible(false)
-      timer = setTimeout(() => setRendered(false), 250)
-      document.body.style.overflow = ''
-    }
-    return () => {
-      cancelAnimationFrame(raf1)
-      cancelAnimationFrame(raf2)
-      clearTimeout(timer)
-      document.body.style.overflow = ''
-    }
-  }, [open])
-
   useEffect(() => {
     if (!open) return
+    document.body.style.overflow = 'hidden'
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handler)
+    }
   }, [open, onClose])
 
-  if (!rendered) return null
+  if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ animation: 'fadeIn 0.15s ease-out' }}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
-        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-250 ${visible ? 'opacity-100' : 'opacity-0'}`}
-        onClick={onClose}
-      />
-      {/* Content */}
-      <div
-        className={`relative w-full ${width} bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] transition-all duration-250
-          ${visible ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'}`}
-        style={{ transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+        className={`relative w-full ${width} bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]`}
+        style={{ animation: 'modalSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="font-heading font-black text-xl uppercase tracking-wide">{title}</h2>
           <button
@@ -59,7 +32,6 @@ export default function Modal({ open, onClose, title, children, width = 'max-w-l
             </svg>
           </button>
         </div>
-        {/* Scrollable body */}
         <div className="px-6 py-5 overflow-y-auto scrollbar-hide">{children}</div>
       </div>
     </div>

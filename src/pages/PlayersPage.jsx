@@ -335,7 +335,7 @@ export default function PlayersPage() {
                   {signing.club && (
                     signing.club.badge_url
                       ? <img src={signing.club.badge_url} className="w-5 h-5 object-contain" alt={signing.club.name} />
-                      : <div className="w-5 h-5 rounded flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: signing.club.badge_color }}>{signing.club.short_name?.slice(0,1)}</div>
+                      : <div className="w-5 h-5 rounded flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: signing.club.badge_color ?? "#6b7280" }}>{signing.club.short_name?.slice(0,1)}</div>
                   )}
                 </div>
               </div>

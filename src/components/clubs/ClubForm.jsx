@@ -3,19 +3,12 @@ import Input from '../ui/Input'
 import Button from '../ui/Button'
 import ImageUploadCrop from '../ui/ImageUploadCrop'
 
-const PRESET_COLORS = [
-  '#1a56db', '#e02424', '#057a55', '#9061f9',
-  '#f05252', '#0694a2', '#c27803', '#111827',
-]
-
 export default function ClubForm({ initialValues, onSubmit, loading }) {
   const [form, setForm] = useState(() => initialValues ?? {
     name: '',
     short_name: '',
-    badge_color: '#1a56db',
     budget: 10000000,
     badge: null,
-    is_national: false,
   })
   const [shortNameEdited, setShortNameEdited] = useState(() => !!(initialValues?.short_name))
   const [budgetDisplay, setBudgetDisplay] = useState(() =>
@@ -93,45 +86,8 @@ export default function ClubForm({ initialValues, onSubmit, loading }) {
           </span>
         </div>
       </div>
-      <div>
-        <label className="block text-xs font-heading font-bold tracking-wider uppercase text-gray-500 mb-2">
-          Badge Color (fallback)
-        </label>
-        <div className="flex gap-2 flex-wrap">
-          {PRESET_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setForm((f) => ({ ...f, badge_color: c }))}
-              className={`w-8 h-8 rounded-lg transition-transform ${form.badge_color === c ? 'scale-110 ring-2 ring-offset-2 ring-gray-900' : 'hover:scale-105'}`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
-          <input
-            type="color"
-            value={form.badge_color}
-            onChange={(e) => setForm((f) => ({ ...f, badge_color: e.target.value }))}
-            className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0"
-          />
-        </div>
-      </div>
-      {/* National team toggle */}
-      <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-gray-50 border border-gray-100">
-        <div>
-          <div className="text-xs font-heading font-bold tracking-wider uppercase text-gray-700">ทีมชาติ (National Team)</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">ใช้สำหรับโหมด World Cup</div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setForm(f => ({ ...f, is_national: !f.is_national }))}
-          className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0
-            ${form.is_national ? 'bg-[#FD5461]' : 'bg-gray-200'}`}>
-          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
-            ${form.is_national ? 'translate-x-5' : 'translate-x-0.5'}`} />
-        </button>
-      </div>
 
-      <Button type="submit" className="w-full justify-center" disabled={loading}>
+<Button type="submit" className="w-full justify-center" disabled={loading}>
         {loading ? 'Saving...' : 'Save Club'}
       </Button>
     </form>

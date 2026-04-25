@@ -37,7 +37,7 @@ export default function PlayerListRow({
   const clubBadge = club ? (
     club.badge_url
       ? <img src={club.badge_url} alt={club.short_name} className="w-5 h-5 object-contain flex-shrink-0" />
-      : <div className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center text-white text-[7px] font-black" style={{ backgroundColor: club.badge_color }}>{club.short_name?.slice(0, 1)}</div>
+      : <div className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center text-white text-[7px] font-black" style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>{club.short_name?.slice(0, 1)}</div>
   ) : <FreeAgentIcon size={16} />
 
   return (

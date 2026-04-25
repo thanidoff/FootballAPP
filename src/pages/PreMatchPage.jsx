@@ -708,7 +708,7 @@ export default function PreMatchPage() {
           {homeClub.badge_url
             ? <img src={homeClub.badge_url} alt={homeClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
             : <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
-                style={{ backgroundColor: homeClub.badge_color }}>{homeClub.short_name}</div>
+                style={{ backgroundColor: homeClub.badge_color ?? "#6b7280" }}>{homeClub.short_name}</div>
           }
           <div className="font-heading font-black text-[#0A1318] uppercase tracking-wide truncate text-sm">
             <span className="hidden sm:inline">{homeClub.name}</span>
@@ -748,7 +748,7 @@ export default function PreMatchPage() {
           {awayClub.badge_url
             ? <img src={awayClub.badge_url} alt={awayClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
             : <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
-                style={{ backgroundColor: awayClub.badge_color }}>{awayClub.short_name}</div>
+                style={{ backgroundColor: awayClub.badge_color ?? "#6b7280" }}>{awayClub.short_name}</div>
           }
         </div>
       </div>
@@ -920,7 +920,7 @@ export default function PreMatchPage() {
                   className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-red-50 transition-colors text-left">
                   {club.badge_url
                     ? <img src={club.badge_url} alt={club.name} className="w-9 h-9 object-contain flex-shrink-0" />
-                    : <div className="w-9 h-9 rounded-lg flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0" style={{ backgroundColor: club.badge_color }}>{club.short_name}</div>
+                    : <div className="w-9 h-9 rounded-lg flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0" style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>{club.short_name}</div>
                   }
                   <span className="font-heading font-black text-sm uppercase tracking-wide text-[#0A1318]">{club.name}</span>
                 </button>

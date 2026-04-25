@@ -113,7 +113,7 @@ function RosterCard({ player, isCaptain, onRelease, releasing, onEdit, onPointer
                     {playerClub ? (
                       playerClub.badge_url
                         ? <img src={playerClub.badge_url} alt={playerClub.short_name} className="w-6 h-6 object-contain flex-shrink-0" />
-                        : <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: playerClub.badge_color }}>{playerClub.short_name?.slice(0, 1)}</div>
+                        : <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: playerClub.badge_color ?? "#6b7280" }}>{playerClub.short_name?.slice(0, 1)}</div>
                     ) : <FreeAgentIcon size={18} />}
                   </>
                 ) : (
@@ -121,7 +121,7 @@ function RosterCard({ player, isCaptain, onRelease, releasing, onEdit, onPointer
                     {playerClub ? (
                       playerClub.badge_url
                         ? <img src={playerClub.badge_url} alt={playerClub.short_name} className="w-6 h-6 object-contain flex-shrink-0" />
-                        : <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: playerClub.badge_color }}>{playerClub.short_name?.slice(0, 1)}</div>
+                        : <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: playerClub.badge_color ?? "#6b7280" }}>{playerClub.short_name?.slice(0, 1)}</div>
                     ) : <FreeAgentIcon size={18} />}
                     {flagCode && <img src={`https://flagcdn.com/w40/${flagCode}.png`} className="h-4 w-6 object-cover rounded-[2px] shadow-sm flex-shrink-0 ring-1 ring-black/10" alt="" />}
                   </>
@@ -432,7 +432,7 @@ export default function ClubRosterPage() {
             <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain p-1" />
           </div>
         ) : (
-          <div className="w-14 h-14 rounded-xl flex items-center justify-center font-heading font-black text-white text-lg shadow" style={{ backgroundColor: club.badge_color }}>
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center font-heading font-black text-white text-lg shadow" style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>
             {club.short_name}
           </div>
         )}

@@ -28,7 +28,7 @@ function ClubBadge({ club, size = 'md' }) {
   }
   return (
     <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0`}
-      style={{ backgroundColor: club.badge_color }}>
+      style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>
       {club.short_name}
     </div>
   )
@@ -183,7 +183,7 @@ function SmallClubBadge({ club }) {
   }
   return (
     <div className="w-5 h-5 rounded-md flex items-center justify-center font-heading font-black text-white flex-shrink-0"
-      style={{ backgroundColor: club.badge_color, fontSize: '6px' }}>
+      style={{ backgroundColor: club.badge_color ?? '#6b7280', fontSize: '6px' }}>
       {club.short_name?.slice(0, 2)}
     </div>
   )

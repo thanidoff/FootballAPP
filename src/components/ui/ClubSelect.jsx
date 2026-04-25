@@ -13,7 +13,7 @@ function ClubBadge({ club }) {
   return (
     <div
       className="w-7 h-7 rounded-lg flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0 shadow-sm"
-      style={{ backgroundColor: club.badge_color }}
+      style={{ backgroundColor: club.badge_color ?? "#6b7280" }}
     >
       {club.short_name?.slice(0, 2)}
     </div>
