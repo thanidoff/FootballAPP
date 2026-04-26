@@ -90,7 +90,7 @@ export default function NewMatchModal({ open, onClose, seasonId, onCreated }) {
           const top5 = squad.slice(0, 5);
           stats[c.id] = {
             count: squad.length,
-            avgOvr: top5.length ? Math.round(top5.reduce((s, p) => s + p.ovr, 0) / top5.length) : 0,
+            avgOvr: top5.length ? Math.round(top5.reduce((s, p) => s + p.ovr, 0) / 5) : 0,
           }
         })
         setClubStats(stats)

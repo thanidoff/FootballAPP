@@ -131,7 +131,7 @@ export default function ClubsPage() {
         });
         const top5 = plist.slice(0, 5);
         if (top5.length === 0) return 0;
-        return Math.round(top5.reduce((sum, p) => sum + p.ovr, 0) / top5.length);
+        return Math.round(top5.reduce((sum, p) => sum + p.ovr, 0) / 5);
       }
 
       for (const [id, { plist, count }] of Object.entries(clubAcc)) {

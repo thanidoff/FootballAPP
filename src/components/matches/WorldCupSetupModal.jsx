@@ -65,7 +65,7 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
           });
           const top5 = plist.slice(0, 5);
           if (top5.length > 0) {
-            map[k] = Math.round(top5.reduce((sum, p) => sum + p.ovr, 0) / top5.length);
+            map[k] = Math.round(top5.reduce((sum, p) => sum + p.ovr, 0) / 5);
           }
         }
       }
