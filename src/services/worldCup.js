@@ -1,18 +1,31 @@
 import { supabase } from '../lib/supabase'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 
-export const ROUND_NAMES = {
-  1: 'Round of 16',
-  2: 'Quarter Finals',
-  3: 'Semi Finals',
-  4: 'Final',
+export function getRoundName(round, totalRounds) {
+  const diff = totalRounds - round;
+  if (diff === 0) return 'Final';
+  if (diff === 1) return 'Semi Finals';
+  if (diff === 2) return 'Quarter Finals';
+  if (diff === 3) return 'Round of 16';
+  return `Round ${round}`;
 }
 
-export const ROUND_NAMES_TH = {
-  1: 'รอบ 16 ทีม',
-  2: 'รอบก่อนรองชนะเลิศ',
-  3: 'รอบรองชนะเลิศ',
-  4: 'รอบชิงชนะเลิศ',
+export function getRoundNameTH(round, totalRounds) {
+  const diff = totalRounds - round;
+  if (diff === 0) return 'รอบชิงชนะเลิศ';
+  if (diff === 1) return 'รอบรองชนะเลิศ';
+  if (diff === 2) return 'รอบก่อนรองชนะเลิศ';
+  if (diff === 3) return 'รอบ 16 ทีม';
+  return `รอบ ${round}`;
+}
+
+export function getShortRoundName(round, totalRounds) {
+  const diff = totalRounds - round;
+  if (diff === 0) return 'Final';
+  if (diff === 1) return 'SF';
+  if (diff === 2) return 'QF';
+  if (diff === 3) return 'R16';
+  return `R${round}`;
 }
 
 export async function seedNationalTeams() {
@@ -216,12 +229,13 @@ export async function advanceToNextRound(seasonId, currentRound) {
 }
 
 export async function completeSeason(seasonId) {
-  // Find champion = winner of round 4
+  // Find champion = winner of the final round
   const { data: final } = await supabase
     .from('world_cup_matches')
     .select('winner_club_id')
     .eq('season_id', seasonId)
-    .eq('round', 4)
+    .order('round', { ascending: false })
+    .limit(1)
     .single()
 
   await supabase

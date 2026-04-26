@@ -6,7 +6,7 @@ const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 import {
   fetchSeasons, fetchSeasonData, startMatch,
   advanceToNextRound, completeSeason, fetchSeasonStats,
-  ROUND_NAMES, ROUND_NAMES_TH, completeMatch, fetchMatchEvents,
+  getRoundName, getRoundNameTH, getShortRoundName, completeMatch, fetchMatchEvents,
   createSeason, seedNationalTeams,
 } from '../services/worldCup'
 import WorldCupSetupModal from '../components/matches/WorldCupSetupModal'
@@ -42,8 +42,8 @@ const STATUS_BADGE = {
 
 // ─── Progress indicator ───────────────────────────────────────────────────────
 
-function RoundProgress({ currentRound, status, matchesByRound }) {
-  const steps = [1, 2, 3, 4]
+function RoundProgress({ currentRound, status, matchesByRound, totalRounds }) {
+  const steps = Array.from({ length: totalRounds }, (_, i) => i + 1)
   return (
     <div className="flex items-center gap-0 mb-6">
       {steps.map((round, i) => {
@@ -62,11 +62,11 @@ function RoundProgress({ currentRound, status, matchesByRound }) {
               </div>
               <div className={`text-[8px] font-heading font-black uppercase tracking-widest text-center leading-tight hidden sm:block
                 ${isActive ? 'text-[#FD5461]' : isPast || allDone ? 'text-[#0A1318]' : 'text-gray-300'}`}>
-                {ROUND_NAMES[round]}
+                {getRoundName(round, totalRounds)}
               </div>
               <div className={`text-[8px] font-heading font-black uppercase tracking-widest text-center leading-tight sm:hidden
                 ${isActive ? 'text-[#FD5461]' : isPast || allDone ? 'text-[#0A1318]' : 'text-gray-300'}`}>
-                {round === 1 ? 'R16' : round === 2 ? 'QF' : round === 3 ? 'SF' : 'Final'}
+                {getShortRoundName(round, totalRounds)}
               </div>
             </div>
             {i < steps.length - 1 && (
@@ -429,12 +429,15 @@ export default function WorldCupPage({ mode = 'national' }) {
   const hasActiveSeason = seasons.some(s => s.status === 'active')
   const matchesByRound = seasonData?.matchesByRound ?? {}
   const currentRound   = seasonData?.season?.current_round ?? 1
+  const initialTeams = (matchesByRound[1]?.length || 4) * 2 // Default 8 if no matches
+  const totalRounds = Math.max(1, Math.log2(initialTeams))
+
   const currentRoundMatches = matchesByRound[currentRound] ?? []
   const allCurrentDone = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.status === 'completed')
-  const canAdvance = isActiveSeason && allCurrentDone && currentRound < 4
-  const canClose   = isActiveSeason && allCurrentDone && currentRound === 4
+  const canAdvance = isActiveSeason && allCurrentDone && currentRound < totalRounds
+  const canClose   = isActiveSeason && allCurrentDone && currentRound === totalRounds
   const champion   = seasonData?.season?.champion_club ?? (canClose
-    ? matchesByRound[4]?.[0]?.winner_club
+    ? matchesByRound[totalRounds]?.[0]?.winner_club
     : null)
 
   if (loading) {
@@ -456,7 +459,7 @@ export default function WorldCupPage({ mode = 'national' }) {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="font-heading font-black text-3xl uppercase tracking-wide leading-none">{isClub ? 'Club Cup' : 'World Cup'}</h1>
-          <p className="text-gray-400 text-sm mt-0.5">16-team knockout · {isClub ? 'สโมสร' : 'ทีมชาติ'}</p>
+          <p className="text-gray-400 text-sm mt-0.5">{initialTeams}-team knockout · {isClub ? 'สโมสร' : 'ทีมชาติ'}</p>
         </div>
         {seasons.length === 0 || !isActiveSeason ? null : null}
       </div>
@@ -536,6 +539,7 @@ export default function WorldCupPage({ mode = 'national' }) {
               currentRound={currentRound}
               status={currentSeason?.status}
               matchesByRound={matchesByRound}
+              totalRounds={totalRounds}
             />
           )}
 
@@ -562,7 +566,7 @@ export default function WorldCupPage({ mode = 'national' }) {
           ) : (
             <div className="space-y-6">
               {/* Show all rounds that have matches */}
-              {[1, 2, 3, 4].map(round => {
+              {Array.from({ length: totalRounds }, (_, i) => i + 1).map(round => {
                 const roundMatches = matchesByRound[round] ?? []
                 if (roundMatches.length === 0) return null
                 const isCurrentRound = round === currentRound && isActiveSeason
@@ -573,10 +577,10 @@ export default function WorldCupPage({ mode = 'national' }) {
                       <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full
                         ${isCurrentRound ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-500'}`}>
                         <span className="font-heading font-black text-[10px] uppercase tracking-widest">
-                          {ROUND_NAMES[round]}
+                          {getRoundName(round, totalRounds)}
                         </span>
                       </div>
-                      <span className="text-[10px] text-gray-400 font-heading">{ROUND_NAMES_TH[round]}</span>
+                      <span className="text-[10px] text-gray-400 font-heading">{getRoundNameTH(round, totalRounds)}</span>
                     </div>
 
                     <div className="space-y-2">
@@ -600,7 +604,7 @@ export default function WorldCupPage({ mode = 'national' }) {
                 <div className="pt-2">
                   <button onClick={() => setAdvanceConfirm(true)}
                     className="w-full py-4 rounded-2xl bg-[#0A1318] text-white font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer flex items-center justify-center gap-2">
-                    ไปรอบถัดไป → {ROUND_NAMES[currentRound + 1]}
+                    ไปรอบถัดไป → {getRoundName(currentRound + 1, totalRounds)}
                   </button>
                 </div>
               )}
@@ -619,7 +623,7 @@ export default function WorldCupPage({ mode = 'national' }) {
 
       <ConfirmModal
         open={advanceConfirm}
-        title={`ไปรอบ ${ROUND_NAMES[currentRound + 1]}?`}
+        title={`ไปรอบ ${getRoundName(currentRound + 1, totalRounds)}?`}
         desc={`สุ่มคู่แข่งจากผู้ชนะ ${currentRoundMatches.length} ทีม แล้วสร้างแมตช์รอบถัดไป`}
         confirmLabel="สุ่มคู่แข่ง"
         onClose={() => setAdvanceConfirm(false)}

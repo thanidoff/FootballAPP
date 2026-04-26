@@ -11,10 +11,9 @@ function flagUrl(code) {
   return `https://flagcdn.com/w40/${code}.png`
 }
 
-const REQUIRED = 16
-
 export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'national' }) {
   const isClub = mode === 'club'
+  const [teamSize, setTeamSize] = useState(8)
   const [teams, setTeams]       = useState([])
   const [ovrMap, setOvrMap]     = useState({}) // nationality → avg ovr
   const [selected, setSelected] = useState(new Set())
@@ -84,19 +83,19 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
-      else if (next.size < REQUIRED) next.add(id)
+      else if (next.size < teamSize) next.add(id)
       return next
     })
   }
 
   async function handleCreate() {
-    if (selected.size !== REQUIRED) return
+    if (selected.size !== teamSize) return
     setSaving(true)
     try { await onCreate([...selected]) }
     finally { setSaving(false) }
   }
 
-  const remaining = REQUIRED - selected.size
+  const remaining = teamSize - selected.size
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
@@ -109,7 +108,7 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
         <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
           <div>
             <div className="font-heading font-black text-xl uppercase tracking-wide text-[#0A1318]">{isClub ? 'เลือกสโมสร' : 'เลือกทีมชาติ'}</div>
-            <div className="text-xs text-gray-400 mt-0.5">เลือก {REQUIRED} ทีมเพื่อเริ่มการแข่งขัน</div>
+            <div className="text-xs text-gray-400 mt-0.5">เลือก {teamSize} ทีมเพื่อเริ่มการแข่งขัน</div>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400 cursor-pointer">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -118,16 +117,29 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
           </button>
         </div>
 
+        {/* Team Size Selector */}
+        <div className="px-6 pb-3 flex-shrink-0">
+          <div className="flex bg-gray-100 p-1 rounded-xl">
+            {[4, 8, 16].map(size => (
+              <button key={size} onClick={() => { setTeamSize(size); setSelected(new Set()) }}
+                className={`flex-1 py-1.5 text-xs font-heading font-black uppercase tracking-widest rounded-lg transition-colors cursor-pointer
+                  ${teamSize === size ? 'bg-white text-[#0A1318] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+                {size} Teams
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Counter bar */}
         <div className="px-6 pb-3 flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex gap-1">
-              {Array.from({ length: REQUIRED }).map((_, i) => (
+              {Array.from({ length: teamSize }).map((_, i) => (
                 <div key={i} className={`h-1.5 rounded-full transition-all ${i < selected.size ? 'bg-[#FD5461] w-3' : 'bg-gray-200 w-1.5'}`} />
               ))}
             </div>
             <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 ml-1">
-              {selected.size}/{REQUIRED}
+              {selected.size}/{teamSize}
             </span>
           </div>
         </div>
@@ -192,7 +204,7 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
             <div className="space-y-1.5">
               {filtered.map(team => {
                 const isSelected = selected.has(team.id)
-                const isDisabled = !isSelected && selected.size >= REQUIRED
+                const isDisabled = !isSelected && selected.size >= teamSize
                 const code = !isClub ? NATION_CODE[team.name] : null
                 const flagSrc = !isClub ? flagUrl(code) : null
                 const ovr  = isClub ? ovrMap[team.id] : ovrMap[team.name]
@@ -257,7 +269,7 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
         <div className="px-6 pb-6 pt-2 flex-shrink-0 border-t border-gray-100">
           <button
             onClick={handleCreate}
-            disabled={selected.size !== REQUIRED || saving}
+            disabled={selected.size !== teamSize || saving}
             className="w-full py-4 rounded-2xl font-heading font-black text-sm uppercase tracking-widest transition-all cursor-pointer
               disabled:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed
               bg-[#FD5461] text-white hover:bg-red-500 disabled:hover:bg-gray-100">
