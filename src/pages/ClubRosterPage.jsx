@@ -209,6 +209,7 @@ export default function ClubRosterPage() {
 
   const dragRef = useRef({ active: false, fromIdx: null, startX: 0, startY: 0 })
   const slotRefs = useRef(Array(12).fill(null))
+  const scrollRef = useRef({ rafId: null, dir: 0, x: 0, y: 0 })
   const [activeDragIdx, setActiveDragIdx] = useState(null)
   const [dragOver, setDragOver] = useState(null)
   const [ghostPos, setGhostPos] = useState(null)
@@ -269,6 +270,30 @@ export default function ClubRosterPage() {
     return null
   }
 
+  function startScrollLoop() {
+    if (scrollRef.current.rafId) return
+    const loop = () => {
+      if (scrollRef.current.dir !== 0) {
+        window.scrollBy(0, scrollRef.current.dir * 15)
+        setDragOver(getSlotUnderPointer(scrollRef.current.x, scrollRef.current.y))
+      }
+      scrollRef.current.rafId = requestAnimationFrame(loop)
+    }
+    scrollRef.current.rafId = requestAnimationFrame(loop)
+  }
+
+  function stopScrollLoop() {
+    if (scrollRef.current.rafId) {
+      cancelAnimationFrame(scrollRef.current.rafId)
+      scrollRef.current.rafId = null
+    }
+    scrollRef.current.dir = 0
+  }
+
+  useEffect(() => {
+    return () => stopScrollLoop()
+  }, [])
+
   function handlePointerDown(fromIdx, e) {
     if (e.button !== undefined && e.button !== 0) return
     e.preventDefault()
@@ -280,14 +305,28 @@ export default function ClubRosterPage() {
       if (!dragRef.current.active && Math.hypot(dx, dy) > 8) {
         dragRef.current.active = true
         setActiveDragIdx(fromIdx)
+        startScrollLoop()
       }
       if (dragRef.current.active) {
         setGhostPos({ x: e.clientX, y: e.clientY })
+        scrollRef.current.x = e.clientX
+        scrollRef.current.y = e.clientY
+
+        const threshold = 100
+        if (e.clientY < threshold) {
+          scrollRef.current.dir = -1
+        } else if (e.clientY > window.innerHeight - threshold) {
+          scrollRef.current.dir = 1
+        } else {
+          scrollRef.current.dir = 0
+        }
+
         setDragOver(getSlotUnderPointer(e.clientX, e.clientY))
       }
     }
 
     function onUp(e) {
+      stopScrollLoop()
       if (dragRef.current.active) {
         const toIdx = getSlotUnderPointer(e.clientX, e.clientY)
         const fIdx = dragRef.current.fromIdx
