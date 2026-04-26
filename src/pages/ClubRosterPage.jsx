@@ -207,12 +207,12 @@ export default function ClubRosterPage() {
   const saveTimerRef = useRef(null)
   const toast = useToast()
 
-  const dragRef = useRef({ active: false, fromIdx: null, startX: 0, startY: 0 })
+  const dragRef = useRef({ active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null })
   const slotRefs = useRef(Array(12).fill(null))
   const scrollRef = useRef({ rafId: null, dir: 0, x: 0, y: 0 })
+  const ghostRef = useRef(null)
   const [activeDragIdx, setActiveDragIdx] = useState(null)
   const [dragOver, setDragOver] = useState(null)
-  const [ghostPos, setGhostPos] = useState(null)
 
   const load = useCallback(async () => {
     try {
@@ -260,12 +260,14 @@ export default function ClubRosterPage() {
     return false
   }
 
-  function getSlotUnderPointer(x, y) {
-    for (let i = 0; i < slotRefs.current.length; i++) {
-      const el = slotRefs.current[i]
-      if (!el) continue
-      const rect = el.getBoundingClientRect()
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return i
+  function getSlotUnderPointer(clientX, clientY) {
+    const rects = dragRef.current.cachedRects
+    if (!rects) return null
+    const x = clientX + window.scrollX
+    const y = clientY + window.scrollY
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i]
+      if (r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i
     }
     return null
   }
@@ -304,11 +306,24 @@ export default function ClubRosterPage() {
       const dy = e.clientY - dragRef.current.startY
       if (!dragRef.current.active && Math.hypot(dx, dy) > 8) {
         dragRef.current.active = true
+        // Cache rects on drag start
+        dragRef.current.cachedRects = slotRefs.current.map(el => {
+          if (!el) return null
+          const r = el.getBoundingClientRect()
+          return {
+            left: r.left + window.scrollX,
+            right: r.right + window.scrollX,
+            top: r.top + window.scrollY,
+            bottom: r.bottom + window.scrollY,
+          }
+        })
         setActiveDragIdx(fromIdx)
         startScrollLoop()
       }
       if (dragRef.current.active) {
-        setGhostPos({ x: e.clientX, y: e.clientY })
+        if (ghostRef.current) {
+          ghostRef.current.style.transform = `translate(${e.clientX - 140}px, ${e.clientY - 50}px) rotate(2deg) scale(1.05)`
+        }
         scrollRef.current.x = e.clientX
         scrollRef.current.y = e.clientY
 
@@ -321,7 +336,8 @@ export default function ClubRosterPage() {
           scrollRef.current.dir = 0
         }
 
-        setDragOver(getSlotUnderPointer(e.clientX, e.clientY))
+        const newDragOver = getSlotUnderPointer(e.clientX, e.clientY)
+        setDragOver(prev => prev === newDragOver ? prev : newDragOver)
       }
     }
 
@@ -340,10 +356,9 @@ export default function ClubRosterPage() {
           })
         }
       }
-      dragRef.current = { active: false, fromIdx: null, startX: 0, startY: 0 }
+      dragRef.current = { active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null }
       setActiveDragIdx(null)
       setDragOver(null)
-      setGhostPos(null)
       document.removeEventListener('pointermove', onMove)
       document.removeEventListener('pointerup', onUp)
     }
@@ -565,16 +580,17 @@ export default function ClubRosterPage() {
       )}
 
       {/* Ghost card — follows pointer during drag */}
-      {ghostPlayer && ghostPos && (
-        <div style={{
+      {ghostPlayer && (
+        <div ref={ghostRef} style={{
           position: 'fixed',
-          left: ghostPos.x - 140,
-          top: ghostPos.y - 50,
+          left: 0,
+          top: 0,
           width: 280,
           pointerEvents: 'none',
           zIndex: 9999,
-          transform: 'rotate(2deg) scale(1.05)',
+          transform: `translate(${scrollRef.current.x - 140}px, ${scrollRef.current.y - 50}px) rotate(2deg) scale(1.05)`,
           filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.28))',
+          willChange: 'transform',
         }}>
           <div className="bg-white rounded-2xl border border-gray-200 px-4 py-4 flex items-center gap-3 shadow-2xl">
             {ghostPlayer.photo_url
@@ -585,7 +601,7 @@ export default function ClubRosterPage() {
               <div className="font-heading font-bold text-gray-900 truncate">{ghostPlayer.name}</div>
               <div className="text-xs text-gray-400 mt-0.5">{ghostPlayer.position} · {ghostPlayer.nationality}</div>
             </div>
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${ghostStyle.ovrBg} ${ghostStyle.ovrText}`}>
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${ghostStyle?.ovrBg} ${ghostStyle?.ovrText}`}>
               <span className="text-lg font-bold leading-none">{ghostPlayer.ovr}</span>
             </div>
           </div>

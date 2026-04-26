@@ -112,18 +112,20 @@ function EmptyRow({ isOver, canDrop }) {
 }
 
 function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
-  const dragRef = useRef({ active: false, fromIdx: null, startX: 0, startY: 0 })
+  const dragRef = useRef({ active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null })
   const slotRefs = useRef(Array(12).fill(null))
   const scrollRef = useRef({ rafId: null, dir: 0, x: 0, y: 0 })
   const [activeDragIdx, setActiveDragIdx] = useState(null)
   const [dragOver, setDragOver] = useState(null)
 
-  function getSlotUnderPointer(x, y) {
-    for (let i = 0; i < slotRefs.current.length; i++) {
-      const el = slotRefs.current[i]
-      if (!el) continue
-      const r = el.getBoundingClientRect()
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i
+  function getSlotUnderPointer(clientX, clientY) {
+    const rects = dragRef.current.cachedRects
+    if (!rects) return null
+    const x = clientX + window.scrollX
+    const y = clientY + window.scrollY
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i]
+      if (r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i
     }
     return null
   }
@@ -162,6 +164,16 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
       const dy = e.clientY - dragRef.current.startY
       if (!dragRef.current.active && Math.hypot(dx, dy) > 8) {
         dragRef.current.active = true
+        dragRef.current.cachedRects = slotRefs.current.map(el => {
+          if (!el) return null
+          const r = el.getBoundingClientRect()
+          return {
+            left: r.left + window.scrollX,
+            right: r.right + window.scrollX,
+            top: r.top + window.scrollY,
+            bottom: r.bottom + window.scrollY,
+          }
+        })
         setActiveDragIdx(fromIdx)
         startScrollLoop()
       }
@@ -178,7 +190,8 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
           scrollRef.current.dir = 0
         }
 
-        setDragOver(getSlotUnderPointer(e.clientX, e.clientY))
+        const newDragOver = getSlotUnderPointer(e.clientX, e.clientY)
+        setDragOver(prev => prev === newDragOver ? prev : newDragOver)
       }
     }
 
@@ -202,7 +215,7 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
         // tap — no movement
         if (onTap) onTap(dragRef.current.fromIdx)
       }
-      dragRef.current = { active: false, fromIdx: null, startX: 0, startY: 0 }
+      dragRef.current = { active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null }
       setActiveDragIdx(null)
       setDragOver(null)
       document.removeEventListener('pointermove', onMove)
