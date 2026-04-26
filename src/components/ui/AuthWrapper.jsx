@@ -16,8 +16,8 @@ export default function AuthWrapper({ children }) {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Use env variable if exists, otherwise default to 'admin123'
-    const correctPassword = import.meta.env.VITE_APP_PASSWORD || 'admin123';
+    // Use env variable if exists, otherwise default to '25452002'
+    const correctPassword = import.meta.env.VITE_APP_PASSWORD || '25452002';
     if (password === correctPassword) {
       localStorage.setItem('app_auth', 'true');
       setIsAuthenticated(true);
