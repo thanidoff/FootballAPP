@@ -78,9 +78,19 @@ export default function NewMatchModal({ open, onClose, seasonId, onCreated }) {
         const stats = {}
         clubsData.forEach(c => {
           const squad = playersData.filter(p => p.club_id === c.id)
+          const orderKey = c.is_national ? 'national_roster_order' : 'roster_order'
+          squad.sort((a, b) => {
+            const aHas = a[orderKey] != null;
+            const bHas = b[orderKey] != null;
+            if (aHas && bHas) return a[orderKey] - b[orderKey];
+            if (aHas) return -1;
+            if (bHas) return 1;
+            return b.ovr - a.ovr;
+          })
+          const top5 = squad.slice(0, 5);
           stats[c.id] = {
             count: squad.length,
-            avgOvr: squad.length ? Math.round(squad.reduce((s, p) => s + p.ovr, 0) / squad.length) : 0,
+            avgOvr: top5.length ? Math.round(top5.reduce((s, p) => s + p.ovr, 0) / top5.length) : 0,
           }
         })
         setClubStats(stats)

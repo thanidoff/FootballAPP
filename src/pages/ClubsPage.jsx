@@ -99,7 +99,7 @@ export default function ClubsPage() {
       setError(null)
       const [clubsData, { data: players }] = await Promise.all([
         fetchClubs(),
-        supabase.from('players').select('club_id, nationality, ovr'),
+        supabase.from('players').select('club_id, nationality, ovr, roster_order, national_roster_order'),
       ])
       setClubs(clubsData)
       // club OVR: keyed by club_id (for regular clubs)
@@ -107,31 +107,39 @@ export default function ClubsPage() {
       const clubAcc = {}, natAcc = {}
       for (const p of players ?? []) {
         if (p.club_id) {
-          if (!clubAcc[p.club_id]) clubAcc[p.club_id] = { ovrs: [], count: 0 }
-          clubAcc[p.club_id].ovrs.push(p.ovr)
+          if (!clubAcc[p.club_id]) clubAcc[p.club_id] = { plist: [], count: 0 }
+          clubAcc[p.club_id].plist.push(p)
           clubAcc[p.club_id].count += 1
         }
         if (p.nationality) {
-          if (!natAcc[p.nationality]) natAcc[p.nationality] = { ovrs: [], count: 0 }
-          natAcc[p.nationality].ovrs.push(p.ovr)
+          if (!natAcc[p.nationality]) natAcc[p.nationality] = { plist: [], count: 0 }
+          natAcc[p.nationality].plist.push(p)
           natAcc[p.nationality].count += 1
         }
       }
       const map = {}
       const sizes = {}
-      for (const [id, { ovrs, count }] of Object.entries(clubAcc)) {
-        ovrs.sort((a, b) => b - a)
-        let sum = 0
-        for (let i = 0; i < 5 && i < ovrs.length; i++) sum += ovrs[i]
-        map[id] = Math.round(sum / 5)
+
+      const calcAvg = (plist, orderKey) => {
+        plist.sort((a, b) => {
+          const aHas = a[orderKey] != null;
+          const bHas = b[orderKey] != null;
+          if (aHas && bHas) return a[orderKey] - b[orderKey];
+          if (aHas) return -1;
+          if (bHas) return 1;
+          return b.ovr - a.ovr;
+        });
+        const top5 = plist.slice(0, 5);
+        if (top5.length === 0) return 0;
+        return Math.round(top5.reduce((sum, p) => sum + p.ovr, 0) / top5.length);
+      }
+
+      for (const [id, { plist, count }] of Object.entries(clubAcc)) {
+        map[id] = calcAvg(plist, 'roster_order')
         sizes[id] = count
       }
-      // store national OVR under a special key prefix to avoid collision
-      for (const [nat, { ovrs, count }] of Object.entries(natAcc)) {
-        ovrs.sort((a, b) => b - a)
-        let sum = 0
-        for (let i = 0; i < 5 && i < ovrs.length; i++) sum += ovrs[i]
-        map[`nat:${nat}`] = Math.round(sum / 5)
+      for (const [nat, { plist, count }] of Object.entries(natAcc)) {
+        map[`nat:${nat}`] = calcAvg(plist, 'national_roster_order')
         sizes[`nat:${nat}`] = count
       }
       setOvrMap(map)

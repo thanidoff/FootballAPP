@@ -40,21 +40,33 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
     Promise.all([
       isClub ? fetchClubTeams() : fetchNationalTeams(),
       // fetch avg ovr per nationality
-      supabase.from('players').select('nationality, club_id, ovr'),
+      supabase.from('players').select('nationality, club_id, ovr, roster_order, national_roster_order'),
     ]).then(([t, { data: players }]) => {
       setTeams(t)
       const map = {}
       if (players) {
-        const sums = {}, counts = {}
+        const acc = {}
         for (const p of players) {
           // club mode: key by club_id; national mode: key by nationality
           const key = isClub ? p.club_id : p.nationality
           if (!key) continue
-          sums[key] = (sums[key] ?? 0) + (p.ovr ?? 0)
-          counts[key] = (counts[key] ?? 0) + 1
+          if (!acc[key]) acc[key] = []
+          acc[key].push(p)
         }
-        for (const k of Object.keys(sums)) {
-          map[k] = Math.round(sums[k] / counts[k])
+        const orderKey = isClub ? 'roster_order' : 'national_roster_order'
+        for (const [k, plist] of Object.entries(acc)) {
+          plist.sort((a, b) => {
+            const aHas = a[orderKey] != null;
+            const bHas = b[orderKey] != null;
+            if (aHas && bHas) return a[orderKey] - b[orderKey];
+            if (aHas) return -1;
+            if (bHas) return 1;
+            return b.ovr - a.ovr;
+          });
+          const top5 = plist.slice(0, 5);
+          if (top5.length > 0) {
+            map[k] = Math.round(top5.reduce((sum, p) => sum + p.ovr, 0) / top5.length);
+          }
         }
       }
       setOvrMap(map)
