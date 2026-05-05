@@ -16,6 +16,8 @@ import PageWrapper from '../components/ui/PageWrapper'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import PlayerForm from '../components/players/PlayerForm'
+import PlayerProfileModal from '../components/players/PlayerProfileModal'
+import ClubRecordsContent from '../components/clubs/ClubRecordsContent'
 import { useToast } from '../components/ui/Toast'
 
 const TIER_STYLES = {
@@ -83,13 +85,23 @@ function RosterCard({ player, isCaptain, onRelease, releasing, onEdit, onPointer
 
   return (
     <div
-      onPointerDown={onPointerDown}
+      onClick={() => onEdit && onEdit(player)}
       className={`relative w-full text-left bg-white border rounded-2xl overflow-hidden shadow-sm
-        transition-all duration-150 cursor-grab active:cursor-grabbing select-none touch-none
+        transition-all duration-150 cursor-pointer
         ${isDragging ? 'opacity-25 scale-[0.97]' : ''}
         ${isOver && canDrop ? 'border-gray-400 ring-2 ring-gray-300' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'}
         ${isOver && !canDrop ? 'border-red-300 ring-2 ring-red-200' : ''}`}
     >
+      {/* Drag Handle */}
+      <div 
+        onPointerDown={onPointerDown}
+        className="absolute top-3 right-3 z-10 text-gray-300 cursor-grab active:cursor-grabbing p-1.5 hover:text-gray-400 transition-colors touch-none bg-white/80 backdrop-blur-sm rounded-lg"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="4" y1="9" x2="20" y2="9" />
+          <line x1="4" y1="15" x2="20" y2="15" />
+        </svg>
+      </div>
       <div className="p-5">
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
@@ -109,7 +121,7 @@ function RosterCard({ player, isCaptain, onRelease, releasing, onEdit, onPointer
               <div className="flex items-center gap-1.5 mt-3">
                 {isNational ? (
                   <>
-                    {flagCode && <img src={`https://flagcdn.com/w40/${flagCode}.png`} className="h-4 w-6 object-cover rounded-[2px] shadow-sm flex-shrink-0 ring-1 ring-black/10" alt="" />}
+                    {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-4 w-7 object-cover rounded-sm shadow-sm flex-shrink-0 ring-1 ring-black/10" alt="" />}
                     {playerClub ? (
                       playerClub.badge_url
                         ? <img src={playerClub.badge_url} alt={playerClub.short_name} className="w-6 h-6 object-contain flex-shrink-0" />
@@ -123,7 +135,7 @@ function RosterCard({ player, isCaptain, onRelease, releasing, onEdit, onPointer
                         ? <img src={playerClub.badge_url} alt={playerClub.short_name} className="w-6 h-6 object-contain flex-shrink-0" />
                         : <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: playerClub.badge_color ?? "#6b7280" }}>{playerClub.short_name?.slice(0, 1)}</div>
                     ) : <FreeAgentIcon size={18} />}
-                    {flagCode && <img src={`https://flagcdn.com/w40/${flagCode}.png`} className="h-4 w-6 object-cover rounded-[2px] shadow-sm flex-shrink-0 ring-1 ring-black/10" alt="" />}
+                    {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-4 w-7 object-cover rounded-sm shadow-sm flex-shrink-0 ring-1 ring-black/10" alt="" />}
                   </>
                 )}
                 <span className="text-xs text-gray-400">{player.age} yrs</span>
@@ -165,6 +177,7 @@ function RosterRow({ player, isCaptain, onRelease, releasing, onEdit, onPointerD
   return (
     <PlayerListRow
       player={player}
+      onClick={() => onEdit && onEdit(player)}
       isCaptain={isCaptain}
       isNational={isNational}
       onPointerDown={onPointerDown}
@@ -202,8 +215,10 @@ export default function ClubRosterPage() {
   const [releasing, setReleasing] = useState(null)
   const [editPlayer, setEditPlayer] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [viewMode, setViewMode] = useState('card')
+  const [viewMode, setViewMode] = useState('list')
   const [saveStatus, setSaveStatus] = useState(null) // null | 'saving' | 'saved'
+  const [profilePlayer, setProfilePlayer] = useState(null)
+  const [activeTab, setActiveTab] = useState('squad') // 'squad' | 'records'
   const saveTimerRef = useRef(null)
   const toast = useToast()
 
@@ -454,8 +469,8 @@ export default function ClubRosterPage() {
             : <EmptySlotCard isOver={isOver} canDrop={valid} />
           const sharedProps = {
             player, isCaptain,
-            onEdit: () => setEditPlayer(player),
-            onRelease: club.is_national ? null : () => handleRelease(player, slotIdx),
+            onEdit: () => setProfilePlayer(player),
+            onRelease: club.is_national ? null : () => setReleasing(player),
             releasing: releasing === player.id,
             onPointerDown: e => handlePointerDown(slotIdx, e),
             isDragging: activeDragIdx === slotIdx,
@@ -478,7 +493,7 @@ export default function ClubRosterPage() {
           </svg>
         </button>
         {club.is_national ? (
-          <div className="w-[84px] h-14 rounded-xl overflow-hidden shadow bg-gray-100 flex-shrink-0">
+          <div className="w-[84px] h-[56px] rounded-xl overflow-hidden shadow bg-gray-100 flex-shrink-0 ring-1 ring-black/5">
             <img src={`https://flagcdn.com/${NATION_CODE[club.name] ?? club.short_name.toLowerCase()}.svg`} alt={club.name} className="w-full h-full object-cover" />
           </div>
         ) : club.badge_url ? (
@@ -497,6 +512,14 @@ export default function ClubRosterPage() {
             {playerCount} players
           </p>
         </div>
+        <PlayerProfileModal
+          player={profilePlayer}
+          open={!!profilePlayer}
+          onClose={() => setProfilePlayer(null)}
+          onEdit={(p) => setEditPlayer(p)}
+          onRelease={club.is_national ? null : (p) => handleRelease(p, slots.findIndex(s => s?.id === p.id))}
+        />
+        
         {/* Save indicator */}
         {saveStatus && (
           <div className={`flex items-center gap-1.5 text-[11px] font-heading font-black uppercase tracking-widest flex-shrink-0 transition-all
@@ -536,48 +559,81 @@ export default function ClubRosterPage() {
         </div>
       </div>
 
-      {/* Starting 5 */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-500">Starting 5</span>
-        <span className="text-xs text-gray-400">{starters.filter(Boolean).length} / 5</span>
-      </div>
-      <div className={isList
-        ? 'space-y-1.5 mb-6'
-        : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6'}>
-        {starters.map((player, i) => renderSlot(player, i))}
-      </div>
-
-      {/* Substitutes */}
-      <div className="flex items-center gap-3 mb-3">
-        <div className="flex-1 h-px bg-gray-200" />
-        <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
-          Substitutes · {subs.filter(Boolean).length}
-        </span>
-        <div className="flex-1 h-px bg-gray-200" />
-      </div>
-      <div className={isList
-        ? 'space-y-1.5'
-        : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}>
-        {subs.map((player, i) => renderSlot(player, i + 5))}
+      {/* Tab Switcher */}
+      <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8 w-full sm:w-fit">
+        <button
+          onClick={() => setActiveTab('squad')}
+          className={`flex-1 sm:flex-none px-8 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-widest transition-all
+            ${activeTab === 'squad' ? 'bg-white shadow-sm text-[#0A1318]' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          Squad
+        </button>
+        <button
+          onClick={() => setActiveTab('records')}
+          className={`flex-1 sm:flex-none px-8 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-widest transition-all
+            ${activeTab === 'records' ? 'bg-white shadow-sm text-[#0A1318]' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          Records
+        </button>
       </div>
 
-      {/* Extra squad — national teams only */}
-      {extra.length > 0 && (
-        <>
-          <div className="flex items-center gap-3 mt-6 mb-3">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
-              Squad · {extra.filter(Boolean).length}
-            </span>
-            <div className="flex-1 h-px bg-gray-200" />
+      <div className="relative overflow-hidden">
+        <div 
+          className="flex transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{ transform: `translateX(${activeTab === 'squad' ? '0%' : '-100%'})` }}
+        >
+          {/* Squad View */}
+          <div className="w-full flex-shrink-0">
+            {/* Starting 5 */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-500">Starting 5</span>
+              <span className="text-xs text-gray-400">{starters.filter(Boolean).length} / 5</span>
+            </div>
+            <div className={isList
+              ? 'space-y-1.5 mb-6'
+              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6'}>
+              {starters.map((player, i) => renderSlot(player, i))}
+            </div>
+
+            {/* Substitutes */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
+                Substitutes · {subs.filter(Boolean).length}
+              </span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+            <div className={isList
+              ? 'space-y-1.5'
+              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}>
+              {subs.map((player, i) => renderSlot(player, i + 5))}
+            </div>
+
+            {/* Extra squad — national teams only */}
+            {extra.length > 0 && (
+              <>
+                <div className="flex items-center gap-3 mt-6 mb-3">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
+                    Squad · {extra.filter(Boolean).length}
+                  </span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+                <div className={isList
+                  ? 'space-y-1.5'
+                  : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}>
+                  {extra.map((player, i) => renderSlot(player, i + 12))}
+                </div>
+              </>
+            )}
           </div>
-          <div className={isList
-            ? 'space-y-1.5'
-            : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}>
-            {extra.map((player, i) => renderSlot(player, i + 12))}
+
+          {/* Records View */}
+          <div className="w-full flex-shrink-0 px-1">
+            <ClubRecordsContent club={club} />
           </div>
-        </>
-      )}
+        </div>
+      </div>
 
       {/* Ghost card — follows pointer during drag */}
       {ghostPlayer && (

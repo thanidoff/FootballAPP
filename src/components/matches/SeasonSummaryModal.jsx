@@ -1,17 +1,34 @@
 import { useState, useEffect } from 'react'
 import { fetchSeasonStats } from '../../services/friendlyMatches'
 
+import { FIFA_NATIONS } from '../../utils/fifaNations'
+
 function ClubBadge({ club }) {
   if (!club) return null
+  
+  if (club.is_national) {
+    const nation = FIFA_NATIONS.find(n => n.name === club.name)
+    const code = nation?.code || club.short_name?.toLowerCase()
+    return (
+      <div className="w-8 h-5.5 rounded overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm">
+        <img 
+          src={`https://flagcdn.com/${code}.svg`} 
+          alt={club.name} 
+          className="w-full h-full object-cover" 
+        />
+      </div>
+    )
+  }
+
   if (club.badge_url) {
     return (
-      <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex-shrink-0">
+      <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm">
         <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain p-0.5" />
       </div>
     )
   }
   return (
-    <div className="w-8 h-8 rounded-lg flex items-center justify-center font-heading font-black text-white text-[10px] flex-shrink-0"
+    <div className="w-8 h-8 rounded-lg flex items-center justify-center font-heading font-black text-white text-[10px] flex-shrink-0 shadow-sm"
       style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>
       {club.short_name}
     </div>

@@ -34,30 +34,33 @@ function getZone(code) {
 }
 
 function ClubBadge({ club, size = 'md' }) {
-  const s = size === 'lg' ? 'w-16 h-16 text-xl' : 'w-10 h-10 text-sm'
+  const isLg = size === 'lg'
+  const s = isLg ? 'w-16 h-16 text-xl' : 'w-10 h-10 text-sm'
+  
   if (club.is_national) {
-    const h = size === 'lg' ? 'h-11' : 'h-7'
-    const w = size === 'lg' ? 'w-[66px]' : 'w-[42px]'
+    const flagCode = NATION_CODE[club.name] || club.short_name?.toLowerCase()
+    const rectSize = isLg ? 'w-16 h-11' : 'w-10 h-7'
     return (
-      <div className={`${w} ${h} rounded-lg overflow-hidden shadow-md flex-shrink-0 bg-gray-100`}>
+      <div className={`${rectSize} rounded-lg overflow-hidden shadow-md flex-shrink-0 bg-gray-100 ring-1 ring-black/5`}>
         <img
-          src={`https://flagcdn.com/${NATION_CODE[club.name] ?? club.short_name.toLowerCase()}.svg`}
+          src={`https://flagcdn.com/${flagCode}.svg`}
           alt={club.name}
           className="w-full h-full object-cover"
         />
       </div>
     )
   }
+
   if (club.badge_url) {
     return (
-      <div className={`${s} rounded-xl overflow-hidden shadow-md flex-shrink-0 bg-white`}>
+      <div className={`${s} rounded-xl overflow-hidden shadow-md flex-shrink-0 bg-white ring-1 ring-black/5`}>
         <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain p-1" />
       </div>
     )
   }
   return (
     <div
-      className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white shadow-md flex-shrink-0`}
+      className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white shadow-md flex-shrink-0 ring-1 ring-black/5`}
       style={{ backgroundColor: club.badge_color ?? "#6b7280" }}
     >
       {club.short_name}

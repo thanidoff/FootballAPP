@@ -13,26 +13,38 @@ const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 const ALL_STARS_CLUB = { id: '__allstars__', name: 'All Stars', short_name: 'ALL', badge_color: '#FD5461', is_national: false }
 
 function ClubBadge({ club, size = 'md' }) {
-  const s = size === 'lg' ? 'w-12 h-12' : size === 'sm' ? 'w-7 h-7' : 'w-9 h-9'
+  const isLg = size === 'lg'
+  const isSm = size === 'sm'
+  const s = isLg ? 'w-12 h-12' : isSm ? 'w-7 h-7' : 'w-9 h-9'
   if (!club) return <div className={`${s} rounded-xl bg-gray-100 flex-shrink-0`} />
+  
   if (club.id === '__allstars__') {
     return (
-      <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0 bg-[#FD5461]`}>
+      <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0 bg-[#FD5461] shadow-sm`}>
         ★
       </div>
     )
   }
-  const flagCode = club.is_national ? NATION_CODE[club.name] : null
-  const imgUrl = club.badge_url || (flagCode ? `https://flagcdn.com/w80/${flagCode}.png` : null)
-  if (imgUrl) {
+
+  if (club.is_national) {
+    const flagCode = NATION_CODE[club.name] || club.short_name?.toLowerCase()
+    const rectSize = isLg ? 'w-12 h-8' : isSm ? 'w-7 h-5' : 'w-10 h-7'
     return (
-      <div className={`${s} rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-200`}>
-        <img src={imgUrl} alt={club.name} className="w-full h-full object-cover" />
+      <div className={`${rectSize} rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm`}>
+        <img src={`https://flagcdn.com/${flagCode}.svg`} alt={club.name} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
+
+  if (club.badge_url) {
+    return (
+      <div className={`${s} rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm`}>
+        <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain p-1" />
       </div>
     )
   }
   return (
-    <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0`}
+    <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0 shadow-sm`}
       style={{ backgroundColor: club.badge_color ?? '#0A1318' }}>
       {club.short_name}
     </div>
@@ -183,6 +195,16 @@ function StandingsTable({ standings, champion }) {
 
 function ClubBadgeSm({ club }) {
   if (!club) return <div className="w-5 h-5 rounded-md bg-gray-100 flex-shrink-0" />
+  
+  if (club.is_national) {
+    const flagCode = NATION_CODE[club.name] || club.short_name?.toLowerCase()
+    return (
+      <div className="w-5 h-3.5 rounded-sm overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5">
+        <img src={`https://flagcdn.com/${flagCode}.svg`} alt={club.name} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
+
   if (club.badge_url) {
     return (
       <div className="w-5 h-5 rounded-md overflow-hidden bg-white flex-shrink-0">

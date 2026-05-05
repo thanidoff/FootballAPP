@@ -8,7 +8,7 @@ const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 
 function flagUrl(code) {
   if (!code) return null
-  return `https://flagcdn.com/w40/${code}.png`
+  return `https://flagcdn.com/${code}.svg`
 }
 
 export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'national' }) {

@@ -28,8 +28,8 @@ export default function PlayerListRow({
 
   const flagImg = flagCode && (
     <img
-      src={`https://flagcdn.com/w40/${flagCode}.png`}
-      className="h-3.5 w-5 object-cover rounded-[2px] flex-shrink-0 ring-1 ring-black/10"
+      src={`https://flagcdn.com/${flagCode}.svg`}
+      className="h-3.5 w-6 object-cover rounded-[2px] flex-shrink-0 ring-1 ring-black/10"
       alt=""
     />
   )
@@ -42,13 +42,23 @@ export default function PlayerListRow({
 
   return (
     <div
-      onPointerDown={onPointerDown}
       className={`bg-white border rounded-2xl px-4 py-3 flex items-center gap-3 transition-all
-        ${onPointerDown ? 'cursor-grab active:cursor-grabbing select-none touch-none' : ''}
         ${isDragging ? 'opacity-25 scale-[0.98]' : ''}
         ${isOver && canDrop ? 'border-gray-400 ring-2 ring-gray-200' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm'}
         ${isOver && !canDrop ? 'border-red-300 ring-2 ring-red-100' : ''}`}
     >
+      {/* Drag Handle */}
+      {onPointerDown && (
+        <div 
+          onPointerDown={onPointerDown}
+          className="flex-shrink-0 text-gray-300 cursor-grab active:cursor-grabbing p-1 -ml-1 hover:text-gray-400 transition-colors touch-none"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="4" y1="9" x2="20" y2="9" />
+            <line x1="4" y1="15" x2="20" y2="15" />
+          </svg>
+        </div>
+      )}
       {/* Position */}
       <PositionBadge position={player.position} />
 

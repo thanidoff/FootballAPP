@@ -10,44 +10,56 @@ export class InsufficientBudgetError extends Error {
 }
 
 /**
- * Buy a free-agent player into a club.
- * Uses a Supabase RPC transaction to atomically:
- *   1. Deduct fee from club budget
- *   2. Assign player to club
- *   3. Record transfer history
+ * Buy a player into a club.
+ * Handles both free agents and club-to-club transfers.
  */
-export async function buyPlayer({ playerId, toClubId, fee }) {
-  // Fetch club budget first to give a helpful client-side error
-  const { data: club, error: clubErr } = await supabase
+export async function buyPlayer({ playerId, toClubId, fromClubId = null, fee }) {
+  // 1. Fetch buyer club budget
+  const { data: toClub, error: toClubErr } = await supabase
     .from('clubs')
     .select('budget')
     .eq('id', toClubId)
     .single()
-  if (clubErr) throw clubErr
-  if (club.budget < fee) throw new InsufficientBudgetError(fee, club.budget)
+  if (toClubErr) throw toClubErr
+  if (toClub.budget < fee) throw new InsufficientBudgetError(fee, toClub.budget)
 
-  // Deduct budget
+  // 2. Deduct budget from buyer
   const { error: budgetErr } = await supabase
     .from('clubs')
-    .update({ budget: club.budget - fee })
+    .update({ budget: toClub.budget - fee })
     .eq('id', toClubId)
   if (budgetErr) throw budgetErr
 
-  // Assign player and update market_value to agreed fee
+  // 3. Add budget to seller if they exist
+  if (fromClubId) {
+    const { data: fromClub, error: fromClubErr } = await supabase
+      .from('clubs')
+      .select('budget')
+      .eq('id', fromClubId)
+      .single()
+    if (!fromClubErr) {
+      await supabase
+        .from('clubs')
+        .update({ budget: fromClub.budget + fee })
+        .eq('id', fromClubId)
+    }
+  }
+
+  // 4. Assign player and update market_value to agreed fee
   const { error: playerErr } = await supabase
     .from('players')
     .update({ club_id: toClubId, market_value: fee })
     .eq('id', playerId)
   if (playerErr) {
-    // Rollback budget deduction
-    await supabase.from('clubs').update({ budget: club.budget }).eq('id', toClubId)
+    // Basic rollback for buyer budget
+    await supabase.from('clubs').update({ budget: toClub.budget }).eq('id', toClubId)
     throw playerErr
   }
 
-  // Record transfer
+  // 5. Record transfer
   const { error: transferErr } = await supabase
     .from('transfers')
-    .insert({ player_id: playerId, from_club: null, to_club: toClubId, fee })
+    .insert({ player_id: playerId, from_club: fromClubId, to_club: toClubId, fee })
   if (transferErr) throw transferErr
 }
 

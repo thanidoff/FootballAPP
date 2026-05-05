@@ -2,20 +2,37 @@ import { useState, useEffect } from 'react'
 import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
 import { createMatch } from '../../services/friendlyMatches'
+import { FIFA_NATIONS } from '../../utils/fifaNations'
 
 const DURATIONS = [5, 10, 20, 30]
 
 function ClubBadge({ club, size = 'md' }) {
   const s = size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm'
+  
+  if (club.is_national) {
+    const nation = FIFA_NATIONS.find(n => n.name === club.name)
+    const code = nation?.code || club.short_name?.toLowerCase()
+    const rectSize = size === 'lg' ? 'w-14 h-10' : 'w-10 h-7'
+    return (
+      <div className={`${rectSize} rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 shadow-sm ring-1 ring-black/5`}>
+        <img 
+          src={`https://flagcdn.com/${code}.svg`} 
+          alt={club.name} 
+          className="w-full h-full object-cover" 
+        />
+      </div>
+    )
+  }
+
   if (club.badge_url) {
     return (
-      <div className={`${s} rounded-xl overflow-hidden bg-white flex-shrink-0`}>
+      <div className={`${s} rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm`}>
         <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain p-1" />
       </div>
     )
   }
   return (
-    <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white flex-shrink-0`}
+    <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white flex-shrink-0 shadow-sm`}
       style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>
       {club.short_name}
     </div>

@@ -66,3 +66,55 @@ export async function deleteClub(id) {
   const { error } = await supabase.from('clubs').delete().eq('id', id)
   if (error) throw error
 }
+
+export async function fetchClubRecords(clubId) {
+  const [friendly, worldCup, league] = await Promise.all([
+    supabase.from('friendly_match_events').select('player_id, event_type').eq('club_id', clubId),
+    supabase.from('world_cup_match_events').select('player_id, event_type').eq('club_id', clubId),
+    supabase.from('league_match_events').select('player_id, event_type').eq('club_id', clubId),
+  ])
+
+  const allEvents = [
+    ...(friendly.data ?? []),
+    ...(worldCup.data ?? []),
+    ...(league.data ?? []),
+  ]
+
+  const tally = {}
+  for (const e of allEvents) {
+    if (!tally[e.player_id]) {
+      tally[e.player_id] = { goal: 0, assist: 0, mvp: 0, yellow_card: 0, red_card: 0 }
+    }
+    tally[e.player_id][e.event_type] = (tally[e.player_id][e.event_type] || 0) + 1
+  }
+
+  const playerIds = Object.keys(tally)
+  if (!playerIds.length) return { topScorers: [], topAssists: [], mostMvps: [], mostYellows: [], mostReds: [] }
+
+  const { data: players } = await supabase
+    .from('players')
+    .select('*, clubs(id, name, short_name, badge_color, badge_url, is_national)')
+    .in('id', playerIds)
+
+  const playerMap = Object.fromEntries((players ?? []).map(p => [p.id, {
+    ...p,
+    club: p.clubs
+  }]))
+
+  const format = (type) => Object.entries(tally)
+    .filter(([pid, v]) => v[type] > 0 && playerMap[pid])
+    .sort((a, b) => b[1][type] - a[1][type])
+    .slice(0, 10)
+    .map(([pid, v]) => ({
+      player: playerMap[pid],
+      value: v[type]
+    }))
+
+  return {
+    topScorers: format('goal'),
+    topAssists: format('assist'),
+    mostMvps: format('mvp'),
+    mostYellows: format('yellow_card'),
+    mostReds: format('red_card'),
+  }
+}

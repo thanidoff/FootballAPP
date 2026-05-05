@@ -41,6 +41,16 @@ function PlayerAvatar({ photoUrl, name, size = 'md' }) {
 
 function ClubBadge({ club }) {
   if (!club) return null
+  
+  if (club.is_national) {
+    const code = FIFA_NATIONS.find(n => n.name === club.name)?.code || club.short_name?.toLowerCase()
+    return (
+      <div className="w-8 h-5.5 rounded overflow-hidden bg-gray-100 ring-1 ring-black/5 shadow-sm">
+        <img src={`https://flagcdn.com/${code}.svg`} alt={club.name} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
+
   if (club.badge_url) {
     return (
       <div className="w-6 h-6 rounded flex-shrink-0 overflow-hidden bg-white ring-1 ring-gray-100">
@@ -49,14 +59,14 @@ function ClubBadge({ club }) {
     )
   }
   return (
-    <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-bold"
+    <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-bold shadow-sm"
       style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>
       {club.short_name?.slice(0, 1)}
     </div>
   )
 }
 
-export default function PlayerCard({ player, onClick, onEdit, onDelete, deleteLabel = 'Del', compact = false }) {
+export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, deleteLabel = 'Del', compact = false }) {
   const tier = getOVRTier(player.ovr)
   const style = TIER_STYLES[tier]
   const posColor = POS_COLORS[player.position] ?? '#6b7280'
@@ -75,8 +85,8 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, deleteLa
             <div className="text-sm font-medium text-gray-900 truncate">{player.name}</div>
             <div className="flex items-center gap-1.5 mt-0.5">
               {flagCode && (
-                <img src={`https://flagcdn.com/w20/${flagCode}.png`} alt={player.nationality}
-                  className="h-2.5 w-4 object-cover rounded-[2px]" />
+                <img src={`https://flagcdn.com/${flagCode}.svg`} alt={player.nationality}
+                  className="h-3 w-5 object-cover rounded-sm shadow-sm" />
               )}
               {player.club && <ClubBadge club={player.club} />}
             </div>
@@ -106,8 +116,8 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, deleteLa
               <div className="text-base font-semibold text-gray-900 leading-tight truncate">{player.name}</div>
               <div className="flex items-center gap-1.5 mt-3">
                 {flagCode && (
-                  <img src={`https://flagcdn.com/w40/${flagCode}.png`} alt={player.nationality}
-                    className="h-4 w-6 object-cover rounded-[2px] shadow-sm flex-shrink-0" />
+                  <img src={`https://flagcdn.com/${flagCode}.svg`} alt={player.nationality}
+                    className="h-4 w-7 object-cover rounded-sm shadow-sm flex-shrink-0" />
                 )}
                 {player.club
                   ? <ClubBadge club={player.club} />
@@ -139,12 +149,11 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, deleteLa
 
         {/* Footer */}
         <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-          {onEdit || onDelete ? (
-            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-              {onEdit && <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>}
-              {onDelete && <Button variant="ghost" size="sm" onClick={onDelete}>{deleteLabel}</Button>}
-            </div>
-          ) : null}
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+            {onEdit && <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>}
+            {onDelete && <Button variant="ghost" size="sm" onClick={onDelete}>{deleteLabel}</Button>}
+            {onSign && <Button size="sm" onClick={onSign}>Sign</Button>}
+          </div>
           <span className="text-sm font-semibold text-gray-700">${formatCurrency(player.market_value)}</span>
         </div>
       </div>

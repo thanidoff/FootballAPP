@@ -12,6 +12,8 @@ import { useToast } from '../components/ui/Toast'
 
 const TIER_DOT = { gold: 'bg-[#0A1318]', silver: 'bg-gray-400', bronze: 'bg-gray-300' }
 
+import { FIFA_NATIONS } from '../utils/fifaNations'
+
 export default function TransferMarketPage() {
   const [players, setPlayers] = useState([])
   const [clubs, setClubs] = useState([])
@@ -131,6 +133,7 @@ export default function TransferMarketPage() {
         <div className="space-y-2">
           {filtered.map((player) => {
             const tier = getOVRTier(player.ovr)
+            const flagCode = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
             return (
               <div
                 key={player.id}
@@ -146,7 +149,12 @@ export default function TransferMarketPage() {
                 {/* Name+nat: full-width row 2 on mobile, inline flex-1 on sm+ */}
                 <div className="flex items-center gap-2 order-last w-full sm:order-none sm:w-auto sm:flex-1 min-w-0">
                   <span className="font-heading font-bold text-gray-900 truncate">{player.name}</span>
-                  <span className="text-xs text-gray-400 flex-shrink-0 ml-auto sm:ml-0">{player.nationality} · {player.age} yrs</span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto sm:ml-0">
+                    {flagCode && (
+                      <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-3 w-5 object-cover rounded-sm shadow-sm ring-1 ring-black/5" alt="" />
+                    )}
+                    <span className="text-xs text-gray-400">{player.nationality} · {player.age} yrs</span>
+                  </div>
                 </div>
 
                 {/* Market value: desktop only */}
@@ -215,7 +223,7 @@ export default function TransferMarketPage() {
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20"
               >
                 <option value="">-- Choose a club --</option>
-                {clubs.map((c) => (
+                {clubs.filter(c => !c.is_national).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} · Budget: ${formatCurrency(c.budget)}
                     {c.budget < buying.player.market_value ? ' (insufficient)' : ''}

@@ -150,3 +150,54 @@ export async function deletePlayer(id) {
   const { error } = await supabase.from('players').delete().eq('id', id)
   if (error) throw error
 }
+
+export async function fetchPlayerHistory(playerId) {
+  // Query all 3 event tables in parallel
+  const [friendly, worldCup, league] = await Promise.all([
+    supabase
+      .from('friendly_match_events')
+      .select('*, club:clubs(id, name, short_name, badge_color, badge_url, is_national)')
+      .eq('player_id', playerId),
+    supabase
+      .from('world_cup_match_events')
+      .select('*, club:clubs(id, name, short_name, badge_color, badge_url, is_national)')
+      .eq('player_id', playerId),
+    supabase
+      .from('league_match_events')
+      .select('*, club:clubs(id, name, short_name, badge_color, badge_url, is_national)')
+      .eq('player_id', playerId),
+  ])
+
+  const allEvents = [
+    ...(friendly.data ?? []),
+    ...(worldCup.data ?? []),
+    ...(league.data ?? []),
+  ]
+
+  // Group by club_id
+  const historyMap = {}
+  for (const e of allEvents) {
+    const clubId = e.club_id
+    if (!clubId) continue
+    
+    if (!historyMap[clubId]) {
+      historyMap[clubId] = {
+        club: e.club,
+        stats: { goal: 0, assist: 0, mvp: 0, yellow_card: 0, red_card: 0 }
+      }
+    }
+    historyMap[clubId].stats[e.event_type] = (historyMap[clubId].stats[e.event_type] || 0) + 1
+  }
+
+  // Also fetch awards
+  const { data: awards } = await supabase
+    .from('player_awards')
+    .select('*, club:clubs(id, name, short_name, badge_color, badge_url, is_national)')
+    .eq('player_id', playerId)
+    .order('created_at', { ascending: false })
+
+  return {
+    history: Object.values(historyMap),
+    awards: awards ?? []
+  }
+}

@@ -16,6 +16,7 @@ import PlayerListRow from '../components/ui/PlayerListRow'
 import ScrollToTop from '../components/ui/ScrollToTop'
 import PageWrapper from '../components/ui/PageWrapper'
 import { SkeletonCard, SkeletonRow } from '../components/ui/SkeletonCard'
+import PlayerProfileModal from '../components/players/PlayerProfileModal'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
 const POS_DOT = { GK: 'bg-amber-400', DEF: 'bg-[#3b82f6]', MF: 'bg-[#22c55e]', FWD: 'bg-[#FD5461]' }
@@ -38,6 +39,7 @@ export default function PlayersPage() {
   const [agreedFee, setAgreedFee] = useState(0)
   const [feeDisplay, setFeeDisplay] = useState('')
   const [processing, setProcessing] = useState(false)
+  const [profilePlayer, setProfilePlayer] = useState(null)
   const toast = useToast()
 
   const load = useCallback(async () => {
@@ -112,17 +114,31 @@ export default function PlayersPage() {
     if (!signing || !selectedClub) return
     try {
       setProcessing(true)
-      await buyPlayer({ playerId: signing.id, toClubId: selectedClub, fee: agreedFee })
-      const club = clubs.find((c) => c.id === selectedClub)
+      const fromClubId = signing.club_id
+      await buyPlayer({ 
+        playerId: signing.id, 
+        toClubId: selectedClub, 
+        fromClubId,
+        fee: agreedFee 
+      })
+
+      const toClub = clubs.find((c) => c.id === selectedClub)
+      
+      // Update players state
       setPlayers((prev) => prev.map((p) =>
-        p.id === signing.id ? { ...p, club_id: selectedClub, club, market_value: agreedFee } : p
+        p.id === signing.id ? { ...p, club_id: selectedClub, club: toClub, market_value: agreedFee } : p
       ))
-      setClubs((prev) => prev.map((c) =>
-        c.id === selectedClub ? { ...c, budget: c.budget - agreedFee } : c
-      ))
+
+      // Update clubs state (Buyer budget down, Seller budget up if exists)
+      setClubs((prev) => prev.map((c) => {
+        if (c.id === selectedClub) return { ...c, budget: c.budget - agreedFee }
+        if (fromClubId && c.id === fromClubId) return { ...c, budget: c.budget + agreedFee }
+        return c
+      }))
+
       setSigning(null)
       setSelectedClub('')
-      toast.success(`${signing.name} signed to ${club?.name}`)
+      toast.success(`${signing.name} ${fromClubId ? 'transferred' : 'signed'} to ${toClub?.name}`)
     } catch (e) {
       if (e instanceof InsufficientBudgetError) {
         toast.error(`Insufficient budget — short by $${formatCurrency(e.needed - e.available)}`)
@@ -264,9 +280,15 @@ export default function PlayersPage() {
               <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 40, 400)}ms`, animationFillMode: 'both' }}>
                 <PlayerCard
                   player={player}
-                  onClick={() => setModal({ mode: 'edit', player })}
+                  onClick={() => setProfilePlayer(player)}
                   onEdit={() => setModal({ mode: 'edit', player })}
                   onDelete={() => handleDelete(player.id)}
+                  onSign={() => {
+                    setSigning(player);
+                    setSelectedClub('');
+                    setAgreedFee(player.market_value);
+                    setFeeDisplay((player.market_value / 1_000_000).toFixed(1));
+                  }}
                 />
               </div>
             ))}
@@ -277,13 +299,14 @@ export default function PlayersPage() {
               <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 30, 300)}ms`, animationFillMode: 'both' }}>
               <PlayerListRow
                 player={player}
+                onClick={() => setProfilePlayer(player)}
                 actions={
                   <>
                     <Button variant="ghost" size="sm" onClick={() => setModal({ mode: 'edit', player })}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(player.id)}>Del</Button>
-                    {tab === 'free' && (
-                      <Button size="sm" onClick={() => { setSigning(player); setSelectedClub(''); setAgreedFee(player.market_value); setFeeDisplay((player.market_value / 1_000_000).toFixed(1)) }} disabled={clubs.length === 0}>Sign</Button>
-                    )}
+                    <Button size="sm" onClick={() => { setSigning(player); setSelectedClub(''); setAgreedFee(player.market_value); setFeeDisplay((player.market_value / 1_000_000).toFixed(1)) }} disabled={clubs.length === 0}>
+                      {player.club_id ? 'Transfer' : 'Sign'}
+                    </Button>
                   </>
                 }
               />
@@ -329,7 +352,7 @@ export default function PlayersPage() {
                   <PositionBadge position={signing.position} />
                   {(() => {
                     const code = FIFA_NATIONS.find(n => n.name === signing.nationality)?.code
-                    return code ? <img src={`https://flagcdn.com/w40/${code}.png`} className="h-3.5 w-5 object-cover rounded-[2px] ring-1 ring-black/10" alt="" /> : null
+                    return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3.5 w-6 object-cover rounded-sm shadow-sm ring-1 ring-black/10" alt="" /> : null
                   })()}
                   <span className="text-sm text-gray-500">{signing.nationality}</span>
                   {signing.club && (
@@ -350,7 +373,7 @@ export default function PlayersPage() {
               label="Select Club"
               value={selectedClub}
               onChange={(val) => setSelectedClub(val)}
-              clubs={clubs.map((c) => ({
+              clubs={clubs.filter(c => !c.is_national && c.id !== signing.club_id).map((c) => ({
                 ...c,
                 name: `${c.name}  ·  $${formatCurrency(c.budget)}${c.budget < agreedFee ? '  (insufficient)' : ''}`,
               }))}
@@ -404,6 +427,12 @@ export default function PlayersPage() {
           </div>
         )}
       </Modal>
+      <PlayerProfileModal
+        player={profilePlayer}
+        open={!!profilePlayer}
+        onClose={() => setProfilePlayer(null)}
+        onEdit={(p) => setModal({ mode: 'edit', player: p })}
+      />
       <ScrollToTop />
     </PageWrapper>
   )

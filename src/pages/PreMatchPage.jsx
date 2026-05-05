@@ -7,6 +7,7 @@ import { completeLeagueMatch } from '../services/league'
 import { getOVRTier } from '../utils/stats'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 import PlayerCard from '../components/ui/PlayerCard'
+import ScrollToTop from '../components/ui/ScrollToTop'
 
 const TIER_STYLES = {
   special: 'bg-[#FD5461] text-white',
@@ -55,13 +56,22 @@ function PlayerRow({ player, isDragging, isOver, canDrop, onPointerDown, isCapta
 
   return (
     <div
-      onPointerDown={onPointerDown}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-100 cursor-grab active:cursor-grabbing select-none touch-none min-h-[52px]
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-100 min-h-[52px]
         ${isDragging ? 'opacity-20' : ''}
         ${isSuspended ? 'opacity-50' : ''}
         ${isOver && canDrop ? 'border-[#FD5461] bg-red-50' : 'border-gray-100 bg-white hover:border-gray-200'}
         ${isOver && !canDrop ? 'border-red-300 bg-red-50' : ''}`}
     >
+      {/* Drag Handle */}
+      <div 
+        onPointerDown={onPointerDown}
+        className="flex-shrink-0 text-gray-300 cursor-grab active:cursor-grabbing p-1 -ml-1 hover:text-gray-400 transition-colors touch-none"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="4" y1="9" x2="20" y2="9" />
+          <line x1="4" y1="15" x2="20" y2="15" />
+        </svg>
+      </div>
       {/* Photo */}
       <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
         {player.photo_url
@@ -77,7 +87,7 @@ function PlayerRow({ player, isDragging, isOver, canDrop, onPointerDown, isCapta
           {isCaptain && <CaptainBadge />}
         </div>
         <div className="flex items-center gap-1 mt-0.5">
-          {flagCode && <img src={`https://flagcdn.com/w20/${flagCode}.png`} className="h-2.5 w-3.5 object-cover rounded-[2px] ring-1 ring-black/10" alt="" />}
+          {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10" alt="" />}
           <span className="text-[10px] font-heading font-bold uppercase tracking-wider" style={{ color: POS_COLORS[player.position] ?? '#6b7280' }}>
             {POS_LABEL[player.position] ?? player.position}
           </span>
@@ -399,6 +409,81 @@ export default function PreMatchPage() {
   const [redCardMinute, setRedCardMinute] = useState(null)
   const [playerDetail, setPlayerDetail] = useState(null)
   const [mvp, setMvp] = useState(null)
+  const [isMuted, setIsMuted] = useState(false)
+  const anthemRef = useRef(null)
+  const crowdRef = useRef(null)
+  const whistleRef = useRef(null)
+  const [simModal, setSimModal] = useState(false)
+  const [simPreview, setSimPreview] = useState(null)
+
+  function simulateSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
+    const homeOvr = homeSlots.slice(0, 5).reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5
+    const awayOvr = awaySlots.slice(0, 5).reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5
+    
+    let hScore = currentHomeScore
+    let aScore = currentAwayScore
+    const newGoals = [...currentGoals]
+    const newFouls = [...currentFouls]
+
+    const POS_WEIGHTS = { FWD: 10, MF: 5, DEF: 2, GK: 0.05 }
+    const ASSIST_WEIGHTS = { MF: 10, FWD: 6, DEF: 5, GK: 1 }
+
+    function pickWeightedPlayer(lineup, weights) {
+      const filtered = lineup.filter(Boolean)
+      if (filtered.length === 0) return null
+      const totalWeight = filtered.reduce((sum, p) => sum + (weights[p.position] || 1), 0)
+      let rand = Math.random() * totalWeight
+      for (const p of filtered) {
+        const w = weights[p.position] || 1
+        if (rand < w) return p
+        rand -= w
+      }
+      return filtered[0]
+    }
+    
+    for (let s = startSec; s < endSec; s += 30) {
+      const matchMin = Math.floor(s / 60) || 1
+      const pHome = (homeOvr / 100) * 0.12 * (homeOvr / awayOvr)
+      const pAway = (awayOvr / 100) * 0.12 * (awayOvr / homeOvr)
+      
+      if (Math.random() < pHome) {
+        hScore++
+        const starters = homeSlots.slice(0, 5)
+        const scorer = pickWeightedPlayer(starters, POS_WEIGHTS)
+        const assist = Math.random() > 0.4 ? pickWeightedPlayer(starters.filter(p => p?.id !== scorer?.id), ASSIST_WEIGHTS) : null
+        newGoals.push({ team: 'home', scorer, assist, minute: matchMin })
+      }
+      if (Math.random() < pAway) {
+        aScore++
+        const starters = awaySlots.slice(0, 5)
+        const scorer = pickWeightedPlayer(starters, POS_WEIGHTS)
+        const assist = Math.random() > 0.4 ? pickWeightedPlayer(starters.filter(p => p?.id !== scorer?.id), ASSIST_WEIGHTS) : null
+        newGoals.push({ team: 'away', scorer, assist, minute: matchMin })
+      }
+      if (Math.random() < 0.04) {
+        const team = Math.random() > 0.5 ? 'home' : 'away'
+        const lineup = (team === 'home' ? homeSlots : awaySlots).slice(0, 5).filter(Boolean)
+        const player = lineup[Math.floor(Math.random() * lineup.length)]
+        if (player) {
+          const card = Math.random() > 0.85 ? 'red' : 'yellow'
+          const fPhase = s < halfSeconds ? 'first_half' : 'second_half'
+          newFouls.push({ player, team, card, minute: matchMin, phase: fPhase })
+        }
+      }
+    }
+    return { hScore, aScore, newGoals, newFouls }
+  }
+
+  function handleSimAction(target) {
+    let targetPhase = 'full_time'
+    let targetElapsed = totalSeconds
+    if (target === 'half') {
+      targetPhase = 'half_time'
+      targetElapsed = halfSeconds
+    }
+    const result = simulateSegment(elapsed, targetElapsed, homeScore, awayScore, goals, fouls)
+    setSimPreview({ ...result, targetPhase, targetElapsed })
+  }
   const timerRef = useRef(null)
   const countdownRef = useRef(null)
 
@@ -431,6 +516,7 @@ export default function PreMatchPage() {
       count -= 1
       if (count === 0) {
         setCountdown('KICK OFF!')
+        whistleRef.current?.play().catch(() => {})
         setTimeout(() => {
           setCountdown(null)
           setPhase(nextPhase)
@@ -461,6 +547,8 @@ export default function PreMatchPage() {
     setPaused(false)
     if (phase === 'idle') {
       setElapsed(0); setHomeScore(0); setAwayScore(0)
+      anthemRef.current?.play().catch(() => {})
+      crowdRef.current?.play().catch(() => {})
       startWithCountdown('first_half', halfSeconds, endFirstHalf)
     } else if (phase === 'first_half') {
       endFirstHalf()
@@ -568,7 +656,31 @@ export default function PreMatchPage() {
     ? homeSlots.filter(Boolean)
     : awaySlots.filter(Boolean)
 
-  useEffect(() => () => { clearInterval(timerRef.current); clearInterval(countdownRef.current) }, [])
+  useEffect(() => {
+    const audios = [anthemRef.current, crowdRef.current, whistleRef.current]
+    audios.forEach(a => {
+      if (a) {
+        if (a === crowdRef.current) a.volume = isMuted ? 0 : 0.2
+        else if (a === whistleRef.current) a.volume = isMuted ? 0 : 0.6
+        else a.volume = isMuted ? 0 : 0.5
+      }
+    })
+  }, [isMuted])
+
+  useEffect(() => {
+    return () => {
+      clearInterval(timerRef.current)
+      clearInterval(countdownRef.current)
+      // Stop all audio on unmount
+      const audios = [anthemRef.current, crowdRef.current, whistleRef.current]
+      audios.forEach(a => {
+        if (a) {
+          a.pause()
+          a.currentTime = 0
+        }
+      })
+    }
+  }, [])
 
   function formatTime(s) {
     const m = Math.floor(s / 60)
@@ -678,6 +790,24 @@ export default function PreMatchPage() {
           </div>
           {/* Desktop buttons (hidden on mobile) */}
           <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors mr-1"
+          >
+            {isMuted ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM22 9l-6 6M16 9l6 6"/></svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+            )}
+          </button>
+          {phase !== 'full_time' && (
+            <button
+              onClick={() => setSimModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-600 font-heading font-black text-sm uppercase tracking-widest hover:bg-amber-100 transition-colors cursor-pointer mr-2"
+            >
+              Sim
+            </button>
+          )}
           {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
             <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
               Foul
@@ -717,6 +847,14 @@ export default function PreMatchPage() {
         </div>
         {/* Mobile buttons (hidden on sm+) */}
         <div className="flex sm:hidden items-center gap-2 mt-4">
+          {phase !== 'full_time' && (
+            <button
+              onClick={() => setSimModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-600 font-heading font-black text-sm uppercase tracking-widest hover:bg-amber-100 transition-colors cursor-pointer mr-auto"
+            >
+              Sim
+            </button>
+          )}
           {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
             <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
               Foul
@@ -759,11 +897,22 @@ export default function PreMatchPage() {
       <div className="flex items-center bg-gray-50 rounded-2xl px-5 py-4 mb-6 gap-3">
         {/* Home badge + name */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          {homeClub.badge_url
-            ? <img src={homeClub.badge_url} alt={homeClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
-            : <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
-                style={{ backgroundColor: homeClub.badge_color ?? "#6b7280" }}>{homeClub.short_name}</div>
-          }
+          {nationalMode ? (
+            <div className="w-10 h-7 rounded overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm">
+              <img 
+                src={`https://flagcdn.com/${FIFA_NATIONS.find(n => n.name === homeClub.name)?.code || homeClub.short_name?.toLowerCase()}.svg`} 
+                alt={homeClub.name} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+          ) : (
+            homeClub.badge_url ? (
+              <img src={homeClub.badge_url} alt={homeClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
+                  style={{ backgroundColor: homeClub.badge_color ?? "#6b7280" }}>{homeClub.short_name}</div>
+            )
+          )}
           <div className="font-heading font-black text-[#0A1318] uppercase tracking-wide truncate text-sm">
             <span className="hidden sm:inline">{homeClub.name}</span>
             <span className="sm:hidden">{homeClub.short_name}</span>
@@ -799,11 +948,22 @@ export default function PreMatchPage() {
             <span className="hidden sm:inline">{awayClub.name}</span>
             <span className="sm:hidden">{awayClub.short_name}</span>
           </div>
-          {awayClub.badge_url
-            ? <img src={awayClub.badge_url} alt={awayClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
-            : <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
-                style={{ backgroundColor: awayClub.badge_color ?? "#6b7280" }}>{awayClub.short_name}</div>
-          }
+          {nationalMode ? (
+            <div className="w-10 h-7 rounded overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm">
+              <img 
+                src={`https://flagcdn.com/${FIFA_NATIONS.find(n => n.name === awayClub.name)?.code || awayClub.short_name?.toLowerCase()}.svg`} 
+                alt={awayClub.name} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+          ) : (
+            awayClub.badge_url ? (
+              <img src={awayClub.badge_url} alt={awayClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
+                  style={{ backgroundColor: awayClub.badge_color ?? "#6b7280" }}>{awayClub.short_name}</div>
+            )
+          )}
         </div>
       </div>
 
@@ -972,10 +1132,21 @@ export default function PreMatchPage() {
               ].map(({ key, club }) => (
                 <button key={key} onClick={() => { setGoalTeam(key); setGoalStep('scorer') }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-red-50 transition-colors text-left">
-                  {club.badge_url
-                    ? <img src={club.badge_url} alt={club.name} className="w-9 h-9 object-contain flex-shrink-0" />
-                    : <div className="w-9 h-9 rounded-lg flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0" style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>{club.short_name}</div>
-                  }
+                  {nationalMode ? (
+                    <div className="w-10 h-7 rounded overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm">
+                      <img 
+                        src={`https://flagcdn.com/${FIFA_NATIONS.find(n => n.name === club.name)?.code || club.short_name?.toLowerCase()}.svg`} 
+                        alt={club.name} 
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+                  ) : (
+                    club.badge_url ? (
+                      <img src={club.badge_url} alt={club.name} className="w-9 h-9 object-contain flex-shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0" style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>{club.short_name}</div>
+                    )
+                  )}
                   <span className="font-heading font-black text-sm uppercase tracking-wide text-[#0A1318]">{club.name}</span>
                 </button>
               ))}
@@ -1046,6 +1217,130 @@ export default function PreMatchPage() {
       )}
 
       <PlayerDetailModal player={playerDetail} onClose={() => setPlayerDetail(null)} />
+
+      {/* Simulation Modal */}
+      {simModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-heading font-black text-2xl uppercase tracking-wide">Match Simulator</h2>
+                <button onClick={() => { setSimModal(false); setSimPreview(null) }} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                </button>
+              </div>
+
+              {!simPreview ? (
+                <div className="space-y-4">
+                  <p className="text-gray-500 text-sm">Select how you want to simulate the remaining match time.</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    {(phase === 'idle' || phase === 'first_half') && (
+                      <button 
+                        onClick={() => handleSimAction('half')}
+                        className="w-full py-4 rounded-2xl bg-gray-50 text-gray-900 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-100 transition-all border-2 border-transparent hover:border-gray-200 cursor-pointer"
+                      >
+                        Simulate until Half-time
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => handleSimAction('full')}
+                      className="w-full py-4 rounded-2xl bg-[#0A1318] text-white font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-800 transition-all cursor-pointer"
+                    >
+                      Simulate until Full-time
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Result Preview */}
+                  <div className="bg-gray-50 rounded-2xl p-5 flex flex-col items-center">
+                    <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 mb-4">Simulated Result</span>
+                    <div className="flex items-center gap-8 mb-6">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="font-heading font-black text-5xl text-[#0A1318]">{simPreview.hScore}</div>
+                        <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-gray-400">{homeClub.short_name}</span>
+                      </div>
+                      <div className="text-2xl font-heading font-black text-gray-200">VS</div>
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="font-heading font-black text-5xl text-[#0A1318]">{simPreview.aScore}</div>
+                        <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-gray-400">{awayClub.short_name}</span>
+                      </div>
+                    </div>
+
+                    {/* Event Summary Preview */}
+                    <div className="w-full grid grid-cols-2 gap-4 border-t border-gray-200 pt-4 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                      <div className="space-y-1.5">
+                        {simPreview.newGoals.filter(g => g.team === 'home').map((g, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                            <span className="flex-shrink-0">⚽</span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-heading font-bold text-[#0A1318] truncate">{g.scorer?.name}</span>
+                              {g.assist && <span className="text-[8px] text-gray-400 truncate -mt-0.5">({g.assist.name})</span>}
+                            </div>
+                            <span className="text-gray-400 font-bold ml-auto">{g.minute}'</span>
+                          </div>
+                        ))}
+                        {simPreview.newFouls.filter(f => f.team === 'home').map((f, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                            <span className="flex-shrink-0">{f.card === 'red' ? '🟥' : '🟨'}</span>
+                            <span className="font-heading font-bold text-[#0A1318] truncate">{f.player?.name}</span>
+                            <span className="text-gray-400 font-bold ml-auto">{f.minute}'</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-1.5">
+                        {simPreview.newGoals.filter(g => g.team === 'away').map((g, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-[10px] justify-end text-right">
+                            <span className="text-gray-400 font-bold mr-auto">{g.minute}'</span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-heading font-bold text-[#0A1318] truncate">{g.scorer?.name}</span>
+                              {g.assist && <span className="text-[8px] text-gray-400 truncate -mt-0.5">({g.assist.name})</span>}
+                            </div>
+                            <span className="flex-shrink-0">⚽</span>
+                          </div>
+                        ))}
+                        {simPreview.newFouls.filter(f => f.team === 'away').map((f, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-[10px] justify-end text-right">
+                            <span className="text-gray-400 font-bold mr-auto">{f.minute}'</span>
+                            <span className="font-heading font-bold text-[#0A1318] truncate">{f.player?.name}</span>
+                            <span className="flex-shrink-0">{f.card === 'red' ? '🟥' : '🟨'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => handleSimAction(simPreview.targetPhase === 'half_time' ? 'half' : 'full')}
+                      className="py-4 rounded-2xl bg-gray-100 text-gray-900 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-all cursor-pointer"
+                    >
+                      Simulate Again
+                    </button>
+                    <button 
+                      onClick={() => {
+                        clearInterval(timerRef.current)
+                        setHomeScore(simPreview.hScore)
+                        setAwayScore(simPreview.aScore)
+                        setGoals(simPreview.newGoals)
+                        setFouls(simPreview.newFouls)
+                        setPhase(simPreview.targetPhase)
+                        setElapsed(simPreview.targetElapsed)
+                        setSimPreview(null)
+                        setSimModal(false)
+                        showNotification(simPreview.targetPhase === 'full_time' ? 'FULL TIME' : 'HALF TIME')
+                      }}
+                      className="py-4 rounded-2xl bg-[#FD5461] text-white font-heading font-black text-sm uppercase tracking-widest hover:bg-red-500 transition-all shadow-lg shadow-red-200 cursor-pointer"
+                    >
+                      Apply Result
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Foul Modal */}
       {foulStep !== null && (
@@ -1219,6 +1514,13 @@ export default function PreMatchPage() {
           </div>
         </div>
       )}
+
+      <ScrollToTop />
+
+      {/* Audio Elements */}
+      <audio ref={anthemRef} src="/Inazuma11 OST 1 - Holy Ground (Anime ver.).mp3" preload="auto" loop />
+      <audio ref={crowdRef} src="/audio/crowd.mp3" preload="auto" loop />
+      <audio ref={whistleRef} src="/audio/whistle.mp3" preload="auto" />
 
       <style>{`
         @keyframes countdownPop {

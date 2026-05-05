@@ -14,18 +14,37 @@ import NewMatchModal from '../components/matches/NewMatchModal'
 import MatchResultModal from '../components/matches/MatchResultModal'
 import SeasonSummaryModal from '../components/matches/SeasonSummaryModal'
 
+import { FIFA_NATIONS } from '../utils/fifaNations'
+
 function ClubBadge({ club, size = 'md' }) {
-  const s = size === 'lg' ? 'w-12 h-12' : 'w-9 h-9'
+  const isLg = size === 'lg'
+  const s = isLg ? 'w-12 h-12' : 'w-9 h-9'
   if (!club) return <div className={`${s} rounded-xl bg-gray-100 flex-shrink-0`} />
+  
+  if (club.is_national) {
+    const nation = FIFA_NATIONS.find(n => n.name === club.name)
+    const code = nation?.code || club.short_name?.toLowerCase()
+    const rectSize = isLg ? 'w-12 h-8' : 'w-10 h-7'
+    return (
+      <div className={`${rectSize} rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm`}>
+        <img 
+          src={`https://flagcdn.com/${code}.svg`} 
+          alt={club.name} 
+          className="w-full h-full object-cover" 
+        />
+      </div>
+    )
+  }
+
   if (club.badge_url) {
     return (
-      <div className={`${s} rounded-xl overflow-hidden bg-white flex-shrink-0`}>
+      <div className={`${s} rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm`}>
         <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain p-1" />
       </div>
     )
   }
   return (
-    <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0`}
+    <div className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0 shadow-sm`}
       style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>
       {club.short_name}
     </div>
@@ -164,6 +183,17 @@ function PlayerAvatar({ player }) {
 
 function SmallClubBadge({ club }) {
   if (!club) return null
+  
+  if (club.is_national) {
+    const nation = FIFA_NATIONS.find(n => n.name === club.name)
+    const code = nation?.code || club.short_name?.toLowerCase()
+    return (
+      <div className="w-5 h-3.5 rounded-sm overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5">
+        <img src={`https://flagcdn.com/${code}.svg`} alt={club.name} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
+
   if (club.badge_url) return (
     <div className="w-5 h-5 rounded overflow-hidden bg-white flex-shrink-0">
       <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain" />
