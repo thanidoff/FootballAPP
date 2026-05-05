@@ -188,14 +188,14 @@ function RosterRow({ player, isCaptain, onRelease, releasing, onEdit, onPointerD
         <>
           <button
             onClick={onEdit}
-            className="px-3 py-1.5 text-[11px] font-heading font-black uppercase tracking-widest text-gray-500 hover:text-[#0A1318] transition-colors cursor-pointer">
+            className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[11px] font-heading font-black uppercase tracking-widest text-gray-400 hover:text-[#0A1318] transition-colors cursor-pointer">
             Edit
           </button>
           {onRelease && (
             <button
               onClick={onRelease}
               disabled={releasing}
-              className="px-3 py-1.5 rounded-xl bg-[#FD5461] text-white text-[11px] font-heading font-black uppercase tracking-widest hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50">
+              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#FD5461] text-white text-[10px] sm:text-[11px] font-heading font-black uppercase tracking-widest hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50">
               {releasing ? '...' : 'Release'}
             </button>
           )}
