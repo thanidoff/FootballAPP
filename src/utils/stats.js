@@ -34,12 +34,12 @@ export const STAT_LABELS = {
   PHY: 'Physicality',
 }
 
-// FIFA-style OVR weights per position
+// FIFA-style OVR weights per position (Synced with Supabase migration)
 const OVR_WEIGHTS = {
-  GK: { DIV: 0.21, HAN: 0.18, KIC: 0.09, REF: 0.21, SPD: 0.08, POS: 0.23 },
-  DEF: { PAC: 0.17, SHO: 0.05, PAS: 0.15, DRI: 0.13, DEF: 0.32, PHY: 0.18 },
-  MF: { PAC: 0.15, SHO: 0.10, PAS: 0.32, DRI: 0.23, DEF: 0.10, PHY: 0.10 },
-  FWD: { PAC: 0.21, SHO: 0.45, PAS: 0.10, DRI: 0.14, DEF: 0.03, PHY: 0.07 },
+  GK:  { DIV: 0.35, HAN: 0.15, KIC: 0.02, REF: 0.38, SPD: 0.02, POS: 0.08 },
+  DEF: { PAC: 0.15, SHO: 0.02, PAS: 0.08, DRI: 0.05, DEF: 0.45, PHY: 0.25 },
+  MF:  { PAC: 0.12, SHO: 0.10, PAS: 0.30, DRI: 0.25, DEF: 0.12, PHY: 0.11 },
+  FWD: { PAC: 0.22, SHO: 0.48, PAS: 0.07, DRI: 0.18, DEF: 0.01, PHY: 0.04 },
 }
 
 export function calculateOVR(position, stats) {

@@ -556,61 +556,134 @@ export default function PreMatchPage() {
   const [tickerEvents, setTickerEvents] = useState([])
 
   function simulateSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
-    const homeOvr = homeSlots.slice(0, 5).reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5
-    const awayOvr = awaySlots.slice(0, 5).reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5
-    
     let hScore = currentHomeScore
     let aScore = currentAwayScore
     const newGoals = [...currentGoals]
     const newFouls = [...currentFouls]
 
-    const POS_WEIGHTS = { FWD: 10, MF: 5, DEF: 2, GK: 0.05 }
-    const ASSIST_WEIGHTS = { MF: 10, FWD: 6, DEF: 5, GK: 1 }
+    const totalSecs = (duration ?? 10) * 60
+    // Scale factors to normalize goals based on match duration (target ~2.8 total goals per match)
+    const totalMatchSteps = totalSecs / 30
+    // Base probability of a team generating a shot event per 30-sec interval (normalized by duration)
+    const baseShotProb = (2.2 / totalMatchSteps)
 
-    function pickWeightedPlayer(lineup, weights) {
-      const filtered = lineup.filter(Boolean)
-      if (filtered.length === 0) return null
-      const totalWeight = filtered.reduce((sum, p) => sum + (weights[p.position] || 1), 0)
-      let rand = Math.random() * totalWeight
-      for (const p of filtered) {
-        const w = weights[p.position] || 1
-        if (rand < w) return p
-        rand -= w
-      }
-      return filtered[0]
-    }
-    
     for (let s = startSec; s < endSec; s += 30) {
       const matchMin = Math.floor(s / 60) || 1
-      const pHome = (homeOvr / 100) * 0.12 * (homeOvr / awayOvr)
-      const pAway = (awayOvr / 100) * 0.12 * (awayOvr / homeOvr)
+      const currentPhase = s < halfSeconds ? 'first_half' : 'second_half'
+
+      // 1. Identify active players on pitch (filter out suspended/red carded)
+      const homeRedCount = newFouls.filter(f => f.team === 'home' && f.card === 'red').length
+      const awayRedCount = newFouls.filter(f => f.team === 'away' && f.card === 'red').length
+
+      // Red card penalty: reduce performance by 20% per red card
+      const homeRedPenalty = Math.max(0.2, 1 - homeRedCount * 0.2)
+      const awayRedPenalty = Math.max(0.2, 1 - awayRedCount * 0.2)
+
+      const homeStarters = homeSlots.slice(0, 5).filter(Boolean)
+      const awayStarters = awaySlots.slice(0, 5).filter(Boolean)
+
+      // Calculate team OVR dynamically based on active players (excluding red-carded ones)
+      const activeHomeStarters = homeStarters.filter(p => !newFouls.some(f => f.player?.id === p.id && f.card === 'red'))
+      const activeAwayStarters = awayStarters.filter(p => !newFouls.some(f => f.player?.id === p.id && f.card === 'red'))
+
+      const homeOvr = (activeHomeStarters.reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5) * homeRedPenalty
+      const awayOvr = (activeAwayStarters.reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5) * awayRedPenalty
       
-      if (Math.random() < pHome) {
-        hScore++
-        const starters = homeSlots.slice(0, 5)
-        const scorer = pickWeightedPlayer(starters, POS_WEIGHTS)
-        const assist = Math.random() > 0.4 ? pickWeightedPlayer(starters.filter(p => p?.id !== scorer?.id), ASSIST_WEIGHTS) : null
-        newGoals.push({ team: 'home', scorer, assist, minute: matchMin })
+      // Home team advantage (+3%)
+      const homeOvrEff = homeOvr * 1.03
+      const awayOvrEff = awayOvr
+
+      // Shot generation chance based on OVR difference
+      const homeShotChance = baseShotProb * (homeOvrEff / Math.max(1, awayOvrEff))
+      const awayShotChance = baseShotProb * (awayOvrEff / Math.max(1, homeOvrEff))
+
+      // ─── Home Attack ───
+      if (Math.random() < homeShotChance) {
+        // Choose shooter (weighted heavily by forward position & high SHO stat)
+        const shooter = pickWeightedPlayer(activeHomeStarters, { FWD: 10, MF: 4, DEF: 1, GK: 0.01 }, 'SHO')
+        if (shooter) {
+          // Goalkeeper attempt to save (based on GK's REF/DIV and DEF team defense)
+          const gk = activeAwayStarters.find(p => p.position === 'GK')
+          const gkRef = gk?.stats?.REF || gk?.stats?.DIV || 50
+          
+          // Probability of scoring: higher shooter SHO vs opponent GK Reflexes
+          const scoreProb = 0.35 * ((shooter.stats?.SHO || 50) / Math.max(1, gkRef))
+          if (Math.random() < scoreProb) {
+            hScore++
+            const assist = Math.random() > 0.45 ? pickWeightedPlayer(activeHomeStarters.filter(p => p?.id !== shooter?.id), { MF: 10, FWD: 5, DEF: 4, GK: 0.5 }, 'PAS') : null
+            newGoals.push({ team: 'home', scorer: shooter, assist, minute: matchMin })
+          }
+        }
       }
-      if (Math.random() < pAway) {
-        aScore++
-        const starters = awaySlots.slice(0, 5)
-        const scorer = pickWeightedPlayer(starters, POS_WEIGHTS)
-        const assist = Math.random() > 0.4 ? pickWeightedPlayer(starters.filter(p => p?.id !== scorer?.id), ASSIST_WEIGHTS) : null
-        newGoals.push({ team: 'away', scorer, assist, minute: matchMin })
+
+      // ─── Away Attack ───
+      if (Math.random() < awayShotChance) {
+        const shooter = pickWeightedPlayer(activeAwayStarters, { FWD: 10, MF: 4, DEF: 1, GK: 0.01 }, 'SHO')
+        if (shooter) {
+          const gk = activeHomeStarters.find(p => p.position === 'GK')
+          const gkRef = gk?.stats?.REF || gk?.stats?.DIV || 50
+          
+          const scoreProb = 0.35 * ((shooter.stats?.SHO || 50) / Math.max(1, gkRef))
+          if (Math.random() < scoreProb) {
+            aScore++
+            const assist = Math.random() > 0.45 ? pickWeightedPlayer(activeAwayStarters.filter(p => p?.id !== shooter?.id), { MF: 10, FWD: 5, DEF: 4, GK: 0.5 }, 'PAS') : null
+            newGoals.push({ team: 'away', scorer: shooter, assist, minute: matchMin })
+          }
+        }
       }
+
+      // ─── Fouls and Cards ───
+      // Base probability of foul event (4% per interval)
       if (Math.random() < 0.04) {
         const team = Math.random() > 0.5 ? 'home' : 'away'
-        const lineup = (team === 'home' ? homeSlots : awaySlots).slice(0, 5).filter(Boolean)
-        const player = lineup[Math.floor(Math.random() * lineup.length)]
-        if (player) {
-          const card = Math.random() > 0.85 ? 'red' : 'yellow'
-          const fPhase = s < halfSeconds ? 'first_half' : 'second_half'
-          newFouls.push({ player, team, card, minute: matchMin, phase: fPhase })
+        const activeLineup = team === 'home' ? activeHomeStarters : activeAwayStarters
+        if (activeLineup.length > 0) {
+          // Choose player prone to foul (weighted by low DEF defending but high PHY physicality/aggression)
+          const player = activeLineup.reduce((prev, curr) => {
+            const prevRisk = (prev.stats?.PHY || 50) / Math.max(1, prev.stats?.DEF || 50)
+            const currRisk = (curr.stats?.PHY || 50) / Math.max(1, curr.stats?.DEF || 50)
+            return currRisk > prevRisk ? curr : prev
+          })
+
+          if (player) {
+            // Check if player already has a yellow card to determine second yellow -> red
+            const hasYellow = newFouls.some(f => f.player?.id === player.id && f.card === 'yellow')
+            let card = 'yellow'
+            if (hasYellow) {
+              card = 'red' // Second yellow card equals red
+            } else {
+              // Direct red card probability (15% chance, 85% yellow)
+              card = Math.random() > 0.85 ? 'red' : 'yellow'
+            }
+            newFouls.push({ player, team, card, minute: matchMin, phase: currentPhase })
+          }
         }
       }
     }
     return { hScore, aScore, newGoals, newFouls }
+  }
+
+  // Weighted player picker supporting statistical attributes
+  function pickWeightedPlayer(lineup, posWeights, attributeKey) {
+    const filtered = lineup.filter(Boolean)
+    if (filtered.length === 0) return null
+    
+    // Total weight combines position weights and individual stat (normalized / 50)
+    const totalWeight = filtered.reduce((sum, p) => {
+      const pW = posWeights[p.position] || 1
+      const statW = p.stats?.[attributeKey] ? (p.stats[attributeKey] / 50) : 1.0
+      return sum + (pW * statW)
+    }, 0)
+
+    let rand = Math.random() * totalWeight
+    for (const p of filtered) {
+      const pW = posWeights[p.position] || 1
+      const statW = p.stats?.[attributeKey] ? (p.stats[attributeKey] / 50) : 1.0
+      const w = pW * statW
+      if (rand < w) return p
+      rand -= w
+    }
+    return filtered[0]
   }
 
   function handleSimAction(target) {

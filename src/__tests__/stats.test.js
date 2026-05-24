@@ -53,10 +53,10 @@ describe('getOVRTier', () => {
 })
 
 describe('getStatColor', () => {
-  it('returns purple for 100+', () => expect(getStatColor(100)).toBe('#a855f7'))
-  it('returns green for 80-99', () => expect(getStatColor(80)).toBe('var(--color-stat-high)'))
-  it('returns amber for 60-79', () => expect(getStatColor(60)).toBe('var(--color-stat-mid)'))
-  it('returns red below 60', () => expect(getStatColor(59)).toBe('var(--color-stat-low)'))
+  it('returns custom red for 100+', () => expect(getStatColor(100)).toBe('#FD5461'))
+  it('returns high opacity for 80-99', () => expect(getStatColor(80)).toBe('rgba(10,19,24,0.75)'))
+  it('returns mid opacity for 60-79', () => expect(getStatColor(60)).toBe('rgba(10,19,24,0.30)'))
+  it('returns low opacity below 60', () => expect(getStatColor(59)).toBe('rgba(10,19,24,0.15)'))
 })
 
 describe('getDefaultStats', () => {
