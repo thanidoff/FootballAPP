@@ -9,6 +9,7 @@ import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import PlayerCard from '../components/ui/PlayerCard'
 import PlayerListRow from '../components/ui/PlayerListRow'
+import ClubSelect from '../components/ui/ClubSelect'
 import { useToast } from '../components/ui/Toast'
 import PageWrapper from '../components/ui/PageWrapper'
 import { SkeletonRow, SkeletonCard } from '../components/ui/SkeletonCard'
@@ -284,59 +285,53 @@ export default function TransferMarketPage() {
       </Modal>
 
       {/* Buy modal */}
-      <Modal open={!!buying} onClose={() => { setBuying(null); setSelectedClub('') }} title="Sign Player">
+      <Modal open={!!buying} onClose={() => { setBuying(null); setSelectedClub('') }} title="Sign Player" width="max-w-sm">
         {buying && (
           <div className="space-y-5">
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
-                  {buying.player.photo_url
-                    ? <img src={buying.player.photo_url} alt={buying.player.name} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center font-heading font-black text-gray-400 text-lg">{buying.player.name.charAt(0)}</div>
-                  }
+            {/* Player info */}
+            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
+              {buying.player.photo_url ? (
+                <img src={buying.player.photo_url} alt={buying.player.name} className="w-12 h-12 rounded-full object-cover bg-white" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-heading font-black text-gray-400">
+                  {buying.player.name.charAt(0)}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-heading font-black text-lg truncate">{buying.player.name}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <PositionBadge position={buying.player.position} />
-                    <span className="text-sm text-gray-500">{buying.player.nationality}</span>
-                  </div>
+              )}
+              <div className="flex-1">
+                <div className="font-heading font-black text-lg">{buying.player.name}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <PositionBadge position={buying.player.position} />
+                  {(() => {
+                    const code = FIFA_NATIONS.find(n => n.name === buying.player.nationality)?.code
+                    return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3.5 w-6 object-cover rounded-sm shadow-sm ring-1 ring-black/10" alt="" /> : null
+                  })()}
+                  <span className="text-sm text-gray-500">{buying.player.nationality}</span>
                 </div>
-                <div className="ml-auto text-right flex-shrink-0">
-                  <div className="font-heading font-black text-xl text-gray-900">
-                    ${formatCurrency(buying.player.market_value)}
-                  </div>
-                  <div className="text-xs text-gray-400">Transfer Fee</div>
-                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-gray-400 mb-0.5">Market Value</div>
+                <div className="font-heading font-black text-xl">${formatCurrency(buying.player.market_value)}</div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-heading font-bold tracking-wider uppercase text-gray-500 mb-2">
-                Select Club
-              </label>
-              <select
-                value={selectedClub}
-                onChange={(e) => setSelectedClub(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20"
-              >
-                <option value="">-- Choose a club --</option>
-                {clubs.filter(c => !c.is_national).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} · Budget: ${formatCurrency(c.budget)}
-                    {c.budget < buying.player.market_value ? ' (insufficient)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Club select */}
+            <ClubSelect
+              label="Select Club"
+              value={selectedClub}
+              onChange={(val) => setSelectedClub(val)}
+              clubs={clubs.filter(c => !c.is_national).map((c) => ({
+                ...c,
+                name: `${c.name}  ·  $${formatCurrency(c.budget)}${c.budget < buying.player.market_value ? '  (insufficient)' : ''}`,
+              }))}
+            />
 
             {selectedClub && (
-              <div className={`rounded-xl p-3 text-sm font-heading font-bold ${canAfford ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              <p className={`text-sm font-heading ${canAfford ? 'text-green-600' : 'text-red-500'} -mt-1`}>
                 {canAfford
-                  ? `✅ Budget after signing: $${formatCurrency(targetClub.budget - buying.player.market_value)}`
-                  : `❌ Insufficient budget. Short by $${formatCurrency(buying.player.market_value - targetClub.budget)}`
+                  ? `Budget after signing: $${formatCurrency(targetClub.budget - buying.player.market_value)}`
+                  : `Insufficient budget. Short by $${formatCurrency(buying.player.market_value - targetClub.budget)}`
                 }
-              </div>
+              </p>
             )}
 
             <Button
@@ -344,7 +339,7 @@ export default function TransferMarketPage() {
               onClick={handleBuy}
               disabled={!selectedClub || !canAfford || processing}
             >
-              {processing ? 'Processing...' : `Confirm Transfer · $${formatCurrency(buying.player.market_value)}`}
+              {processing ? 'Processing...' : `Confirm · $${formatCurrency(buying.player.market_value)}`}
             </Button>
           </div>
         )}
