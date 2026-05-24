@@ -33,6 +33,8 @@ export default function TransferMarketPage() {
   const [processing, setProcessing] = useState(false)
   const [preview, setPreview] = useState(null)
   const [viewMode, setViewMode] = useState('card') // 'card' | 'list'
+  const [agreedFee, setAgreedFee] = useState(0)
+  const [feeDisplay, setFeeDisplay] = useState('0.0')
   const toast = useToast()
 
   const load = useCallback(async () => {
@@ -68,7 +70,7 @@ export default function TransferMarketPage() {
   const topPlayer = players.length > 0 ? [...players].sort((a, b) => b.ovr - a.ovr)[0] : null
 
   const targetClub = clubs.find((c) => c.id === selectedClub)
-  const canAfford = targetClub ? targetClub.budget >= (buying?.player.market_value ?? 0) : false
+  const canAfford = targetClub ? targetClub.budget >= agreedFee : false
 
   async function handleBuy() {
     if (!buying || !selectedClub) return
@@ -77,12 +79,12 @@ export default function TransferMarketPage() {
       await buyPlayer({
         playerId: buying.player.id,
         toClubId: selectedClub,
-        fee: buying.player.market_value,
+        fee: agreedFee,
       })
       setPlayers((prev) => prev.filter((p) => p.id !== buying.player.id))
       setClubs((prev) => prev.map((c) =>
         c.id === selectedClub
-          ? { ...c, budget: c.budget - buying.player.market_value }
+          ? { ...c, budget: c.budget - agreedFee }
           : c
       ))
       const playerName = buying.player.name
@@ -213,7 +215,12 @@ export default function TransferMarketPage() {
                 <PlayerCard
                   player={player}
                   onClick={() => setPreview(player)}
-                  onSign={() => { setBuying({ player }); setSelectedClub('') }}
+                  onSign={() => {
+                    setBuying({ player });
+                    setSelectedClub('');
+                    setAgreedFee(player.market_value);
+                    setFeeDisplay((player.market_value / 1_000_000).toFixed(1));
+                  }}
                 />
               </div>
             ))}
@@ -228,7 +235,12 @@ export default function TransferMarketPage() {
                   actions={
                     <>
                       <Button variant="ghost" size="sm" onClick={() => setPreview(player)}>View</Button>
-                      <Button size="sm" onClick={() => { setBuying({ player }); setSelectedClub('') }} disabled={clubs.filter(c => !c.is_national).length === 0}>
+                      <Button size="sm" onClick={() => {
+                        setBuying({ player });
+                        setSelectedClub('');
+                        setAgreedFee(player.market_value);
+                        setFeeDisplay((player.market_value / 1_000_000).toFixed(1));
+                      }} disabled={clubs.filter(c => !c.is_national).length === 0}>
                         Sign
                       </Button>
                     </>
@@ -247,7 +259,13 @@ export default function TransferMarketPage() {
             <PlayerCard player={preview} />
             <Button
               className="w-full justify-center"
-              onClick={() => { setPreview(null); setBuying({ player: preview }); setSelectedClub('') }}
+              onClick={() => {
+                setPreview(null);
+                setBuying({ player: preview });
+                setSelectedClub('');
+                setAgreedFee(preview.market_value);
+                setFeeDisplay((preview.market_value / 1_000_000).toFixed(1));
+              }}
               disabled={clubs.filter(c => !c.is_national).length === 0}
             >
               Sign This Player
@@ -293,15 +311,44 @@ export default function TransferMarketPage() {
               onChange={(val) => setSelectedClub(val)}
               clubs={clubs.filter(c => !c.is_national).map((c) => ({
                 ...c,
-                name: `${c.name}  ·  $${formatCurrency(c.budget)}${c.budget < buying.player.market_value ? '  (insufficient)' : ''}`,
+                name: `${c.name}  ·  $${formatCurrency(c.budget)}${c.budget < agreedFee ? '  (insufficient)' : ''}`,
               }))}
             />
+
+            {/* Fee negotiation */}
+            <div>
+              <label className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500 block mb-1">
+                Transfer Fee
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { const v = Math.max(0, agreedFee - 1_000_000); setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
+                  className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 font-bold text-lg flex-shrink-0"
+                >−</button>
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    value={feeDisplay}
+                    onChange={(e) => { setFeeDisplay(e.target.value); setAgreedFee(Math.round(parseFloat(e.target.value || 0) * 1_000_000)) }}
+                    onBlur={() => setFeeDisplay((agreedFee / 1_000_000).toFixed(1))}
+                    className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 text-center font-heading font-bold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">M</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { const v = agreedFee + 1_000_000; setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
+                  className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 font-bold text-lg flex-shrink-0"
+                >+</button>
+              </div>
+            </div>
 
             {selectedClub && (
               <p className={`text-sm font-heading ${canAfford ? 'text-green-600' : 'text-red-500'} -mt-1`}>
                 {canAfford
-                  ? `Budget after signing: $${formatCurrency(targetClub.budget - buying.player.market_value)}`
-                  : `Insufficient budget. Short by $${formatCurrency(buying.player.market_value - targetClub.budget)}`
+                  ? `Budget after signing: $${formatCurrency(targetClub.budget - agreedFee)}`
+                  : `Insufficient budget. Short by $${formatCurrency(agreedFee - targetClub.budget)}`
                 }
               </p>
             )}
@@ -311,7 +358,7 @@ export default function TransferMarketPage() {
               onClick={handleBuy}
               disabled={!selectedClub || !canAfford || processing}
             >
-              {processing ? 'Processing...' : `Confirm · $${formatCurrency(buying.player.market_value)}`}
+              {processing ? 'Processing...' : `Confirm · $${formatCurrency(agreedFee)}`}
             </Button>
           </div>
         )}
