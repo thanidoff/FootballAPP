@@ -8,9 +8,10 @@ import PositionBadge from '../components/ui/PositionBadge'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import PlayerCard from '../components/ui/PlayerCard'
+import PlayerListRow from '../components/ui/PlayerListRow'
 import { useToast } from '../components/ui/Toast'
 import PageWrapper from '../components/ui/PageWrapper'
-import { SkeletonRow } from '../components/ui/SkeletonCard'
+import { SkeletonRow, SkeletonCard } from '../components/ui/SkeletonCard'
 import ScrollToTop from '../components/ui/ScrollToTop'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 
@@ -30,6 +31,7 @@ export default function TransferMarketPage() {
   const [selectedClub, setSelectedClub] = useState('')
   const [processing, setProcessing] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [viewMode, setViewMode] = useState('card') // 'card' | 'list'
   const toast = useToast()
 
   const load = useCallback(async () => {
@@ -163,7 +165,7 @@ export default function TransferMarketPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20"
         />
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap items-center">
           {POS_FILTERS.map((pos) => (
             <button
               key={pos}
@@ -176,17 +178,47 @@ export default function TransferMarketPage() {
           ))}
           <button
             onClick={() => setOvrSort(s => s === 'desc' ? 'asc' : 'desc')}
-            className="px-3 py-2 rounded-lg text-xs font-heading font-bold tracking-widest uppercase transition-colors bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            className="px-3 py-2 rounded-lg text-xs font-heading font-bold tracking-widest uppercase transition-colors bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1"
           >
             OVR {ovrSort === 'desc' ? '↓' : '↑'}
           </button>
+          {/* View toggle */}
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 ml-auto sm:ml-0">
+            <button
+              onClick={() => setViewMode('card')}
+              className={`p-2 rounded-lg transition-all cursor-pointer ${viewMode === 'card' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/>
+                <rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/>
+                <rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/>
+                <rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-lg transition-all cursor-pointer ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="1" y="2.5" width="14" height="2.5" rx="1.25" fill="currentColor"/>
+                <rect x="1" y="6.75" width="14" height="2.5" rx="1.25" fill="currentColor"/>
+                <rect x="1" y="11" width="14" height="2.5" rx="1.25" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
       {loading && (
-        <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
-        </div>
+        viewMode === 'card' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
+          </div>
+        )
       )}
 
       {!loading && filtered.length === 0 && (
@@ -201,57 +233,38 @@ export default function TransferMarketPage() {
       )}
 
       {!loading && filtered.length > 0 && (
-        <div className="space-y-2">
-          {filtered.map((player, i) => {
-            const tier = getOVRTier(player.ovr)
-            const flagCode = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
-            return (
-              <div
-                key={player.id}
-                className="animate-fadeSlideUp bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm flex flex-wrap items-center gap-x-3 gap-y-1.5 hover:border-[#FD5461] hover:shadow-md transition-all cursor-pointer group"
-                style={{ animationDelay: `${Math.min(i * 30, 300)}ms`, animationFillMode: 'both' }}
-              >
-                {/* OVR Badge */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TIER_DOT[tier]}`} />
-                  <span className="font-heading font-black text-2xl text-gray-800 tabular-nums w-8">{player.ovr}</span>
-                  <PositionBadge position={player.position} />
-                </div>
-
-                {/* Name + nationality */}
-                <div className="flex items-center gap-2 order-last w-full sm:order-none sm:w-auto sm:flex-1 min-w-0">
-                  <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
-                    {player.photo_url
-                      ? <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center font-heading font-black text-gray-400 text-xs">{player.name.charAt(0)}</div>
-                    }
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-heading font-bold text-gray-900 block truncate">{player.name}</span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {flagCode && (
-                        <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-sm shadow-sm ring-1 ring-black/5" alt="" />
-                      )}
-                      <span className="text-[10px] text-gray-400">{player.nationality} · {player.age} yrs</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Market value */}
-                <div className="hidden sm:block text-right flex-shrink-0">
-                  <div className="font-heading font-black text-lg text-gray-800">${formatCurrency(player.market_value)}</div>
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wide">Market Value</div>
-                </div>
-
-                {/* Buttons */}
-                <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                  <Button variant="ghost" size="sm" onClick={() => setPreview(player)}>View</Button>
-                  <Button size="sm" onClick={() => { setBuying({ player }); setSelectedClub('') }} disabled={clubs.filter(c => !c.is_national).length === 0}>Sign</Button>
-                </div>
+        viewMode === 'card' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filtered.map((player, i) => (
+              <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 40, 400)}ms`, animationFillMode: 'both' }}>
+                <PlayerCard
+                  player={player}
+                  onClick={() => setPreview(player)}
+                  onSign={() => { setBuying({ player }); setSelectedClub('') }}
+                />
               </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((player, i) => (
+              <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 30, 300)}ms`, animationFillMode: 'both' }}>
+                <PlayerListRow
+                  player={player}
+                  onClick={() => setPreview(player)}
+                  actions={
+                    <>
+                      <Button variant="ghost" size="sm" onClick={() => setPreview(player)}>View</Button>
+                      <Button size="sm" onClick={() => { setBuying({ player }); setSelectedClub('') }} disabled={clubs.filter(c => !c.is_national).length === 0}>
+                        Sign
+                      </Button>
+                    </>
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* Player preview modal */}
