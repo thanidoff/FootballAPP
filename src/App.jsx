@@ -9,6 +9,7 @@ import FriendlyMatchesPage from './pages/FriendlyMatchesPage'
 import PreMatchPage from './pages/PreMatchPage'
 import WorldCupPage from './pages/WorldCupPage'
 import LeaguePage from './pages/LeaguePage'
+import TransferMarketPage from './pages/TransferMarketPage'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="matches/club-cup/:matchId/prematch" element={<PreMatchPage />} />
             <Route path="matches/league" element={<LeaguePage />} />
             <Route path="matches/league/:matchId/prematch" element={<PreMatchPage />} />
+            <Route path="transfers" element={<TransferMarketPage />} />
           </Route>
         </Routes>
       </AuthWrapper>

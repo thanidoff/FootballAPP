@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchPlayers } from '../services/players'
 import { completeMatch as completeMatchFriendly } from '../services/friendlyMatches'
@@ -18,6 +18,143 @@ const TIER_STYLES = {
 
 const POS_COLORS = { GK: '#f59e0b', DEF: '#3b82f6', MF: '#22c55e', FWD: '#FD5461' }
 const POS_LABEL  = { GK: 'GK', DEF: 'DF', MF: 'MF', FWD: 'FW' }
+
+// ─── Goal Celebration Confetti ───────────────────────────────────────────────
+const CONFETTI_COLORS = ['#FD5461', '#0A1318', '#f59e0b', '#3b82f6', '#22c55e', '#a855f7', '#f97316']
+
+function GoalConfetti({ active, onDone }) {
+  const particles = useRef([])
+  const rafRef = useRef(null)
+  const canvasRef = useRef(null)
+  const startedRef = useRef(false)
+
+  useEffect(() => {
+    if (!active) { startedRef.current = false; return }
+    if (startedRef.current) return
+    startedRef.current = true
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+
+    // spawn 120 particles from center-top
+    particles.current = Array.from({ length: 120 }, () => ({
+      x: canvas.width * (0.3 + Math.random() * 0.4),
+      y: canvas.height * 0.35,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -(Math.random() * 16 + 4),
+      radius: Math.random() * 6 + 3,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      alpha: 1,
+      rotation: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.25,
+      shape: Math.random() > 0.5 ? 'circle' : 'rect',
+    }))
+
+    const gravity = 0.55
+    let frame = 0
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      let alive = false
+      for (const p of particles.current) {
+        p.vy += gravity
+        p.x += p.vx
+        p.y += p.vy
+        p.rotation += p.rotV
+        if (frame > 40) p.alpha = Math.max(0, p.alpha - 0.018)
+        if (p.alpha > 0) alive = true
+        ctx.save()
+        ctx.globalAlpha = p.alpha
+        ctx.fillStyle = p.color
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.rotation)
+        if (p.shape === 'circle') {
+          ctx.beginPath()
+          ctx.arc(0, 0, p.radius, 0, Math.PI * 2)
+          ctx.fill()
+        } else {
+          ctx.fillRect(-p.radius, -p.radius * 0.5, p.radius * 2, p.radius)
+        }
+        ctx.restore()
+      }
+      frame++
+      if (alive) {
+        rafRef.current = requestAnimationFrame(draw)
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        onDone?.()
+      }
+    }
+    rafRef.current = requestAnimationFrame(draw)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [active])
+
+  if (!active) return null
+  return (
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none"
+      style={{ zIndex: 9999 }}
+    />
+  )
+}
+
+// ─── Live Event Ticker ────────────────────────────────────────────────────────
+function LiveTicker({ events, homeClub, awayClub }) {
+  const scrollRef = useRef(null)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: 'smooth' })
+    }
+  }, [events.length])
+
+  if (events.length === 0) return null
+
+  const ICON = { goal: '⚽', yellow: '🟨', red: '🟥', assist: '👟' }
+
+  return (
+    <div className="mb-4">
+      <div
+        ref={scrollRef}
+        className="flex items-center gap-0 overflow-x-auto scrollbar-hide"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {events.map((ev, i) => {
+          const isHome = ev.team === 'home'
+          const clubName = isHome ? homeClub.short_name : awayClub.short_name
+          const isLast = i === events.length - 1
+          return (
+            <div
+              key={i}
+              className="flex items-center flex-shrink-0"
+              style={{ animation: isLast ? 'tickerSlideIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards' : undefined }}
+            >
+              <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-heading font-black whitespace-nowrap
+                ${isHome ? 'bg-[#0A1318] text-white' : 'bg-gray-100 text-[#0A1318]'}
+                ${isLast ? 'ring-2 ring-[#FD5461]' : ''}`}
+              >
+                <span>{ICON[ev.type] ?? '📋'}</span>
+                <span className="font-bold text-[10px] opacity-60">{ev.minute}'</span>
+                <span>{ev.player?.name ?? 'OG'}</span>
+                {ev.type === 'goal' && ev.assist && (
+                  <span className="opacity-60 text-[10px]">({ev.assist.name})</span>
+                )}
+                <span className="opacity-50 text-[10px]">{clubName}</span>
+              </div>
+              {i < events.length - 1 && (
+                <div className="w-3 h-px bg-gray-200 flex-shrink-0 mx-0.5" />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function IconBallSmall() {
   return (
@@ -415,6 +552,8 @@ export default function PreMatchPage() {
   const whistleRef = useRef(null)
   const [simModal, setSimModal] = useState(false)
   const [simPreview, setSimPreview] = useState(null)
+  const [showConfetti, setShowConfetti] = useState(false)
+  const [tickerEvents, setTickerEvents] = useState([])
 
   function simulateSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
     const homeOvr = homeSlots.slice(0, 5).reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5
@@ -586,10 +725,15 @@ export default function PreMatchPage() {
 
   function confirmGoal(assist) {
     const minute = goalMinute
-    setGoals(prev => [...prev, { team: goalTeam, scorer: goalScorer, assist, minute }])
+    const newGoal = { team: goalTeam, scorer: goalScorer, assist, minute }
+    setGoals(prev => [...prev, newGoal])
     if (goalTeam === 'home') setHomeScore(s => s + 1)
     else setAwayScore(s => s + 1)
     setGoalStep(null)
+    // 🎉 trigger confetti
+    setShowConfetti(true)
+    // add to live ticker
+    setTickerEvents(prev => [...prev, { type: 'goal', minute, team: goalTeam, player: goalScorer, assist }])
   }
 
   const anyModalOpen = goalStep !== null || foulStep !== null || playerDetail !== null
@@ -630,6 +774,8 @@ export default function PreMatchPage() {
         setRedCardMinute(minute)
       }
     }
+    // add card to live ticker
+    setTickerEvents(prev => [...prev, { type: card, minute, team: foulPlayerTeam, player: foulPlayer }])
     setFoulStep(null)
     setFoulPlayer(null)
     setFoulPlayerTeam(null)
@@ -775,6 +921,8 @@ export default function PreMatchPage() {
 
   return (
     <div>
+      {/* 🎉 Goal Confetti */}
+      <GoalConfetti active={showConfetti} onDone={() => setShowConfetti(false)} />
       {/* Header — desktop: single row justify-between / mobile: 2 rows */}
       <div className="mb-6">
         <div className="flex items-center justify-between gap-3">
@@ -894,7 +1042,7 @@ export default function PreMatchPage() {
       </div>
 
       {/* Score Bar */}
-      <div className="flex items-center bg-gray-50 rounded-2xl px-5 py-4 mb-6 gap-3">
+      <div className="flex items-center bg-gray-50 rounded-2xl px-5 py-4 mb-3 gap-3">
         {/* Home badge + name */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {nationalMode ? (
@@ -966,6 +1114,13 @@ export default function PreMatchPage() {
           )}
         </div>
       </div>
+
+      {/* Live Event Ticker */}
+      <LiveTicker
+        events={tickerEvents}
+        homeClub={homeClub}
+        awayClub={awayClub}
+      />
 
       {/* Match Events Timeline */}
       {(goals.length > 0 || fouls.length > 0) && (() => {
@@ -1536,6 +1691,12 @@ export default function PreMatchPage() {
           0%   { opacity: 0; }
           100% { opacity: 1; }
         }
+        @keyframes tickerSlideIn {
+          0%   { transform: translateX(20px) scale(0.85); opacity: 0; }
+          60%  { transform: translateX(-3px) scale(1.05); opacity: 1; }
+          100% { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   )

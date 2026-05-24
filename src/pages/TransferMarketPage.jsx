@@ -9,10 +9,15 @@ import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import PlayerCard from '../components/ui/PlayerCard'
 import { useToast } from '../components/ui/Toast'
-
-const TIER_DOT = { gold: 'bg-[#0A1318]', silver: 'bg-gray-400', bronze: 'bg-gray-300' }
-
+import PageWrapper from '../components/ui/PageWrapper'
+import { SkeletonRow } from '../components/ui/SkeletonCard'
+import ScrollToTop from '../components/ui/ScrollToTop'
 import { FIFA_NATIONS } from '../utils/fifaNations'
+
+const TIER_DOT   = { special: 'bg-[#FD5461]', gold: 'bg-[#0A1318]', silver: 'bg-gray-400', bronze: 'bg-gray-300' }
+const TIER_LABEL = { special: 'Special', gold: 'Gold', silver: 'Silver', bronze: 'Bronze' }
+const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
+const POS_COLORS  = { GK: '#f59e0b', DEF: '#3b82f6', MF: '#22c55e', FWD: '#FD5461' }
 
 export default function TransferMarketPage() {
   const [players, setPlayers] = useState([])
@@ -20,6 +25,7 @@ export default function TransferMarketPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('ALL')
   const [search, setSearch] = useState('')
+  const [ovrSort, setOvrSort] = useState('desc') // 'desc' | 'asc'
   const [buying, setBuying] = useState(null) // { player }
   const [selectedClub, setSelectedClub] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -44,12 +50,19 @@ export default function TransferMarketPage() {
 
   useEffect(() => { load() }, [load])
 
-  const filtered = players.filter((p) => {
-    const matchPos = filter === 'ALL' || p.position === filter
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.nationality.toLowerCase().includes(search.toLowerCase())
-    return matchPos && matchSearch
-  })
+  const filtered = players
+    .filter((p) => {
+      const matchPos = filter === 'ALL' || p.position === filter
+      const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.nationality.toLowerCase().includes(search.toLowerCase())
+      return matchPos && matchSearch
+    })
+    .sort((a, b) => ovrSort === 'desc' ? b.ovr - a.ovr : a.ovr - b.ovr)
+
+  // Market stats
+  const totalValue = players.reduce((sum, p) => sum + (p.market_value || 0), 0)
+  const avgOvr = players.length > 0 ? Math.round(players.reduce((sum, p) => sum + p.ovr, 0) / players.length) : 0
+  const topPlayer = players.length > 0 ? [...players].sort((a, b) => b.ovr - a.ovr)[0] : null
 
   const targetClub = clubs.find((c) => c.id === selectedClub)
   const canAfford = targetClub ? targetClub.budget >= (buying?.player.market_value ?? 0) : false
@@ -86,13 +99,60 @@ export default function TransferMarketPage() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <PageWrapper>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-heading font-black text-3xl uppercase tracking-wide">Transfer Market</h1>
           <p className="text-gray-500 text-sm mt-0.5">{players.length} free agents available</p>
         </div>
       </div>
+
+      {/* Market Stats Summary */}
+      {!loading && players.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 mb-1">Free Agents</div>
+            <div className="font-heading font-black text-2xl text-[#0A1318]">{players.length}</div>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 mb-1">Avg OVR</div>
+            <div className="font-heading font-black text-2xl text-[#0A1318]">{avgOvr}</div>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 mb-1">Total Value</div>
+            <div className="font-heading font-black text-lg text-[#0A1318]">${formatCurrency(totalValue)}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Top Available Player Spotlight */}
+      {!loading && topPlayer && (
+        <div className="bg-gradient-to-r from-[#0A1318] to-gray-700 rounded-2xl p-4 mb-6 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-600">
+            {topPlayer.photo_url
+              ? <img src={topPlayer.photo_url} alt={topPlayer.name} className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center font-heading font-black text-white text-lg">{topPlayer.name.charAt(0)}</div>
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-[#FD5461] mb-0.5">⭐ Top Available</div>
+            <div className="font-heading font-black text-white text-lg truncate">{topPlayer.name}</div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <PositionBadge position={topPlayer.position} />
+              {(() => {
+                const code = FIFA_NATIONS.find(n => n.name === topPlayer.nationality)?.code
+                return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3 w-5 object-cover rounded-sm" alt="" /> : null
+              })()}
+              <span className="text-gray-300 text-xs">{topPlayer.nationality}</span>
+            </div>
+          </div>
+          <div className="flex-shrink-0 text-right">
+            <div className="font-heading font-black text-3xl text-white">{topPlayer.ovr}</div>
+            <div className="text-xs text-gray-400">${formatCurrency(topPlayer.market_value)}</div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -103,8 +163,8 @@ export default function TransferMarketPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20"
         />
-        <div className="flex gap-1.5">
-          {['ALL', 'GK', 'DEF', 'MF', 'FWD'].map((pos) => (
+        <div className="flex gap-1.5 flex-wrap">
+          {POS_FILTERS.map((pos) => (
             <button
               key={pos}
               onClick={() => setFilter(pos)}
@@ -114,59 +174,79 @@ export default function TransferMarketPage() {
               {pos}
             </button>
           ))}
+          <button
+            onClick={() => setOvrSort(s => s === 'desc' ? 'asc' : 'desc')}
+            className="px-3 py-2 rounded-lg text-xs font-heading font-bold tracking-widest uppercase transition-colors bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            OVR {ovrSort === 'desc' ? '↓' : '↑'}
+          </button>
         </div>
       </div>
 
       {loading && (
-        <div className="text-center py-20 text-gray-400 font-heading font-bold uppercase tracking-wider">
-          Loading...
+        <div className="space-y-2">
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
       )}
 
       {!loading && filtered.length === 0 && (
-        <div className="text-center py-20 text-gray-400 font-heading font-bold uppercase tracking-wider text-sm">
-          No free agents found
+        <div className="flex flex-col items-center py-24 gap-3">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-gray-200">
+            <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="2.5"/>
+            <path d="M16 24h16M24 16v16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.4"/>
+          </svg>
+          <p className="text-gray-400 font-heading font-bold uppercase tracking-wider text-sm">No free agents found</p>
+          <p className="text-gray-300 text-xs">Try adjusting your filters</p>
         </div>
       )}
 
-      {!loading && (
+      {!loading && filtered.length > 0 && (
         <div className="space-y-2">
-          {filtered.map((player) => {
+          {filtered.map((player, i) => {
             const tier = getOVRTier(player.ovr)
             const flagCode = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
             return (
               <div
                 key={player.id}
-                className="bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm flex flex-wrap items-center gap-x-3 gap-y-1.5 hover:border-gray-200 hover:shadow-md transition-all"
+                className="animate-fadeSlideUp bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm flex flex-wrap items-center gap-x-3 gap-y-1.5 hover:border-[#FD5461] hover:shadow-md transition-all cursor-pointer group"
+                style={{ animationDelay: `${Math.min(i * 30, 300)}ms`, animationFillMode: 'both' }}
               >
-                {/* Fixed left group: always stays in row 1 */}
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className={`w-2 h-2 rounded-full ${TIER_DOT[tier]}`} />
-                  <span className="font-heading font-black text-2xl text-gray-800">{player.ovr}</span>
+                {/* OVR Badge */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TIER_DOT[tier]}`} />
+                  <span className="font-heading font-black text-2xl text-gray-800 tabular-nums w-8">{player.ovr}</span>
                   <PositionBadge position={player.position} />
                 </div>
 
-                {/* Name+nat: full-width row 2 on mobile, inline flex-1 on sm+ */}
+                {/* Name + nationality */}
                 <div className="flex items-center gap-2 order-last w-full sm:order-none sm:w-auto sm:flex-1 min-w-0">
-                  <span className="font-heading font-bold text-gray-900 truncate">{player.name}</span>
-                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto sm:ml-0">
-                    {flagCode && (
-                      <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-3 w-5 object-cover rounded-sm shadow-sm ring-1 ring-black/5" alt="" />
-                    )}
-                    <span className="text-xs text-gray-400">{player.nationality} · {player.age} yrs</span>
+                  <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
+                    {player.photo_url
+                      ? <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center font-heading font-black text-gray-400 text-xs">{player.name.charAt(0)}</div>
+                    }
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-heading font-bold text-gray-900 block truncate">{player.name}</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {flagCode && (
+                        <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-sm shadow-sm ring-1 ring-black/5" alt="" />
+                      )}
+                      <span className="text-[10px] text-gray-400">{player.nationality} · {player.age} yrs</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Market value: desktop only */}
+                {/* Market value */}
                 <div className="hidden sm:block text-right flex-shrink-0">
                   <div className="font-heading font-black text-lg text-gray-800">${formatCurrency(player.market_value)}</div>
-                  <div className="text-xs text-gray-400">Market Value</div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wide">Market Value</div>
                 </div>
 
-                {/* Buttons: always row 1 */}
+                {/* Buttons */}
                 <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                   <Button variant="ghost" size="sm" onClick={() => setPreview(player)}>View</Button>
-                  <Button size="sm" onClick={() => setBuying({ player })} disabled={clubs.length === 0}>Sign</Button>
+                  <Button size="sm" onClick={() => { setBuying({ player }); setSelectedClub('') }} disabled={clubs.filter(c => !c.is_national).length === 0}>Sign</Button>
                 </div>
               </div>
             )
@@ -181,8 +261,8 @@ export default function TransferMarketPage() {
             <PlayerCard player={preview} />
             <Button
               className="w-full justify-center"
-              onClick={() => { setPreview(null); setBuying({ player: preview }) }}
-              disabled={clubs.length === 0}
+              onClick={() => { setPreview(null); setBuying({ player: preview }); setSelectedClub('') }}
+              disabled={clubs.filter(c => !c.is_national).length === 0}
             >
               Sign This Player
             </Button>
@@ -196,15 +276,20 @@ export default function TransferMarketPage() {
           <div className="space-y-5">
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center gap-3">
-                <div className="text-4xl font-heading font-black text-gray-300">{buying.player.ovr}</div>
-                <div>
-                  <div className="font-heading font-black text-lg">{buying.player.name}</div>
+                <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
+                  {buying.player.photo_url
+                    ? <img src={buying.player.photo_url} alt={buying.player.name} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center font-heading font-black text-gray-400 text-lg">{buying.player.name.charAt(0)}</div>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading font-black text-lg truncate">{buying.player.name}</div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <PositionBadge position={buying.player.position} />
                     <span className="text-sm text-gray-500">{buying.player.nationality}</span>
                   </div>
                 </div>
-                <div className="ml-auto text-right">
+                <div className="ml-auto text-right flex-shrink-0">
                   <div className="font-heading font-black text-xl text-gray-900">
                     ${formatCurrency(buying.player.market_value)}
                   </div>
@@ -235,8 +320,8 @@ export default function TransferMarketPage() {
             {selectedClub && (
               <div className={`rounded-xl p-3 text-sm font-heading font-bold ${canAfford ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                 {canAfford
-                  ? `Budget after signing: $${formatCurrency(targetClub.budget - buying.player.market_value)}`
-                  : `Insufficient budget. Short by $${formatCurrency(buying.player.market_value - targetClub.budget)}`
+                  ? `✅ Budget after signing: $${formatCurrency(targetClub.budget - buying.player.market_value)}`
+                  : `❌ Insufficient budget. Short by $${formatCurrency(buying.player.market_value - targetClub.budget)}`
                 }
               </div>
             )}
@@ -251,6 +336,7 @@ export default function TransferMarketPage() {
           </div>
         )}
       </Modal>
-    </div>
+      <ScrollToTop />
+    </PageWrapper>
   )
 }
