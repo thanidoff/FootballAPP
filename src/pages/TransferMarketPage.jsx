@@ -129,34 +129,6 @@ export default function TransferMarketPage() {
         </div>
       )}
 
-      {/* Top Available Player Spotlight */}
-      {!loading && topPlayer && (
-        <div className="bg-gradient-to-r from-[#0A1318] to-gray-700 rounded-2xl p-4 mb-6 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-600">
-            {topPlayer.photo_url
-              ? <img src={topPlayer.photo_url} alt={topPlayer.name} className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center font-heading font-black text-white text-lg">{topPlayer.name.charAt(0)}</div>
-            }
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-[#FD5461] mb-0.5">⭐ Top Available</div>
-            <div className="font-heading font-black text-white text-lg truncate">{topPlayer.name}</div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <PositionBadge position={topPlayer.position} />
-              {(() => {
-                const code = FIFA_NATIONS.find(n => n.name === topPlayer.nationality)?.code
-                return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3 w-5 object-cover rounded-sm" alt="" /> : null
-              })()}
-              <span className="text-gray-300 text-xs">{topPlayer.nationality}</span>
-            </div>
-          </div>
-          <div className="flex-shrink-0 text-right">
-            <div className="font-heading font-black text-3xl text-white">{topPlayer.ovr}</div>
-            <div className="text-xs text-gray-400">${formatCurrency(topPlayer.market_value)}</div>
-          </div>
-        </div>
-      )}
-
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <input
