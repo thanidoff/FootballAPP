@@ -6,7 +6,6 @@ const NAV_ITEMS = [
   { to: '/players', label: 'Players' },
   { to: '/clubs', label: 'Clubs' },
   { to: '/matches', label: 'Matches' },
-  { to: '/transfers', label: 'Market' },
 ]
 
 const RESET_ITEMS = [

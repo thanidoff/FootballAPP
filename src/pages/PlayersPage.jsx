@@ -373,10 +373,13 @@ export default function PlayersPage() {
               label="Select Club"
               value={selectedClub}
               onChange={(val) => setSelectedClub(val)}
-              clubs={clubs.filter(c => !c.is_national && c.id !== signing.club_id).map((c) => ({
-                ...c,
-                name: `${c.name}  ·  $${formatCurrency(c.budget)}${c.budget < agreedFee ? '  (insufficient)' : ''}`,
-              }))}
+              clubs={clubs.filter(c => !c.is_national && c.id !== signing.club_id).map((c) => {
+                const membersCount = players.filter(p => p.club_id === c.id).length
+                return {
+                  ...c,
+                  name: `${c.name}  ·  $${formatCurrency(c.budget)}  ·  ${membersCount} players${c.budget < agreedFee ? '  (insufficient)' : ''}`,
+                }
+              })}
             />
 
             {/* Fee negotiation */}
@@ -384,27 +387,37 @@ export default function PlayersPage() {
               <label className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500 block mb-1">
                 Transfer Fee
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => { const v = Math.max(0, agreedFee - 1_000_000); setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
-                  className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 font-bold text-lg flex-shrink-0"
-                >−</button>
-                <div className="flex-1 relative">
+                  onClick={() => { const v = Math.max(0, agreedFee - 10_000_000); setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
+                  className="w-10 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors font-heading font-black text-xs flex-shrink-0 cursor-pointer"
+                >-10</button>
+                <button
+                  type="button"
+                  onClick={() => { const v = Math.max(0, agreedFee - 5_000_000); setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
+                  className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors font-heading font-bold text-xs flex-shrink-0 cursor-pointer"
+                >-5</button>
+                <div className="flex-1 min-w-[70px] relative">
                   <input
                     type="number"
                     value={feeDisplay}
                     onChange={(e) => { setFeeDisplay(e.target.value); setAgreedFee(Math.round(parseFloat(e.target.value || 0) * 1_000_000)) }}
                     onBlur={() => setFeeDisplay((agreedFee / 1_000_000).toFixed(1))}
-                    className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 text-center font-heading font-bold"
+                    className="w-full px-2 py-2 pr-8 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 text-center font-heading font-bold"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">M</span>
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">M</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => { const v = agreedFee + 1_000_000; setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
-                  className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 font-bold text-lg flex-shrink-0"
-                >+</button>
+                  onClick={() => { const v = agreedFee + 5_000_000; setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
+                  className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors font-heading font-bold text-xs flex-shrink-0 cursor-pointer"
+                >+5</button>
+                <button
+                  type="button"
+                  onClick={() => { const v = agreedFee + 10_000_000; setAgreedFee(v); setFeeDisplay((v/1_000_000).toFixed(1)) }}
+                  className="w-10 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors font-heading font-black text-xs flex-shrink-0 cursor-pointer"
+                >+10</button>
               </div>
             </div>
 
