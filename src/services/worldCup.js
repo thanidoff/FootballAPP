@@ -359,7 +359,6 @@ export async function fetchSeasonStats(seasonId) {
   const topOf = (type) => Object.entries(tally)
     .filter(([, v]) => v[type] > 0)
     .sort((a, b) => b[1][type] - a[1][type])
-    .slice(0, 5)
     .map(([pid, v]) => ({
       player: playerMap[pid],
       club:   clubMap[v.club_id],

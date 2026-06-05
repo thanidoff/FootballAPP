@@ -91,9 +91,13 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
               {player.club && <ClubBadge club={player.club} />}
             </div>
           </div>
-          <div className="text-right flex-shrink-0">
-            <div className="text-xl font-semibold text-gray-900">{player.ovr}</div>
-            <div className="text-[10px] font-medium tracking-widest uppercase text-gray-400">{player.position}</div>
+          <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
+            <div className={`flex items-center justify-center w-9 h-9 rounded-lg ${style.ovrBg} ${style.ovrText}`}>
+              <span className="text-sm font-bold leading-none">{player.ovr}</span>
+            </div>
+            <span className="text-[9px] font-semibold tracking-wider uppercase" style={{ color: posColor }}>
+              {player.position === 'GK' ? 'GK' : player.position === 'DEF' ? 'DF' : player.position === 'MF' ? 'MF' : 'FW'}
+            </span>
           </div>
         </div>
       </button>

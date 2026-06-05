@@ -4,6 +4,7 @@ import { fetchPlayers } from '../services/players'
 import { completeMatch as completeMatchFriendly } from '../services/friendlyMatches'
 import { completeMatch as completeMatchWC } from '../services/worldCup'
 import { completeLeagueMatch } from '../services/league'
+import { completeDraftMatch } from '../services/draftSave'
 import { getOVRTier } from '../utils/stats'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 import PlayerCard from '../components/ui/PlayerCard'
@@ -516,10 +517,18 @@ export default function PreMatchPage() {
   const navigate = useNavigate()
   const { matchId } = useParams()
   // Support both URL param and legacy location.state
-  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds } = location.state ?? {}
+  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds, saveId, matchIndex, currentWeek } = location.state ?? {}
   const isTournament = location.pathname.includes('/world-cup/') || location.pathname.includes('/club-cup/')
   const isLeague = location.pathname.includes('/league/')
-  const completeMatch = isLeague ? completeLeagueMatch : (isTournament ? completeMatchWC : completeMatchFriendly)
+  const isDraft = location.pathname.includes('/matches/draft/prematch')
+  
+  let completeMatch = isLeague ? completeLeagueMatch : (isTournament ? completeMatchWC : completeMatchFriendly)
+  if (isDraft) {
+    completeMatch = async (_, payload) => {
+      await completeDraftMatch(saveId, currentWeek, matchIndex, payload)
+    }
+  }
+  
   const matchesPath = returnPath ?? '/matches/friendly'
 
   const [activeTab, setActiveTab] = useState('home')
@@ -554,6 +563,7 @@ export default function PreMatchPage() {
   const [simPreview, setSimPreview] = useState(null)
   const [showConfetti, setShowConfetti] = useState(false)
   const [tickerEvents, setTickerEvents] = useState([])
+  const [isSaving, setIsSaving] = useState(false)
 
   function simulateSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
     let hScore = currentHomeScore
@@ -953,7 +963,8 @@ export default function PreMatchPage() {
   if (!homeClub || !awayClub) return null
 
   async function handleSaveAndExit() {
-    if (!mvp) return
+    if (!mvp || isSaving) return
+    setIsSaving(true)
     if (matchId) {
       // Build events array from goals, fouls, mvp
       const events = []
@@ -986,7 +997,11 @@ export default function PreMatchPage() {
         await completeMatch(matchId, { homeScore, awayScore, events })
       } catch (err) {
         console.error('Error saving match:', err)
+        setIsSaving(false)
+        return
       }
+    } else {
+      setIsSaving(false)
     }
     setMvp(null)
     navigate(matchesPath, { state: { refresh: true } })
@@ -1053,16 +1068,16 @@ export default function PreMatchPage() {
           )}
           <button
             onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
-            disabled={phase === 'full_time' && !mvp}
+            disabled={(phase === 'full_time' && !mvp) || isSaving}
             className={`px-5 py-2.5 rounded-xl font-heading font-black text-sm uppercase tracking-widest transition-colors
-              ${phase === 'full_time' && !mvp ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+              ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
                 : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
           >
             {phase === 'idle' && 'Start Match'}
             {phase === 'first_half' && 'End 1st Half'}
             {phase === 'half_time' && 'Start 2nd Half'}
             {phase === 'second_half' && 'End Match'}
-            {phase === 'full_time' && 'Save & Exit'}
+            {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
           </button>
           </div>
         </div>
@@ -1100,16 +1115,16 @@ export default function PreMatchPage() {
           )}
           <button
             onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
-            disabled={phase === 'full_time' && !mvp}
+            disabled={(phase === 'full_time' && !mvp) || isSaving}
             className={`px-5 py-2.5 rounded-xl font-heading font-black text-sm uppercase tracking-widest transition-colors
-              ${phase === 'full_time' && !mvp ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+              ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
                 : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
           >
             {phase === 'idle' && 'Start Match'}
             {phase === 'first_half' && 'End 1st Half'}
             {phase === 'half_time' && 'Start 2nd Half'}
             {phase === 'second_half' && 'End Match'}
-            {phase === 'full_time' && 'Save & Exit'}
+            {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
           </button>
         </div>
       </div>

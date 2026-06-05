@@ -308,7 +308,6 @@ function computeTopPerformers(events) {
     all
       .filter(p => p[key] > 0)
       .sort((a, b) => b[key] - a[key])
-      .slice(0, 5)
       .map(p => ({ ...p, value: p[key] }))
 
   return {

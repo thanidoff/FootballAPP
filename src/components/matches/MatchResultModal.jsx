@@ -38,6 +38,56 @@ function ClubBadge({ club }) {
 const EVENT_ICON = { goal: '⚽', assist: '👟', yellow_card: '🟨', red_card: '🟥', mvp: '⭐' }
 const EVENT_LABEL = { goal: 'Goal', assist: 'Assist', yellow_card: 'Yellow Card', red_card: 'Red Card', mvp: 'MVP' }
 
+function aggregateEventsByPlayer(clubEvents) {
+  const groups = {}
+  const filtered = clubEvents.filter(ev => ev.event_type !== 'mvp')
+  
+  for (const ev of filtered) {
+    if (!ev.player) continue
+    const playerId = ev.player.id
+    if (!groups[playerId]) {
+      groups[playerId] = {
+        player: ev.player,
+        goals: [],
+        assists: [],
+        yellow_cards: [],
+        red_cards: [],
+        earliestMinute: 999,
+      }
+    }
+    
+    if (ev.minute != null) {
+      const min = parseInt(ev.minute, 10)
+      if (ev.event_type === 'goal') {
+        groups[playerId].goals.push(min)
+      } else if (ev.event_type === 'assist') {
+        groups[playerId].assists.push(min)
+      } else if (ev.event_type === 'yellow_card') {
+        groups[playerId].yellow_cards.push(min)
+      } else if (ev.event_type === 'red_card') {
+        groups[playerId].red_cards.push(min)
+      }
+      if (min < groups[playerId].earliestMinute) {
+        groups[playerId].earliestMinute = min
+      }
+    }
+  }
+
+  return Object.values(groups).map(p => {
+    p.goals.sort((a, b) => a - b)
+    p.assists.sort((a, b) => a - b)
+    p.yellow_cards.sort((a, b) => a - b)
+    p.red_cards.sort((a, b) => a - b)
+    return p
+  }).sort((a, b) => {
+    const aHasGoals = a.goals.length > 0
+    const bHasGoals = b.goals.length > 0
+    if (aHasGoals && !bHasGoals) return -1
+    if (!aHasGoals && bHasGoals) return 1
+    return a.earliestMinute - b.earliestMinute
+  })
+}
+
 export default function MatchResultModal({ match, open, onClose, fetchEventsFn }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
@@ -142,14 +192,36 @@ export default function MatchResultModal({ match, open, onClose, fetchEventsFn }
                   {/* Home */}
                   <div className="space-y-2">
                     <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-300">{homeClub?.short_name}</div>
-                    {homeEvents.filter(ev => ev.event_type !== 'mvp').length === 0
+                    {aggregateEventsByPlayer(homeEvents).length === 0
                       ? <div className="text-[10px] text-gray-300">—</div>
-                      : homeEvents.filter(ev => ev.event_type !== 'mvp').map((ev, i) => (
-                          <div key={i} className="flex items-start gap-1.5">
-                            <span className="text-xs leading-none mt-0.5">{EVENT_ICON[ev.event_type]}</span>
-                            <div>
-                              <span className="font-heading font-bold text-xs text-[#0A1318]">{ev.player?.name ?? '—'}</span>
-                              {ev.minute && <span className="text-[10px] text-gray-400 ml-1">{ev.minute}'</span>}
+                      : aggregateEventsByPlayer(homeEvents).map((group, i) => (
+                          <div key={i} className="min-w-0">
+                            <span className="font-heading font-bold text-xs text-[#0A1318] block truncate">{group.player?.name}</span>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                              {group.goals.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>⚽</span>
+                                  <span>{group.goals.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
+                              {group.assists.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>👟</span>
+                                  <span>{group.assists.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
+                              {group.yellow_cards.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>🟨</span>
+                                  <span>{group.yellow_cards.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
+                              {group.red_cards.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>🟥</span>
+                                  <span>{group.red_cards.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))
@@ -158,14 +230,36 @@ export default function MatchResultModal({ match, open, onClose, fetchEventsFn }
                   {/* Away */}
                   <div className="space-y-2">
                     <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-300">{awayClub?.short_name}</div>
-                    {awayEvents.filter(ev => ev.event_type !== 'mvp').length === 0
+                    {aggregateEventsByPlayer(awayEvents).length === 0
                       ? <div className="text-[10px] text-gray-300">—</div>
-                      : awayEvents.filter(ev => ev.event_type !== 'mvp').map((ev, i) => (
-                          <div key={i} className="flex items-start gap-1.5">
-                            <span className="text-xs leading-none mt-0.5">{EVENT_ICON[ev.event_type]}</span>
-                            <div>
-                              <span className="font-heading font-bold text-xs text-[#0A1318]">{ev.player?.name ?? '—'}</span>
-                              {ev.minute && <span className="text-[10px] text-gray-400 ml-1">{ev.minute}'</span>}
+                      : aggregateEventsByPlayer(awayEvents).map((group, i) => (
+                          <div key={i} className="min-w-0">
+                            <span className="font-heading font-bold text-xs text-[#0A1318] block truncate">{group.player?.name}</span>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                              {group.goals.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>⚽</span>
+                                  <span>{group.goals.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
+                              {group.assists.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>👟</span>
+                                  <span>{group.assists.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
+                              {group.yellow_cards.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>🟨</span>
+                                  <span>{group.yellow_cards.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
+                              {group.red_cards.length > 0 && (
+                                <span className="text-[10px] text-gray-400 font-heading font-bold flex items-center gap-0.5 tabular-nums">
+                                  <span>🟥</span>
+                                  <span>{group.red_cards.map(m => `${m}'`).join(', ')}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))

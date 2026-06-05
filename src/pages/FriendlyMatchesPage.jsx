@@ -207,18 +207,32 @@ function SmallClubBadge({ club }) {
   )
 }
 
-function TopList({ title, icon, items, unit }) {
+function TopList({ title, icon, items, unit, onViewAll }) {
+  const displayItems = items?.slice(0, 5) ?? []
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-        <span className="text-base">{icon}</span>
-        <span className="font-heading font-black text-xs uppercase tracking-widest text-[#0A1318]">{title}</span>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{icon}</span>
+          <span className="font-heading font-black text-xs uppercase tracking-widest text-[#0A1318]">{title}</span>
+        </div>
+        {items && items.length > 0 && onViewAll && (
+          <button 
+            onClick={onViewAll}
+            className="text-gray-400 hover:text-[#FD5461] transition-colors cursor-pointer p-1 -mr-1"
+            title="ดูทั้งหมด"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+        )}
       </div>
-      {!items || items.length === 0 ? (
+      {displayItems.length === 0 ? (
         <div className="px-4 py-4 text-xs text-gray-300 font-heading font-bold text-center">No data yet</div>
       ) : (
         <div className="divide-y divide-gray-50">
-          {items.map((item, i) => (
+          {displayItems.map((item, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-2.5">
               <span className="text-xs font-heading font-black text-gray-300 w-4 flex-shrink-0">{i + 1}</span>
               <PlayerAvatar player={item.player} />
@@ -237,6 +251,73 @@ function TopList({ title, icon, items, unit }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function AllStatsModal({ open, onClose, title, icon, items, unit }) {
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [open])
+
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}
+        style={{ animation: 'slideUp 0.25s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}>
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">{icon}</span>
+            <span className="font-heading font-black text-base uppercase tracking-wider text-[#0A1318]">{title}</span>
+            <span className="bg-gray-100 text-gray-500 font-heading font-bold text-[10px] px-2 py-0.5 rounded-full">
+              {items?.length ?? 0} คน
+            </span>
+          </div>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl font-bold cursor-pointer transition-colors">✕</button>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-50 px-2 py-1">
+          {!items?.length ? (
+            <div className="py-12 text-center text-xs text-gray-300 font-heading font-bold uppercase tracking-widest">No data available</div>
+          ) : (
+            items.map((item, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors rounded-xl">
+                <span className={`text-xs font-heading font-black w-5 flex-shrink-0
+                  ${i === 0 ? 'text-amber-500 text-sm' : i === 1 ? 'text-gray-400 text-sm' : i === 2 ? 'text-amber-700 text-sm' : 'text-gray-300'}`}>
+                  {i + 1}
+                </span>
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center ring-1 ring-black/5">
+                  {item.player?.photo_url
+                    ? <img src={item.player.photo_url} alt={item.player.name} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center font-heading font-black text-gray-400 text-xs">{item.player?.name?.charAt(0)}</div>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading font-black text-xs sm:text-sm text-[#0A1318] truncate">{item.player?.name}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <SmallClubBadge club={item.club} />
+                    <span className="text-[10px] text-gray-400 font-heading truncate">{item.club?.short_name}</span>
+                  </div>
+                </div>
+                <span className="font-heading font-black text-xl text-[#0A1318] tabular-nums flex-shrink-0">
+                  {item.value}
+                  {unit && <span className="text-xs text-gray-400 font-bold ml-0.5">{unit}</span>}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -294,6 +375,7 @@ function StandingsTable({ standings }) {
 function StatsPanel({ seasonId }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [activeModal, setActiveModal] = useState(null)
 
   useEffect(() => {
     if (!seasonId) return
@@ -312,16 +394,27 @@ function StatsPanel({ seasonId }) {
   )
 
   return (
-    <div className="space-y-4">
-      <StandingsTable standings={stats.standings} />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <TopList title="Top Scorer"  icon="⚽" items={stats.topScorer}  />
-        <TopList title="Top Assist"  icon="👟" items={stats.topAssist}  />
-        <TopList title="Most MVP"    icon="⭐" items={stats.mostMvp}   />
-        <TopList title="Yellow Card" icon="🟨" items={stats.mostYellow} />
-        <TopList title="Red Card"    icon="🟥" items={stats.mostRed}   />
+    <>
+      <div className="space-y-4">
+        <StandingsTable standings={stats.standings} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <TopList title="Top Scorer"  icon="⚽" items={stats.topScorer} onViewAll={() => setActiveModal({ title: "Top Scorer", icon: "⚽", items: stats.topScorer })} />
+          <TopList title="Top Assist"  icon="👟" items={stats.topAssist} onViewAll={() => setActiveModal({ title: "Top Assist", icon: "👟", items: stats.topAssist })} />
+          <TopList title="Most MVP"    icon="⭐" items={stats.mostMvp} onViewAll={() => setActiveModal({ title: "Most MVP", icon: "⭐", items: stats.mostMvp })} />
+          <TopList title="Yellow Card" icon="🟨" items={stats.mostYellow} onViewAll={() => setActiveModal({ title: "Yellow Card", icon: "🟨", items: stats.mostYellow })} />
+          <TopList title="Red Card"    icon="🟥" items={stats.mostRed} onViewAll={() => setActiveModal({ title: "Red Card", icon: "🟥", items: stats.mostRed })} />
+        </div>
       </div>
-    </div>
+
+      <AllStatsModal
+        open={!!activeModal}
+        onClose={() => setActiveModal(null)}
+        title={activeModal?.title}
+        icon={activeModal?.icon}
+        items={activeModal?.items}
+        unit={activeModal?.unit}
+      />
+    </>
   )
 }
 

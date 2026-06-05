@@ -9,6 +9,14 @@ import FriendlyMatchesPage from './pages/FriendlyMatchesPage'
 import PreMatchPage from './pages/PreMatchPage'
 import WorldCupPage from './pages/WorldCupPage'
 import LeaguePage from './pages/LeaguePage'
+import DraftSavesPage from './pages/DraftMode/DraftSavesPage'
+import DraftSetupPage from './pages/DraftMode/DraftSetupPage'
+import DraftRollPage from './pages/DraftMode/DraftRollPage'
+import DraftDashboardPage from './pages/DraftMode/DraftDashboardPage'
+import DraftOverviewTab from './pages/DraftMode/Tabs/DraftOverviewTab'
+import DraftSquadsTab from './pages/DraftMode/Tabs/DraftSquadsTab'
+import DraftTransfersTab from './pages/DraftMode/Tabs/DraftTransfersTab'
+import DraftMatchesTab from './pages/DraftMode/Tabs/DraftMatchesTab'
 
 export default function App() {
   return (
@@ -29,6 +37,17 @@ export default function App() {
             <Route path="matches/club-cup/:matchId/prematch" element={<PreMatchPage />} />
             <Route path="matches/league" element={<LeaguePage />} />
             <Route path="matches/league/:matchId/prematch" element={<PreMatchPage />} />
+            <Route path="matches/draft/prematch" element={<PreMatchPage />} />
+            <Route path="draft" element={<DraftSavesPage />} />
+            <Route path="draft/setup" element={<DraftSetupPage />} />
+            <Route path="draft/roll" element={<DraftRollPage />} />
+            <Route path="draft/:saveId" element={<DraftDashboardPage />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<DraftOverviewTab />} />
+              <Route path="squads" element={<DraftSquadsTab />} />
+              <Route path="transfers" element={<DraftTransfersTab />} />
+              <Route path="matches" element={<DraftMatchesTab />} />
+            </Route>
           </Route>
         </Routes>
       </AuthWrapper>
