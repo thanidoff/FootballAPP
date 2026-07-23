@@ -45,22 +45,21 @@ const OVR_WEIGHTS = {
   FWD: { SHO: 0.32, DRI: 0.20, PAC: 0.18, PHY: 0.13, PAS: 0.12, DEF: 0.05 },
 }
 
-export function normalizeStats(stats) {
-  const safeStats = (stats && typeof stats === 'object') ? stats : {}
-  const getVal = (val) => (val !== undefined && val !== null && !isNaN(val)) ? Number(val) : null
+export function normalizeStats(stats = {}) {
+  const safe = stats || {}
   const average = (...values) => {
-    const present = values.map(getVal).filter(v => v !== null)
+    const present = values.filter(value => Number.isFinite(Number(value))).map(Number)
     return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : 50
   }
   const normalized = {
-    PAC: getVal(safeStats.PAC) ?? getVal(safeStats.SPD) ?? 50,
-    SHO: getVal(safeStats.SHO) ?? 30,
-    PAS: getVal(safeStats.PAS) ?? getVal(safeStats.KIC) ?? 50,
-    DRI: getVal(safeStats.DRI) ?? average(safeStats.HAN, safeStats.KIC),
-    DEF: getVal(safeStats.DEF) ?? 30,
-    PHY: getVal(safeStats.PHY) ?? getVal(safeStats.HAN) ?? 50,
-    SAV: getVal(safeStats.SAV) ?? average(safeStats.REF, safeStats.DIV, safeStats.HAN),
-    GKA: getVal(safeStats.GKA) ?? average(safeStats.POS, safeStats.SPD, safeStats.HAN),
+    PAC: safe.PAC ?? safe.SPD ?? 50,
+    SHO: safe.SHO ?? 30,
+    PAS: safe.PAS ?? safe.KIC ?? 50,
+    DRI: safe.DRI ?? average(safe.HAN, safe.KIC),
+    DEF: safe.DEF ?? 30,
+    PHY: safe.PHY ?? safe.HAN ?? 50,
+    SAV: safe.SAV ?? average(safe.REF, safe.DIV, safe.HAN),
+    GKA: safe.GKA ?? safe.POS ?? 50,
   }
   return Object.fromEntries(Object.entries(normalized).map(([key, value]) => [key, Math.round(Number(value) || 0)]))
 }
