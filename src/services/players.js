@@ -147,9 +147,13 @@ export async function updatePlayer(id, { name, nationality, age, position, marke
   const photo_url = await resolvePhotoUrl(photo, id)
 
   const updates = {
-    name, nationality, age, position, market_value,
-    club_id: club_id || null,
-    ...mapStatsToRow(position, stats),
+    ...(name !== undefined ? { name } : {}),
+    ...(nationality !== undefined ? { nationality } : {}),
+    ...(age !== undefined ? { age } : {}),
+    ...(position !== undefined ? { position } : {}),
+    ...(market_value !== undefined ? { market_value } : {}),
+    ...(club_id !== undefined ? { club_id: club_id || null } : {}),
+    ...(stats ? mapStatsToRow(position, stats) : {}),
     ...(photo_url !== undefined ? { photo_url } : {}),
     ...(photo === null ? { photo_url: null } : {}),
   }
