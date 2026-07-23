@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Minus, Plus, Trash2, UserRound, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Minus, Plus, Trash2, UserRound, X } from 'lucide-react'
 import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
@@ -274,7 +274,7 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
               </>
             ) : (
               <>
-                <ArrowLeft size={15} strokeWidth={2.5} className="text-gray-400" />
+                <ChevronLeft size={16} strokeWidth={2.5} className="text-gray-400" />
                 <span>Back</span>
               </>
             )}
@@ -287,7 +287,7 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
             className="inline-flex items-center gap-2 rounded-xl bg-[#FD5461] px-6 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
           >
             <span>{step === STEPS.length - 1 ? 'Create Career' : 'Continue'}</span>
-            <ArrowRight size={15} strokeWidth={2.5} />
+            <ChevronRight size={16} strokeWidth={2.5} />
           </button>
         </footer>
       </section>
