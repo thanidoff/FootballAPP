@@ -8,7 +8,7 @@ export default function StatBar({ label, value, dark = false, dense = false }) {
       <span className={`${dense ? 'w-7 text-[10px] font-semibold tracking-wide' : 'w-8 text-xs font-bold tracking-wider'} font-heading uppercase ${dark ? 'text-white/30' : 'text-gray-400'}`}>
         {label}
       </span>
-      <span className={`${dense ? 'w-7 text-xs font-medium' : 'w-8 text-sm font-bold'} font-heading tabular-nums`} style={{ color }}>
+      <span className={`${dense ? 'w-7 text-xs font-medium' : 'w-8 text-sm font-medium'} font-heading tabular-nums`} style={{ color }}>
         {value}
       </span>
       <div className={`flex-1 h-1 rounded-full overflow-hidden ${dark ? 'bg-white/10' : 'bg-gray-100'}`}>
