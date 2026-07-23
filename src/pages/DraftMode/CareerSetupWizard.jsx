@@ -17,8 +17,8 @@ function ClubBadge({ club }) {
   )
 }
 
-export default function CareerSetupWizard({ initialName = '', onClose, onComplete }) {
-  const { shouldRender, closing } = useOverlayBehavior(true, onClose)
+export default function CareerSetupWizard({ open = true, initialName = '', onClose, onComplete }) {
+  const { shouldRender, closing } = useOverlayBehavior(open, onClose)
   const [step, setStep] = useState(0)
   const [saveName, setSaveName] = useState(initialName)
   const [clubs, setClubs] = useState([])
