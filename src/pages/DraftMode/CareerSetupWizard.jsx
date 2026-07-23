@@ -4,6 +4,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Minus, Plus, Trash2, Use
 import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
+import Modal from '../../components/ui/Modal'
 
 const STEPS = ['Save', 'Clubs', 'Team setup']
 const DEFAULT_BUDGET = 100_000_000
@@ -25,8 +26,27 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
   const [players, setPlayers] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
   const [teamSettings, setTeamSettings] = useState({})
-  const [expandedId, setExpandedId] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [pickingForClubId, setPickingForClubId] = useState(null)
+  const [playerSearch, setPlayerSearch] = useState('')
+
+  const availablePlayers = useMemo(() => {
+    const attachedIds = new Set(Object.values(teamSettings).flatMap(s => (s.roster || []).map(p => p.id)))
+    return players.filter(p => !attachedIds.has(p.id) && (
+      !playerSearch || p.name.toLowerCase().includes(playerSearch.toLowerCase()) || p.nationality?.toLowerCase().includes(playerSearch.toLowerCase())
+    ))
+  }, [players, teamSettings, playerSearch])
+
+  function addPlayerToClub(clubId, player) {
+    setTeamSettings(settings => ({
+      ...settings,
+      [clubId]: {
+        ...settings[clubId],
+        roster: [...(settings[clubId]?.roster || []), player],
+      },
+    }))
+    setPickingForClubId(null)
+    setPlayerSearch('')
+  }
 
   const inputRef = useRef(null)
 
@@ -244,10 +264,20 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
                                 <button onClick={() => releasePlayer(club.id, player.id)} title="Release to free agents" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461]"><X size={15} strokeWidth={2.25} /></button>
                               </div>
                             ) : (
-                              <div key={`empty-${index}`} className="flex min-h-16 items-center gap-3 rounded-xl border border-gray-200 bg-white p-2.5">
-                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-gray-300"><UserRound size={17} strokeWidth={1.75} /></span>
-                                <span className="text-sm font-normal text-gray-400">Empty player slot</span>
-                              </div>
+                              <button
+                                key={`empty-${index}`}
+                                type="button"
+                                onClick={() => { setPickingForClubId(club.id); setPlayerSearch('') }}
+                                className="flex min-h-16 items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white p-2.5 transition-all hover:border-[#FD5461] hover:bg-red-50/40 hover:shadow-sm active:scale-[0.99]"
+                              >
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 transition-colors group-hover:bg-[#FD5461] group-hover:text-white">
+                                  <Plus size={18} strokeWidth={2.5} />
+                                </span>
+                                <div className="text-left">
+                                  <span className="block font-heading text-xs font-bold uppercase tracking-wide text-gray-600">Add Player</span>
+                                  <span className="text-[10px] text-gray-400">Click to select player</span>
+                                </div>
+                              </button>
                             ))}
                           </div>
                           </div>
@@ -284,6 +314,48 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
           </button>
         </footer>
       </section>
+
+      <Modal
+        open={Boolean(pickingForClubId)}
+        onClose={() => { setPickingForClubId(null); setPlayerSearch('') }}
+        title="Select Player to Add"
+        width="max-w-xl"
+      >
+        <div className="space-y-4">
+          <input
+            type="text"
+            placeholder="Search by name or nationality..."
+            value={playerSearch}
+            onChange={e => setPlayerSearch(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#0A1318] outline-none transition-colors focus:border-[#FD5461] focus:bg-white focus:ring-2 focus:ring-red-50"
+          />
+
+          <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+            {availablePlayers.length === 0 ? (
+              <div className="py-8 text-center text-sm text-gray-400">No available players found</div>
+            ) : (
+              availablePlayers.map(player => (
+                <div
+                  key={player.id}
+                  onClick={() => addPlayerToClub(pickingForClubId, player)}
+                  className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-[#FD5461] hover:bg-red-50/30 hover:shadow-md"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#455268] font-heading text-xs font-black text-white">{player.ovr}</span>
+                    <div>
+                      <span className="block font-heading text-xs font-black uppercase text-[#0A1318]">{player.name}</span>
+                      <span className="text-[10px] text-gray-400">{player.nationality} · {player.age} yrs · <span className="font-bold text-[#FD5461]">{player.position}</span></span>
+                    </div>
+                  </div>
+                  <span className="flex h-8 items-center gap-1 rounded-lg bg-[#FD5461] px-3 font-heading text-[10px] font-black uppercase tracking-wider text-white">
+                    <Plus size={14} strokeWidth={2.5} /> Add
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>,
     document.body
   )
