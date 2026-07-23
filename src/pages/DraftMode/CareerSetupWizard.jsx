@@ -199,8 +199,8 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
                             <span className="mr-1 text-sm font-medium text-gray-600">Budget</span>
-                            <button type="button" onClick={() => adjustBudget(club.id, -10_000_000)} aria-label={`Decrease ${club.name} budget by 10M`} className="flex h-9 items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]"><Minus size={12} strokeWidth={2.25} />10M</button>
-                            <button type="button" onClick={() => adjustBudget(club.id, -1_000_000)} aria-label={`Decrease ${club.name} budget by 1M`} className="flex h-9 items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]"><Minus size={12} strokeWidth={2.25} />1M</button>
+                            <button type="button" onClick={() => adjustBudget(club.id, -10_000_000)} aria-label={`Decrease ${club.name} budget by 10M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-10M</button>
+                            <button type="button" onClick={() => adjustBudget(club.id, -1_000_000)} aria-label={`Decrease ${club.name} budget by 1M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-1M</button>
                             <span className="relative block w-24">
                               <input
                                 type="text"
@@ -218,8 +218,8 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
                               />
                               <span className="pointer-events-none absolute right-2 top-2.5 text-[10px] font-bold text-gray-400">M</span>
                             </span>
-                            <button type="button" onClick={() => adjustBudget(club.id, 1_000_000)} aria-label={`Increase ${club.name} budget by 1M`} className="flex h-9 items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]"><Plus size={12} strokeWidth={2.25} />1M</button>
-                            <button type="button" onClick={() => adjustBudget(club.id, 10_000_000)} aria-label={`Increase ${club.name} budget by 10M`} className="flex h-9 items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]"><Plus size={12} strokeWidth={2.25} />10M</button>
+                            <button type="button" onClick={() => adjustBudget(club.id, 1_000_000)} aria-label={`Increase ${club.name} budget by 1M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+1M</button>
+                            <button type="button" onClick={() => adjustBudget(club.id, 10_000_000)} aria-label={`Increase ${club.name} budget by 10M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+10M</button>
                           </div>
                           <button onClick={() => setExpandedId(open ? null : club.id)} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} ${club.name} players`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-gray-100 hover:text-[#FD5461]">
                             <ChevronDown size={18} strokeWidth={2.25} className={`transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] ${open ? 'rotate-180' : ''}`} />
