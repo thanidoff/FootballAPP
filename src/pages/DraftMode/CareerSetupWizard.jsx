@@ -48,7 +48,7 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
     setPlayerSearch('')
   }
 
-  const inputRef = useRef(null)
+
 
   useEffect(() => {
     Promise.all([fetchClubs(), fetchPlayers()])
@@ -160,7 +160,7 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
               <div className="mx-auto flex h-full max-w-lg flex-col justify-center pb-12">
                 <h3 className="font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Name your save</h3>
                 <p className="mt-2 text-sm text-gray-500">Give this career a name you will recognize later.</p>
-                <input ref={inputRef} value={saveName} onChange={event => setSaveName(event.target.value)} placeholder="e.g. Bangkok Road to Glory" className="mt-7 w-full rounded-2xl border-2 border-gray-200 bg-white px-5 py-4 text-base text-[#0A1318] outline-none focus:outline-none transition-colors focus:border-[#FD5461] focus:ring-4 focus:ring-red-50" />
+                <input value={saveName} onChange={event => setSaveName(event.target.value)} placeholder="e.g. Bangkok Road to Glory" className="mt-7 w-full rounded-2xl border-2 border-gray-200 bg-white px-5 py-4 text-base text-[#0A1318] outline-none focus:outline-none transition-colors focus:border-[#FD5461] focus:ring-4 focus:ring-red-50" />
               </div>
             </div>
 
