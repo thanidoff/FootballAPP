@@ -1,22 +1,23 @@
-import { supabase } from '../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { uploadDataUrl } from './storage'
+import { MOCK_PLAYERS } from '../data/mockGameData'
+import { calculateOVR, normalizeStats } from '../utils/stats'
 
 function mapStatsToRow(position, stats) {
-  if (position === 'GK') {
-    return {
-      stat_div: stats.DIV ?? 50, stat_han: stats.HAN ?? 50,
-      stat_kic: stats.KIC ?? 50, stat_ref: stats.REF ?? 50,
-      stat_spd: stats.SPD ?? 50, stat_pos: stats.POS ?? 50,
-      stat_pac: 50, stat_sho: 50, stat_pas: 50,
-      stat_dri: 50, stat_def: 50, stat_phy: 50,
-    }
-  }
+  const current = normalizeStats(stats)
   return {
-    stat_pac: stats.PAC ?? 50, stat_sho: stats.SHO ?? 50,
-    stat_pas: stats.PAS ?? 50, stat_dri: stats.DRI ?? 50,
-    stat_def: stats.DEF ?? 50, stat_phy: stats.PHY ?? 50,
-    stat_div: 50, stat_han: 50, stat_kic: 50,
-    stat_ref: 50, stat_spd: 50, stat_pos: 50,
+    stat_pac: current.PAC, stat_sho: current.SHO,
+    stat_pas: current.PAS, stat_dri: current.DRI,
+    stat_def: current.DEF, stat_phy: current.PHY,
+    stat_sav: current.SAV, stat_gka: current.GKA,
+    // Mirror the current model into the legacy GK fields so restored clients and
+    // exports remain useful without discarding their historical column layout.
+    stat_div: stats.DIV ?? current.SAV,
+    stat_han: stats.HAN ?? current.SAV,
+    stat_kic: stats.KIC ?? current.PAS,
+    stat_ref: stats.REF ?? current.SAV,
+    stat_spd: stats.SPD ?? current.PAC,
+    stat_pos: stats.POS ?? current.GKA,
   }
 }
 
@@ -26,10 +27,12 @@ function mapRowToStats(row) {
     REF: row.stat_ref, SPD: row.stat_spd, POS: row.stat_pos,
     PAC: row.stat_pac, SHO: row.stat_sho, PAS: row.stat_pas,
     DRI: row.stat_dri, DEF: row.stat_def, PHY: row.stat_phy,
+    SAV: row.stat_sav, GKA: row.stat_gka,
   }
 }
 
 export function mapRowToPlayer(row) {
+  const stats = mapRowToStats(row)
   return {
     id: row.id,
     name: row.name,
@@ -39,11 +42,11 @@ export function mapRowToPlayer(row) {
     club_id: row.club_id,
     club: row.clubs ?? null,
     market_value: row.market_value,
-    ovr: row.ovr,
+    ovr: row.ovr_v2 ?? calculateOVR(row.position, stats) ?? row.ovr,
     roster_order: row.roster_order ?? null,
     national_roster_order: row.national_roster_order ?? null,
     photo_url: row.photo_url ?? null,
-    stats: mapRowToStats(row),
+    stats,
     created_at: row.created_at,
   }
 }
@@ -55,16 +58,26 @@ async function resolvePhotoUrl(photo, playerId) {
 }
 
 export async function fetchPlayers({ clubId, freeAgentsOnly, nationality } = {}) {
+  if (!isSupabaseConfigured) {
+    let players = MOCK_PLAYERS
+    if (clubId) players = players.filter(player => player.club_id === clubId)
+    if (freeAgentsOnly) players = players.filter(player => !player.club_id)
+    if (nationality) players = players.filter(player => player.nationality === nationality)
+    return players
+      .map(player => mapRowToPlayer({ ...player }))
+      .sort((a, b) => b.ovr - a.ovr)
+  }
+
   let query = supabase
     .from('players')
     .select('*, clubs(id, name, short_name, badge_color, badge_url)')
 
   if (clubId) {
-    query = query.eq('club_id', clubId).order('roster_order', { ascending: true, nullsFirst: false }).order('ovr', { ascending: false })
+    query = query.eq('club_id', clubId).order('roster_order', { ascending: true, nullsFirst: false }).order('ovr_v2', { ascending: false })
   } else if (nationality) {
-    query = query.eq('nationality', nationality).order('national_roster_order', { ascending: true, nullsFirst: false }).order('ovr', { ascending: false })
+    query = query.eq('nationality', nationality).order('national_roster_order', { ascending: true, nullsFirst: false }).order('ovr_v2', { ascending: false })
   } else {
-    query = query.order('ovr', { ascending: false })
+    query = query.order('ovr_v2', { ascending: false })
   }
 
   if (freeAgentsOnly) query = query.is('club_id', null)
@@ -79,11 +92,13 @@ export async function saveRosterOrder(slots) {
     .map((player, idx) => player ? { id: player.id, roster_order: idx } : null)
     .filter(Boolean)
   if (!updates.length) return
-  await Promise.all(
+  const results = await Promise.all(
     updates.map(({ id, roster_order }) =>
       supabase.from('players').update({ roster_order }).eq('id', id)
     )
   )
+  const failed = results.find(result => result.error)
+  if (failed) throw failed.error
 }
 
 export async function saveNationalRosterOrder(slots) {
@@ -91,11 +106,13 @@ export async function saveNationalRosterOrder(slots) {
     .map((player, idx) => player ? { id: player.id, national_roster_order: idx } : null)
     .filter(Boolean)
   if (!updates.length) return
-  await Promise.all(
+  const results = await Promise.all(
     updates.map(({ id, national_roster_order }) =>
       supabase.from('players').update({ national_roster_order }).eq('id', id)
     )
   )
+  const failed = results.find(result => result.error)
+  if (failed) throw failed.error
 }
 
 export async function fetchPlayer(id) {
@@ -118,7 +135,8 @@ export async function createPlayer({ name, nationality, age, position, market_va
 
   const photo_url = await resolvePhotoUrl(photo, data.id)
   if (photo_url) {
-    await supabase.from('players').update({ photo_url }).eq('id', data.id)
+    const { error: photoError } = await supabase.from('players').update({ photo_url }).eq('id', data.id)
+    if (photoError) throw photoError
     data.photo_url = photo_url
   }
 
@@ -167,6 +185,8 @@ export async function fetchPlayerHistory(playerId) {
       .select('*, club:clubs(id, name, short_name, badge_color, badge_url, is_national)')
       .eq('player_id', playerId),
   ])
+  const eventError = [friendly.error, worldCup.error, league.error].find(Boolean)
+  if (eventError) throw eventError
 
   const allEvents = [
     ...(friendly.data ?? []),
@@ -190,11 +210,12 @@ export async function fetchPlayerHistory(playerId) {
   }
 
   // Also fetch awards
-  const { data: awards } = await supabase
+  const { data: awards, error: awardsError } = await supabase
     .from('player_awards')
     .select('*, club:clubs(id, name, short_name, badge_color, badge_url, is_national)')
     .eq('player_id', playerId)
     .order('created_at', { ascending: false })
+  if (awardsError) throw awardsError
 
   return {
     history: Object.values(historyMap),

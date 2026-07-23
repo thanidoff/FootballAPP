@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { fetchNationalTeams, fetchClubTeams, seedNationalTeams } from '../../services/worldCup'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
 import { supabase } from '../../lib/supabase'
+import useOverlayBehavior from '../../hooks/useOverlayBehavior'
+import SegmentedControl from '../ui/SegmentedControl'
 
 // Build lookup: nation name → ISO code
 const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
@@ -12,6 +14,7 @@ function flagUrl(code) {
 }
 
 export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'national' }) {
+  const { shouldRender, closing } = useOverlayBehavior(open, onClose)
   const isClub = mode === 'club'
   const [teamSize, setTeamSize] = useState(8)
   const [teams, setTeams]       = useState([])
@@ -26,12 +29,6 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
 
   useEffect(() => {
     if (!open) return
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
     setSelected(new Set())
     setSearch('')
     setNameSort('asc')
@@ -40,13 +37,14 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
     Promise.all([
       isClub ? fetchClubTeams() : fetchNationalTeams(),
       // fetch avg ovr per nationality
-      supabase.from('players').select('nationality, club_id, ovr, roster_order, national_roster_order'),
+      supabase.from('players').select('nationality, club_id, ovr, ovr_v2, roster_order, national_roster_order'),
     ]).then(([t, { data: players }]) => {
       setTeams(t)
       const map = {}
       if (players) {
         const acc = {}
         for (const p of players) {
+          p.ovr = p.ovr_v2 ?? p.ovr
           // club mode: key by club_id; national mode: key by nationality
           const key = isClub ? p.club_id : p.nationality
           if (!key) continue
@@ -76,7 +74,7 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
     }).finally(() => setLoading(false))
   }, [open])
 
-  if (!open) return null
+  if (!shouldRender) return null
 
   const filtered = teams
     .filter(t =>
@@ -110,10 +108,9 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
   const remaining = teamSize - selected.size
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-[#0A1318]/55 p-4 backdrop-blur-sm sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}
       onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]"
-        style={{ animation: 'slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1) both' }}
+      <div role="dialog" aria-modal="true" className={`flex max-h-[min(700px,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -131,15 +128,7 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
 
         {/* Team Size Selector */}
         <div className="px-6 pb-3 flex-shrink-0">
-          <div className="flex bg-gray-100 p-1 rounded-xl">
-            {[4, 8, 16].map(size => (
-              <button key={size} onClick={() => { setTeamSize(size); setSelected(new Set()) }}
-                className={`flex-1 py-1.5 text-xs font-heading font-black uppercase tracking-widest rounded-lg transition-colors cursor-pointer
-                  ${teamSize === size ? 'bg-white text-[#0A1318] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
-                {size} Teams
-              </button>
-            ))}
-          </div>
+          <SegmentedControl items={[4, 8, 16].map(size => ({ id: size, label: `${size} Teams` }))} value={teamSize} onChange={size => { setTeamSize(size); setSelected(new Set()) }} ariaLabel="Tournament size" />
         </div>
 
         {/* Counter bar */}

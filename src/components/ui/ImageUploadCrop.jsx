@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Cropper from 'react-easy-crop'
 import Button from './Button'
+import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 
 async function getCroppedImg(src, pixels, circular = false) {
   const image = await new Promise((resolve, reject) => {
@@ -43,6 +44,7 @@ async function getCroppedImg(src, pixels, circular = false) {
 
 // FIX BUG-C: เพิ่ม processing state ใน CropModal
 function CropModal({ src, aspect, onDone, onCancel }) {
+  useOverlayBehavior(Boolean(src), onCancel)
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)

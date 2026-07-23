@@ -1,22 +1,27 @@
 import { supabase } from '../lib/supabase'
+import { requireUserId } from './auth'
 
 // ─── Seasons ────────────────────────────────────────────────────────────────
 
 export async function fetchSeasons() {
+  const ownerId = await requireUserId()
   const { data, error } = await supabase
     .from('friendly_seasons')
     .select('*')
+    .eq('owner_id', ownerId)
     .order('number', { ascending: true })
   if (error) throw error
   return data
 }
 
 export async function getOrCreateActiveSeason() {
+  const ownerId = await requireUserId()
   // Try to find an existing active season
   const { data: active, error: e1 } = await supabase
     .from('friendly_seasons')
     .select('*')
     .eq('status', 'active')
+    .eq('owner_id', ownerId)
     .order('number', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -27,6 +32,7 @@ export async function getOrCreateActiveSeason() {
   const { data: all, error: e2 } = await supabase
     .from('friendly_seasons')
     .select('number')
+    .eq('owner_id', ownerId)
     .order('number', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -35,7 +41,7 @@ export async function getOrCreateActiveSeason() {
   const nextNumber = all ? all.number + 1 : 1
   const { data: created, error: e3 } = await supabase
     .from('friendly_seasons')
-    .insert({ name: `Season ${nextNumber}`, number: nextNumber, status: 'active' })
+    .insert({ name: `Season ${nextNumber}`, number: nextNumber, status: 'active', owner_id: ownerId })
     .select()
     .single()
   if (e3) throw e3
@@ -43,10 +49,11 @@ export async function getOrCreateActiveSeason() {
 }
 
 export async function createNextSeason(currentNumber) {
+  const ownerId = await requireUserId()
   const nextNumber = currentNumber + 1
   const { data, error } = await supabase
     .from('friendly_seasons')
-    .insert({ name: `Season ${nextNumber}`, number: nextNumber, status: 'active' })
+    .insert({ name: `Season ${nextNumber}`, number: nextNumber, status: 'active', owner_id: ownerId })
     .select()
     .single()
   if (error) throw error
@@ -66,19 +73,22 @@ export async function endSeason(seasonId) {
 }
 
 async function insertSeasonAwards(seasonId) {
-  const { data: season } = await supabase
+  const ownerId = await requireUserId()
+  const { data: season, error: seasonError } = await supabase
     .from('friendly_seasons')
     .select('name')
     .eq('id', seasonId)
     .single()
+  if (seasonError) throw seasonError
 
   const seasonName = season?.name ?? 'Season'
 
   // Get match IDs for this season first
-  const { data: seasonMatches } = await supabase
+  const { data: seasonMatches, error: matchesError } = await supabase
     .from('friendly_matches')
     .select('id')
     .eq('season_id', seasonId)
+  if (matchesError) throw matchesError
   if (!seasonMatches || seasonMatches.length === 0) return
   const matchIds = seasonMatches.map(m => m.id)
 
@@ -87,14 +97,15 @@ async function insertSeasonAwards(seasonId) {
     .from('friendly_match_events')
     .select('player_id, club_id, event_type')
     .in('match_id', matchIds)
-  if (error || !events || events.length === 0) return
+  if (error) throw error
+  if (!events || events.length === 0) return
 
   // Tally by player + event_type
   const tally = {}
   events.forEach(ev => {
     const key = `${ev.player_id}__${ev.event_type}`
     if (!tally[key]) {
-      tally[key] = { player_id: ev.player_id, event_type: ev.event_type, count: 0 }
+      tally[key] = { player_id: ev.player_id, club_id: ev.club_id, event_type: ev.event_type, count: 0 }
     }
     tally[key].count++
   })
@@ -112,12 +123,24 @@ async function insertSeasonAwards(seasonId) {
     if (entries.length === 0) return
     const maxCount = Math.max(...entries.map(e => e.count))
     entries.filter(e => e.count === maxCount).forEach(w => {
-      awards.push({ player_id: w.player_id, season_id: seasonId, award_type: awardTypeMap[cat], season_name: seasonName })
+      awards.push({
+        player_id: w.player_id,
+        club_id: w.club_id,
+        season_id: seasonId,
+        award_type: awardTypeMap[cat],
+        season_name: seasonName,
+        competition_type: 'friendly',
+        metric_value: w.count,
+        owner_id: ownerId,
+      })
     })
   })
 
   if (awards.length > 0) {
-    await supabase.from('player_awards').insert(awards)
+    const { error: awardError } = await supabase.from('player_awards').upsert(awards, {
+      onConflict: 'player_id,season_id,award_type,competition_type',
+    })
+    if (awardError) throw awardError
   }
 }
 
@@ -167,7 +190,8 @@ export async function startMatch(matchId) {
 
 export async function cancelMatch(matchId) {
   // Delete events first (FK constraint)
-  await supabase.from('friendly_match_events').delete().eq('match_id', matchId)
+  const { error: eventError } = await supabase.from('friendly_match_events').delete().eq('match_id', matchId)
+  if (eventError) throw eventError
   // Delete the match
   const { error } = await supabase.from('friendly_matches').delete().eq('id', matchId)
   if (error) throw error
@@ -230,10 +254,11 @@ export async function fetchSeasonStats(seasonId) {
   if (me) throw me
 
   // Get all match IDs in this season (including non-completed)
-  const { data: allMatches } = await supabase
+  const { data: allMatches, error: allMatchesError } = await supabase
     .from('friendly_matches')
     .select('id')
     .eq('season_id', seasonId)
+  if (allMatchesError) throw allMatchesError
   const matchIds = (allMatches ?? []).map(m => m.id)
 
   let events = []

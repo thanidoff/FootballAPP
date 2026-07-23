@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { fetchSeasonStats } from '../../services/friendlyMatches'
 
 import { FIFA_NATIONS } from '../../utils/fifaNations'
+import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 
 function ClubBadge({ club }) {
   if (!club) return null
@@ -72,6 +73,7 @@ function PerformerRow({ entry, valueLabel }) {
 }
 
 export default function SeasonSummaryModal({ season, open, onClose }) {
+  const { shouldRender, closing } = useOverlayBehavior(open, onClose)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -84,7 +86,7 @@ export default function SeasonSummaryModal({ season, open, onClose }) {
       .finally(() => setLoading(false))
   }, [open, season])
 
-  if (!open || !season) return null
+  if (!shouldRender || !season) return null
 
   const startDate = season.started_at
     ? new Date(season.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -94,11 +96,11 @@ export default function SeasonSummaryModal({ season, open, onClose }) {
     : null
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-[#0A1318]/55 p-4 backdrop-blur-sm sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}
       onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
+      <div role="dialog" aria-modal="true" className={`flex max-h-[min(700px,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
         onClick={e => e.stopPropagation()}
-        style={{ animation: 'slideUp 0.3s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}>
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">

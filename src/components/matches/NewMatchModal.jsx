@@ -3,6 +3,7 @@ import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
 import { createMatch } from '../../services/friendlyMatches'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
+import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 
 const DURATIONS = [5, 10, 20, 30]
 
@@ -71,6 +72,7 @@ function ClubTypeTabs({ tab, onChange }) {
 }
 
 export default function NewMatchModal({ open, onClose, seasonId, onCreated }) {
+  const { shouldRender, closing } = useOverlayBehavior(open, onClose)
   const [step, setStep] = useState(0)
   const [clubs, setClubs] = useState([])
   const [clubStats, setClubStats] = useState({})
@@ -139,16 +141,16 @@ export default function NewMatchModal({ open, onClose, seasonId, onCreated }) {
     .filter(c => !!c.is_national === isNationalTab)
     .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  if (!open) return null
+  if (!shouldRender) return null
 
   const STEPS = ['Home Team', 'Away Team', 'Kick Off']
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-[#0A1318]/55 p-4 backdrop-blur-sm sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}
       onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden"
+      <div role="dialog" aria-modal="true" className={`max-h-[min(700px,calc(100dvh-2rem))] w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
         onClick={e => e.stopPropagation()}
-        style={{ animation: 'slideUp 0.3s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}>
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">

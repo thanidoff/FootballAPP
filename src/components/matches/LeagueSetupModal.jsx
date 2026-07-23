@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { fetchNationalTeams, fetchClubTeams } from '../../services/worldCup'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
 import { supabase } from '../../lib/supabase'
+import { Check, Plus, X } from 'lucide-react'
+import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 
 const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 
@@ -11,39 +13,50 @@ function flagUrl(code) {
 }
 
 const REQUIRED = 6
+const EMPTY_SELECTED_IDS = []
 
 // lockedTeamIds: top 4 from previous season (if new season)
 // relegatedTeamIds: bottom 2 (shown but user cannot re-select them)
-export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams = [] }) {
+export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams = [], initialSelectedIds = EMPTY_SELECTED_IDS, teams = null, players = null, requiredTeams = REQUIRED }) {
+  const { shouldRender, closing } = useOverlayBehavior(open, onClose)
   const isNewSeason = lockedTeams.length > 0
   const lockedIds = new Set(lockedTeams.map(t => t.club_id ?? t.id))
-  const slotsNeeded = REQUIRED - lockedTeams.length // 6 if fresh, 2 if new season
+  const slotsNeeded = requiredTeams - lockedTeams.length
 
   const [allTeams, setAllTeams] = useState([])
   const [ovrMap, setOvrMap] = useState({})
   const [selected, setSelected] = useState(new Set())
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [step, setStep] = useState(0)
   const [search, setSearch] = useState('')
   const [nameSort, setNameSort] = useState('asc')
   const [ovrSort, setOvrSort] = useState(null)
 
   useEffect(() => {
     if (!open) return
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    setSelected(new Set())
+    setSelected(new Set(initialSelectedIds))
+    setStep(0)
     setSearch('')
     setNameSort('asc')
     setOvrSort(null)
+    if (teams) {
+      setAllTeams(teams)
+      const map = {}, sums = {}, counts = {}
+      ;(players || []).forEach(player => {
+        if (!player.club_id) return
+        sums[player.club_id] = (sums[player.club_id] || 0) + (player.ovr || 0)
+        counts[player.club_id] = (counts[player.club_id] || 0) + 1
+      })
+      Object.keys(sums).forEach(id => { map[id] = Math.round(sums[id] / counts[id]) })
+      setOvrMap(map)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     Promise.all([
       fetchClubTeams(),
-      supabase.from('players').select('club_id, ovr'),
+      supabase.from('players').select('club_id, ovr, ovr_v2'),
     ]).then(([clubs, { data: players }]) => {
       setAllTeams(clubs)
       const map = {}
@@ -51,7 +64,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
         const sums = {}, counts = {}
         for (const p of players) {
           if (!p.club_id) continue
-          sums[p.club_id] = (sums[p.club_id] ?? 0) + (p.ovr ?? 0)
+          sums[p.club_id] = (sums[p.club_id] ?? 0) + (p.ovr_v2 ?? p.ovr ?? 0)
           counts[p.club_id] = (counts[p.club_id] ?? 0) + 1
         }
         for (const k of Object.keys(sums)) {
@@ -63,9 +76,9 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
       setAllTeams([])
       setOvrMap({})
     }).finally(() => setLoading(false))
-  }, [open])
+  }, [open, teams, players, initialSelectedIds])
 
-  if (!open) return null
+  if (!shouldRender) return null
 
   // Exclude locked teams from selectable list
   const available = allTeams.filter(t => !lockedIds.has(t.id))
@@ -101,51 +114,55 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
   }
 
   const totalSelected = lockedTeams.length + selected.size
-  const remaining = REQUIRED - totalSelected
+  const remaining = requiredTeams - totalSelected
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-[#0A1318]/55 p-4 backdrop-blur-sm sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}
       onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]"
-        style={{ animation: 'slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1) both' }}
+      <div role="dialog" aria-modal="true" className={`flex h-[min(700px,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-5 sm:px-8 flex-shrink-0 border-b border-gray-100">
           <div>
-            <div className="font-heading font-black text-xl uppercase tracking-wide text-[#0A1318]">
+            <div className="font-heading font-black text-2xl uppercase tracking-wide text-[#0A1318]">
               {isNewSeason ? 'New Season' : 'เลือกสโมสร'}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">
               {isNewSeason
                 ? `4 ทีมล็อค · เลือกเพิ่มอีก ${slotsNeeded} ทีม`
-                : `เลือก ${REQUIRED} ทีมเพื่อเริ่มลีก`}
+                : `เลือก ${requiredTeams} ทีมเพื่อเริ่มลีก`}
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400 cursor-pointer">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors text-gray-400 cursor-pointer">
+            <X size={18} strokeWidth={2} />
           </button>
         </div>
 
-        {/* Counter bar */}
-        <div className="px-6 pb-3 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1">
-              {Array.from({ length: REQUIRED }).map((_, i) => (
-                <div key={i} className={`h-1.5 rounded-full transition-all ${i < totalSelected ? 'bg-[#FD5461] w-3' : 'bg-gray-200 w-1.5'}`} />
-              ))}
-            </div>
-            <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 ml-1">
-              {totalSelected}/{REQUIRED}
-            </span>
+        <ol className="mx-auto flex w-full max-w-md items-center justify-center px-6 py-4">
+          {['Clubs', 'Schedule'].map((label, index) => (
+            <li key={label} className="flex shrink-0 items-center">
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full font-heading text-[10px] font-black transition-colors duration-500 ${index <= step ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-400'}`}>{index + 1}</span>
+              <span className={`ml-2 text-[10px] font-black uppercase tracking-wider ${index <= step ? 'text-[#0A1318]' : 'text-gray-400'}`}>{label}</span>
+              {index === 0 && <span className={`mx-3 h-px w-24 transition-colors duration-500 ${step > 0 ? 'bg-[#FD5461]' : 'bg-gray-200'}`} />}
+            </li>
+          ))}
+        </ol>
+
+        {/* Selection count — same pattern as Create Play Game */}
+        <div className={`${step === 0 ? 'flex' : 'hidden'} items-end justify-between px-6 pb-3 sm:px-8 flex-shrink-0`}>
+          <div>
+            <h3 className="font-heading text-sm font-black uppercase tracking-wide text-[#0A1318]">Select clubs</h3>
+            <p className="mt-0.5 text-xs text-gray-400">Choose exactly {requiredTeams} clubs for this league.</p>
           </div>
+          <span className="font-heading text-xs font-black uppercase tracking-wider text-[#FD5461]">
+            {totalSelected} / {requiredTeams} selected
+          </span>
         </div>
 
         {/* Locked teams (new season only) */}
         {isNewSeason && (
-          <div className="px-6 pb-3 flex-shrink-0">
+          <div className={`${step === 0 ? '' : 'hidden'} px-6 pb-3 flex-shrink-0`}>
             <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 mb-2">ทีมที่ล็อค (Top 4)</div>
             <div className="space-y-1">
               {lockedTeams.map(t => {
@@ -174,7 +191,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
         )}
 
         {/* Search + Sort */}
-        <div className="px-6 pb-3 flex-shrink-0 flex gap-2">
+        <div className={`${step === 0 ? '' : 'hidden'} px-6 pb-4 sm:px-8 flex-shrink-0 gap-2`} style={{ display: step === 0 ? 'flex' : 'none' }}>
           <input
             type="text"
             value={search}
@@ -199,14 +216,14 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
         </div>
 
         {/* Team list */}
-        <div className="flex-1 overflow-y-auto px-6 pb-4">
+        <div className={`${step === 0 ? '' : 'hidden'} flex-1 overflow-y-auto px-6 pb-4 sm:px-8`}>
           {loading ? (
             <div className="text-center py-12 text-gray-400 font-heading font-bold uppercase tracking-widest text-xs">Loading...</div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-8 text-gray-300 font-heading font-bold uppercase tracking-widest text-xs">ไม่พบทีม</div>
           ) : (
-            <div className="space-y-1.5">
-              {filtered.map(team => {
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {filtered.map((team, index) => {
                 const isSelected = selected.has(team.id)
                 const isDisabled = !isSelected && selected.size >= slotsNeeded
                 const ovr = ovrMap[team.id]
@@ -215,13 +232,14 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
                     key={team.id}
                     onClick={() => !isDisabled && toggle(team.id)}
                     disabled={isDisabled}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 text-left transition-all cursor-pointer outline-none
+                    className={`w-full flex items-center gap-3 p-3 rounded-2xl border text-left transition-all duration-200 cursor-pointer outline-none
                       ${isSelected
-                        ? 'border-[#FD5461] bg-[#FD5461]/5'
+                        ? 'border-[#FD5461] bg-red-50 shadow-sm shadow-red-500/10'
                         : isDisabled
                           ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
-                          : 'border-gray-100 bg-white hover:border-gray-300'
+                          : 'border-gray-200 bg-white hover:border-[#FD5461] hover:bg-red-50/30 hover:shadow-sm'
                       }`}
+                    style={{ animation: `fadeSlideUp 0.35s cubic-bezier(.22,1,.36,1) ${Math.min(index, 8) * 35}ms both` }}
                   >
                     {team.badge_url ? (
                       <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-gray-200">
@@ -234,21 +252,14 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="font-heading font-medium text-sm text-[#0A1318] truncate">{team.name}</div>
+                      <div className="font-heading font-black text-sm uppercase text-[#0A1318] truncate">{team.name}</div>
+                      <div className={`mt-0.5 text-xs ${isSelected ? 'font-bold text-[#FD5461]' : 'text-gray-400'}`}>{isSelected ? 'Selected' : 'Add to league'}</div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {ovr ? (
-                        <span className="font-heading font-black text-sm text-[#0A1318] tabular-nums">{ovr}</span>
-                      ) : (
-                        <span className="font-heading font-bold text-xs text-gray-300">—</span>
-                      )}
-                      {isSelected && (
-                        <div className="w-5 h-5 rounded-full bg-[#FD5461] flex items-center justify-center">
-                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                            <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </div>
-                      )}
+                      {ovr && <span className="font-heading font-black text-xs text-[#0A1318] tabular-nums">{ovr}</span>}
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-lg font-black transition-all ${isSelected ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                        {isSelected ? <Check size={15} strokeWidth={2.5} /> : <Plus size={15} strokeWidth={2.5} />}
+                      </div>
                     </div>
                   </button>
                 )
@@ -257,15 +268,33 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
           )}
         </div>
 
+        {step === 1 && (
+          <div className="flex-1 overflow-y-auto px-6 pb-6 sm:px-8" style={{ animation: 'fadeSlideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}>
+            <div className="mx-auto max-w-xl">
+              <h3 className="font-heading text-xl font-black uppercase tracking-wide text-[#0A1318]">Ready to create league</h3>
+              <p className="mt-1 text-sm text-gray-500">Review the five clubs. A double round-robin schedule will be generated automatically.</p>
+              <div className="mt-5 space-y-2">
+                {[...selected].map((id, index) => {
+                  const team = allTeams.find(item => item.id === id) || lockedTeams.find(item => (item.club_id || item.id) === id)
+                  if (!team) return null
+                  return <div key={id} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl font-heading text-[10px] font-black text-white" style={{ backgroundColor: team.badge_color || '#0A1318' }}>{team.short_name || team.name?.slice(0, 3).toUpperCase()}</span><span className="min-w-0 flex-1 truncate font-heading text-sm font-black uppercase text-[#0A1318]">{team.name}</span><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FD5461] text-white"><Check size={13} strokeWidth={2.5} /></span></div>
+                })}
+              </div>
+              <div className="mt-5 rounded-2xl bg-gray-50 p-4 text-xs leading-6 text-gray-500"><strong className="text-[#0A1318]">League rules:</strong> 5 clubs · home and away fixtures · bottom club relegated after the season.</div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
-        <div className="px-6 pb-6 pt-2 flex-shrink-0 border-t border-gray-100">
+        <div className="flex items-center gap-3 px-6 py-4 sm:px-8 flex-shrink-0 border-t border-gray-100 bg-white">
+          {step === 1 && <button onClick={() => setStep(0)} className="rounded-xl px-5 py-4 font-heading text-xs font-black uppercase tracking-wider text-gray-500 transition-colors hover:bg-gray-100">Back</button>}
           <button
-            onClick={handleCreate}
+            onClick={() => step === 0 ? setStep(1) : handleCreate()}
             disabled={selected.size !== slotsNeeded || saving}
-            className="w-full py-4 rounded-2xl font-heading font-black text-sm uppercase tracking-widest transition-all cursor-pointer
+            className="flex-1 py-4 rounded-2xl font-heading font-black text-sm uppercase tracking-widest transition-all cursor-pointer
               disabled:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed
               bg-[#FD5461] text-white hover:bg-red-500 disabled:hover:bg-gray-100">
-            {saving ? 'กำลังสร้าง...' : remaining > 0 ? `เลือกอีก ${remaining} ทีม` : 'เริ่มต้นลีก ⚽'}
+            {saving ? 'กำลังสร้าง...' : remaining > 0 ? `เลือกอีก ${remaining} ทีม` : step === 0 ? 'Continue' : 'Create League'}
           </button>
         </div>
       </div>

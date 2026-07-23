@@ -4,6 +4,7 @@ import {
   getOVRTier,
   getStatColor,
   getDefaultStats,
+  normalizeStats,
   STATS_BY_POSITION,
 } from '../utils/stats'
 
@@ -62,16 +63,25 @@ describe('getStatColor', () => {
 describe('getDefaultStats', () => {
   it('returns correct keys for GK', () => {
     const stats = getDefaultStats('GK')
-    expect(Object.keys(stats)).toEqual(STATS_BY_POSITION.GK)
+    expect(Object.keys(stats)).toEqual(['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY', 'SAV', 'GKA'])
   })
 
   it('returns correct keys for FWD', () => {
     const stats = getDefaultStats('FWD')
-    expect(Object.keys(stats)).toEqual(STATS_BY_POSITION.FWD)
+    expect(Object.keys(stats)).toEqual(['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY', 'SAV', 'GKA'])
   })
 
   it('defaults all values to 50', () => {
     const stats = getDefaultStats('DEF')
     Object.values(stats).forEach((v) => expect(v).toBe(50))
+  })
+})
+
+describe('normalizeStats', () => {
+  it('migrates legacy goalkeeper attributes to integer SAV and GKA values', () => {
+    const stats = normalizeStats({ DIV: 81, HAN: 82, REF: 82, POS: 79, KIC: 76, SPD: 70 })
+    expect(stats.SAV).toBe(82)
+    expect(stats.GKA).toBe(79)
+    expect(Object.values(stats).every(Number.isInteger)).toBe(true)
   })
 })

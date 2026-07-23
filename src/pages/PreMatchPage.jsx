@@ -4,11 +4,14 @@ import { fetchPlayers } from '../services/players'
 import { completeMatch as completeMatchFriendly } from '../services/friendlyMatches'
 import { completeMatch as completeMatchWC } from '../services/worldCup'
 import { completeLeagueMatch } from '../services/league'
-import { completeDraftMatch } from '../services/draftSave'
+import { completeDraftMatch, completeDraftCupMatch } from '../services/draftSave'
 import { getOVRTier } from '../utils/stats'
+import { simulateMatchSequences } from '../utils/matchEngine'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 import PlayerCard from '../components/ui/PlayerCard'
 import ScrollToTop from '../components/ui/ScrollToTop'
+import { CircleDot, ShieldCheck, Trophy } from 'lucide-react'
+import useOverlayBehavior from '../hooks/useOverlayBehavior'
 
 const TIER_STYLES = {
   special: 'bg-[#FD5461] text-white',
@@ -104,56 +107,72 @@ function GoalConfetti({ active, onDone }) {
 }
 
 // ─── Live Event Ticker ────────────────────────────────────────────────────────
-function LiveTicker({ events, homeClub, awayClub }) {
-  const scrollRef = useRef(null)
+function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeClub, awayClub }) {
+  const events = [
+    ...goals.map((goal, index) => ({ ...goal, id: `goal-${goal.minute}-${goal.scorer?.id ?? index}`, type: 'goal', player: goal.scorer })),
+    ...fouls.map((foul, index) => ({ ...foul, id: `${foul.card}-${foul.minute}-${foul.player?.id ?? index}`, type: foul.card })),
+    ...actions.filter(event => event.type !== 'goal').map((event, index) => ({ ...event, id: `action-${event.type}-${event.minute}-${event.player?.id ?? index}` })),
+    ...(phase === 'full_time' && mvp ? [{ id: `mvp-${mvp.id}`, type: 'mvp', minute: Infinity, team: mvpTeam, player: mvp }] : []),
+  ].sort((a, b) => a.minute - b.minute)
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: 'smooth' })
-    }
-  }, [events.length])
-
-  if (events.length === 0) return null
-
-  const ICON = { goal: '⚽', yellow: '🟨', red: '🟥', assist: '👟' }
+  const eventMeta = {
+    goal: { label: 'Goal', icon: <CircleDot size={17} strokeWidth={2.5} />, tone: 'bg-[#FD5461] text-white' },
+    yellow: { label: 'Yellow card', icon: <span className="h-4 w-3 rounded-[2px] bg-amber-400" />, tone: 'bg-amber-50 text-amber-700' },
+    red: { label: 'Red card', icon: <span className="h-4 w-3 rounded-[2px] bg-red-500" />, tone: 'bg-red-50 text-red-600' },
+    mvp: { label: 'Player of the Match', icon: <Trophy size={17} strokeWidth={2.5} />, tone: 'bg-[#0A1318] text-white' },
+    bad_pass: { label: 'Bad pass', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
+    dispossessed: { label: 'Dispossessed', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
+    blocked_shot: { label: 'Blocked shot', icon: <ShieldCheck size={15} />, tone: 'bg-slate-100 text-slate-700' },
+    shot_wide: { label: 'Shot wide', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
+    shot_over: { label: 'Shot over', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
+    hit_post: { label: 'Hit the post', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-700' },
+    save: { label: 'Saved', icon: <ShieldCheck size={15} />, tone: 'bg-slate-100 text-slate-700' },
+  }
 
   return (
-    <div className="mb-4">
-      <div
-        ref={scrollRef}
-        className="flex items-center gap-0 overflow-x-auto scrollbar-hide"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        {events.map((ev, i) => {
-          const isHome = ev.team === 'home'
-          const clubName = isHome ? homeClub.short_name : awayClub.short_name
-          const isLast = i === events.length - 1
-          return (
-            <div
-              key={i}
-              className="flex items-center flex-shrink-0"
-              style={{ animation: isLast ? 'tickerSlideIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards' : undefined }}
-            >
-              <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-heading font-black whitespace-nowrap
-                ${isHome ? 'bg-[#0A1318] text-white' : 'bg-gray-100 text-[#0A1318]'}
-                ${isLast ? 'ring-2 ring-[#FD5461]' : ''}`}
-              >
-                <span>{ICON[ev.type] ?? '📋'}</span>
-                <span className="font-bold text-[10px] opacity-60">{ev.minute}'</span>
-                <span>{ev.player?.name ?? 'OG'}</span>
-                {ev.type === 'goal' && ev.assist && (
-                  <span className="opacity-60 text-[10px]">({ev.assist.name})</span>
-                )}
-                <span className="opacity-50 text-[10px]">{clubName}</span>
-              </div>
-              {i < events.length - 1 && (
-                <div className="w-3 h-px bg-gray-200 flex-shrink-0 mx-0.5" />
-              )}
-            </div>
-          )
-        })}
+    <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <h2 className="font-heading text-base font-bold uppercase tracking-wide text-[#0A1318]">Match Events</h2>
+        <span className="text-sm text-gray-500">{events.length} {events.length === 1 ? 'event' : 'events'}</span>
       </div>
-    </div>
+      {events.length === 0 ? (
+        <div className="flex min-h-24 items-center justify-center px-4 py-6 text-sm text-gray-400">Events will appear here as the match unfolds.</div>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {events.map((event, index) => {
+            const club = event.team === 'home' ? homeClub : awayClub
+            const meta = eventMeta[event.type]
+            return (
+              <div key={event.id} className="flex items-center gap-3 px-4 py-3"
+                style={{ animation: index === events.length - 1 ? 'tickerSlideIn 0.35s ease-out both' : undefined }}>
+                <div className="relative h-10 w-10 flex-shrink-0 overflow-visible rounded-full bg-gray-100 ring-1 ring-black/5">
+                  {event.player?.photo_url
+                    ? <img src={event.player.photo_url} alt={event.player.name} className="h-full w-full rounded-full object-cover" />
+                    : <span className="flex h-full w-full items-center justify-center rounded-full text-sm font-semibold text-gray-400">{event.player?.name?.charAt(0) || '?'}</span>}
+                  <span className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-white ${meta.tone}`}>{meta.icon}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-base font-semibold text-[#0A1318]">{event.player?.name ?? 'Own goal'}</span>
+                    <span className="text-sm text-gray-500">{meta.label}</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500">
+                    {club?.badge_url
+                      ? <img src={club.badge_url} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                      : <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[7px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>{(club?.short_name || club?.name || 'CLB').slice(0, 3)}</span>}
+                    <span>{club?.name}</span>
+                    {event.type === 'goal' && event.assist && <><span>·</span><span>Assist: {event.assist.name}</span></>}
+                  </div>
+                </div>
+                <span className="flex-shrink-0 rounded-lg bg-gray-100 px-2.5 py-1 text-sm font-semibold tabular-nums text-gray-700">
+                  {event.type === 'mvp' ? 'FT' : `${event.minute}'`}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -181,7 +200,7 @@ function IconBootSmall() {
 function CaptainBadge() {
   return (
     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#FD5461] flex-shrink-0">
-      <span className="text-[8px] font-heading font-black text-white leading-none">C</span>
+      <span className="text-[11px] font-bold text-white leading-none">C</span>
     </span>
   )
 }
@@ -214,19 +233,19 @@ function PlayerRow({ player, isDragging, isOver, canDrop, onPointerDown, isCapta
       <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
         {player.photo_url
           ? <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" />
-          : <div className="w-full h-full flex items-center justify-center font-heading font-black text-gray-400 text-sm">{player.name.charAt(0)}</div>
+          : <div className="w-full h-full flex items-center justify-center font-semibold text-gray-500 text-sm">{player.name.charAt(0)}</div>
         }
       </div>
 
       {/* Name + flag */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="font-heading font-bold text-sm text-[#0A1318] truncate">{player.name}</span>
+          <span className="text-base font-semibold text-[#0A1318] truncate">{player.name}</span>
           {isCaptain && <CaptainBadge />}
         </div>
         <div className="flex items-center gap-1 mt-0.5">
           {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10" alt="" />}
-          <span className="text-[10px] font-heading font-bold uppercase tracking-wider" style={{ color: POS_COLORS[player.position] ?? '#6b7280' }}>
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: POS_COLORS[player.position] ?? '#6b7280' }}>
             {POS_LABEL[player.position] ?? player.position}
           </span>
         </div>
@@ -235,13 +254,13 @@ function PlayerRow({ player, isDragging, isOver, canDrop, onPointerDown, isCapta
       {/* Stats + OVR */}
       {hasStats && (
         <div className="flex items-center gap-1 flex-shrink-0">
-          {goals > 0 && <span className="text-[10px] font-heading font-bold text-gray-500">⚽{goals}</span>}
-          {assists > 0 && <span className="text-[10px] font-heading font-bold text-gray-500">👟{assists}</span>}
-          {yellows > 0 && <span className="text-[10px]">🟨{yellows}</span>}
-          {reds > 0 && <span className="text-[10px]">🟥{reds}</span>}
+          {goals > 0 && <span className="text-xs font-medium text-gray-600">⚽{goals}</span>}
+          {assists > 0 && <span className="text-xs font-medium text-gray-600">👟{assists}</span>}
+          {yellows > 0 && <span className="text-xs">🟨{yellows}</span>}
+          {reds > 0 && <span className="text-xs">🟥{reds}</span>}
         </div>
       )}
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-heading font-black text-sm flex-shrink-0 ${TIER_STYLES[tier]}`}>
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base flex-shrink-0 ${TIER_STYLES[tier]}`}>
         {player.ovr}
       </div>
     </div>
@@ -254,13 +273,14 @@ function EmptyRow({ isOver, canDrop }) {
       ${isOver && canDrop ? 'border-[#FD5461] bg-red-50' : 'border-gray-200'}
       ${isOver && !canDrop ? 'border-red-300' : ''}`}
     >
-      <span className="text-xs font-heading font-bold uppercase tracking-widest text-gray-300">Empty</span>
+      <span className="text-sm font-medium text-gray-400">Empty player slot</span>
     </div>
   )
 }
 
 function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
   const dragRef = useRef({ active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null })
+  const suppressClickRef = useRef(false)
   const slotRefs = useRef(Array(12).fill(null))
   const scrollRef = useRef({ rafId: null, dir: 0, x: 0, y: 0 })
   const [activeDragIdx, setActiveDragIdx] = useState(null)
@@ -346,6 +366,7 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
     function onUp(e) {
       stopScrollLoop()
       if (dragRef.current.active) {
+        suppressClickRef.current = true
         const toIdx = getSlotUnderPointer(e.clientX, e.clientY)
         const fIdx = dragRef.current.fromIdx
         if (toIdx !== null && toIdx !== fIdx) {
@@ -374,10 +395,18 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
     document.addEventListener('pointerup', onUp)
   }
 
-  return { slotRefs, activeDragIdx, dragOver, handlePointerDown }
+  function handleActivate(idx) {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+    if (onTap) onTap(idx)
+  }
+
+  return { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate }
 }
 
-function SlotCell({ player, idx, activeDragIdx, dragOver, slotRefs, handlePointerDown, goals, fouls, suspendedIds }) {
+function SlotCell({ player, idx, activeDragIdx, dragOver, slotRefs, handlePointerDown, handleActivate, goals, fouls, suspendedIds }) {
   const isDragging = activeDragIdx === idx
   const isOver = dragOver === idx && activeDragIdx !== null
   const canDrop = dragOver === idx && activeDragIdx !== idx
@@ -389,7 +418,20 @@ function SlotCell({ player, idx, activeDragIdx, dragOver, slotRefs, handlePointe
     reds: (fouls ?? []).filter(f => f.player.id === player.id && f.card === 'red').length,
   } : null
   return (
-    <div ref={el => { slotRefs.current[idx] = el }}>
+    <div
+      ref={el => { slotRefs.current[idx] = el }}
+      role={player ? 'button' : undefined}
+      tabIndex={player ? 0 : undefined}
+      aria-label={player ? `Select ${player.name}` : undefined}
+      onClick={player ? () => handleActivate(idx) : undefined}
+      onKeyDown={player ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          handleActivate(idx)
+        }
+      } : undefined}
+      className={player ? 'rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FD5461] focus-visible:ring-offset-2' : undefined}
+    >
       {player
         ? <PlayerRow player={player} isDragging={isDragging} isOver={isOver} canDrop={canDrop}
             onPointerDown={e => handlePointerDown(idx, e)} isCaptain={idx === 0} stats={stats} isSuspended={isSuspended} />
@@ -412,12 +454,12 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
       {/* Column headers */}
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400">Starting 5</span>
-          <span className="text-[10px] text-gray-300">{homeStarters}/5</span>
+          <span className="text-sm font-semibold text-gray-600">Starting 5</span>
+          <span className="text-sm text-gray-500">{homeStarters}/5</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400">Starting 5</span>
-          <span className="text-[10px] text-gray-300">{awayStarters}/5</span>
+          <span className="text-sm font-semibold text-gray-600">Starting 5</span>
+          <span className="text-sm text-gray-500">{awayStarters}/5</span>
         </div>
       </div>
 
@@ -435,12 +477,12 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
       <div className="grid grid-cols-2 gap-4 my-4">
         <div className="flex items-center gap-2">
           <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-300">Subs · {homeSlots.slice(5).filter(Boolean).length}/7</span>
+          <span className="text-sm font-medium text-gray-500">Subs · {homeSlots.slice(5).filter(Boolean).length}/7</span>
           <div className="flex-1 h-px bg-gray-100" />
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-300">Subs · {awaySlots.slice(5).filter(Boolean).length}/7</span>
+          <span className="text-sm font-medium text-gray-500">Subs · {awaySlots.slice(5).filter(Boolean).length}/7</span>
           <div className="flex-1 h-px bg-gray-100" />
         </div>
       </div>
@@ -471,8 +513,8 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
     <div className="space-y-4">
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400">Starting 5</span>
-          <span className="text-[10px] text-gray-300">{starters.filter(Boolean).length}/5</span>
+          <span className="text-sm font-semibold text-gray-600">Starting 5</span>
+          <span className="text-sm text-gray-500">{starters.filter(Boolean).length}/5</span>
         </div>
         <div className="space-y-1.5">
           {starters.map((player, i) => (
@@ -482,7 +524,7 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 h-px bg-gray-100" />
-        <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-300">Subs · {subs.filter(Boolean).length}/7</span>
+        <span className="text-sm font-medium text-gray-500">Subs · {subs.filter(Boolean).length}/7</span>
         <div className="flex-1 h-px bg-gray-100" />
       </div>
       <div className="space-y-1.5">
@@ -495,6 +537,7 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
 }
 
 function PlayerDetailModal({ player, onClose }) {
+  useOverlayBehavior(Boolean(player), onClose)
   if (!player) return null
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -517,15 +560,24 @@ export default function PreMatchPage() {
   const navigate = useNavigate()
   const { matchId } = useParams()
   // Support both URL param and legacy location.state
-  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds, saveId, matchIndex, currentWeek } = location.state ?? {}
+  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds, saveId, matchIndex, currentWeek, cupRound } = location.state ?? {}
   const isTournament = location.pathname.includes('/world-cup/') || location.pathname.includes('/club-cup/')
   const isLeague = location.pathname.includes('/league/')
   const isDraft = location.pathname.includes('/matches/draft/prematch')
+  const isKnockoutMatch = isTournament || (isDraft && Boolean(cupRound))
+  const matchTitle = isDraft
+    ? (cupRound ? 'Cup Match' : 'League Match')
+    : isTournament
+      ? 'Tournament Match'
+      : isLeague
+        ? 'League Match'
+        : 'Friendly Match'
   
   let completeMatch = isLeague ? completeLeagueMatch : (isTournament ? completeMatchWC : completeMatchFriendly)
   if (isDraft) {
     completeMatch = async (_, payload) => {
-      await completeDraftMatch(saveId, currentWeek, matchIndex, payload)
+      if (cupRound) await completeDraftCupMatch(saveId, cupRound, matchIndex, payload)
+      else await completeDraftMatch(saveId, currentWeek, matchIndex, payload)
     }
   }
   
@@ -542,11 +594,13 @@ export default function PreMatchPage() {
   const [awayScore, setAwayScore] = useState(0)
   const [countdown, setCountdown] = useState(null) // null | 3 | 2 | 1 | 'KICK OFF!'
   const [notification, setNotification] = useState(null) // null | 'HALF TIME' | 'FULL TIME'
+  const [postMatchReady, setPostMatchReady] = useState(false)
   // goal modal: step = null | 'team' | 'scorer' | 'assist'
   const [goalStep, setGoalStep] = useState(null)
   const [goalTeam, setGoalTeam] = useState(null) // 'home' | 'away'
   const [goalScorer, setGoalScorer] = useState(null)
   const [goals, setGoals] = useState([])
+  const [matchActions, setMatchActions] = useState([])
   const [foulStep, setFoulStep] = useState(null) // null | 'player' | 'card'
   const [foulPlayer, setFoulPlayer] = useState(null)
   const [foulPlayerTeam, setFoulPlayerTeam] = useState(null)
@@ -555,17 +609,47 @@ export default function PreMatchPage() {
   const [redCardMinute, setRedCardMinute] = useState(null)
   const [playerDetail, setPlayerDetail] = useState(null)
   const [mvp, setMvp] = useState(null)
+  const [penaltyShootout, setPenaltyShootout] = useState(null)
   const [isMuted, setIsMuted] = useState(false)
   const anthemRef = useRef(null)
   const crowdRef = useRef(null)
-  const whistleRef = useRef(null)
+  const audioContextRef = useRef(null)
   const [simModal, setSimModal] = useState(false)
   const [simPreview, setSimPreview] = useState(null)
+  const [fastSimulating, setFastSimulating] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
-  const [tickerEvents, setTickerEvents] = useState([])
   const [isSaving, setIsSaving] = useState(false)
 
+  function simulateStatSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
+    const homePlayers = homeSlots.slice(0, 5).filter(player => player && !currentFouls.some(foul => foul.player?.id === player.id && foul.card === 'red'))
+    const awayPlayers = awaySlots.slice(0, 5).filter(player => player && !currentFouls.some(foul => foul.player?.id === player.id && foul.card === 'red'))
+    const segmentRatio = Math.max(0, endSec - startSec) / Math.max(1, totalSeconds)
+    const startMinute = toMatchMinute(startSec)
+    const endMinute = toMatchMinute(endSec)
+    const sequence = simulateMatchSequences(homePlayers, awayPlayers, {
+      seed: `${homeClub?.id}-${awayClub?.id}-${startSec}-${endSec}-${currentGoals.length}-${currentFouls.length}`,
+      possessions: Math.max(1, Math.round(36 * segmentRatio)),
+      startMinute,
+      endMinute,
+    })
+    const generatedGoals = sequence.filter(event => event.type === 'goal').map(event => ({
+      team: event.team,
+      scorer: event.scorer,
+      assist: event.assist,
+      minute: event.minute,
+      detail: event.error,
+    }))
+    return {
+      hScore: currentHomeScore + generatedGoals.filter(goal => goal.team === 'home').length,
+      aScore: currentAwayScore + generatedGoals.filter(goal => goal.team === 'away').length,
+      newGoals: [...currentGoals, ...generatedGoals],
+      newFouls: [...currentFouls],
+      sequence,
+    }
+  }
+
   function simulateSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
+    return simulateStatSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls)
     let hScore = currentHomeScore
     let aScore = currentAwayScore
     const newGoals = [...currentGoals]
@@ -578,8 +662,14 @@ export default function PreMatchPage() {
     const baseShotProb = (2.2 / totalMatchSteps)
 
     for (let s = startSec; s < endSec; s += 30) {
-      const matchMin = Math.floor(s / 60) || 1
-      const currentPhase = s < halfSeconds ? 'first_half' : 'second_half'
+      const matchMin = toMatchMinute(s)
+      const currentPhase = s < halfSeconds
+        ? 'first_half'
+        : s < totalSeconds
+          ? 'second_half'
+          : s < extraHalfSeconds
+            ? 'extra_time_first'
+            : 'extra_time_second'
 
       // 1. Identify active players on pitch (filter out suspended/red carded)
       const homeRedCount = newFouls.filter(f => f.team === 'home' && f.card === 'red').length
@@ -702,19 +792,139 @@ export default function PreMatchPage() {
     if (target === 'half') {
       targetPhase = 'half_time'
       targetElapsed = halfSeconds
+    } else if (target === 'extra_half') {
+      targetPhase = 'extra_time_half'
+      targetElapsed = extraHalfSeconds
+    } else if (target === 'extra_full') {
+      targetPhase = 'full_time'
+      targetElapsed = extraTimeSeconds
     }
     const result = simulateSegment(elapsed, targetElapsed, homeScore, awayScore, goals, fouls)
-    setSimPreview({ ...result, targetPhase, targetElapsed })
+    const startElapsed = elapsed
+    const startGoals = [...goals]
+    const startFouls = [...fouls]
+    const generatedGoals = result.newGoals.slice(startGoals.length)
+    const generatedFouls = result.newFouls.slice(startFouls.length)
+    const startActions = [...matchActions]
+    const generatedActions = result.sequence || []
+    const tickSize = Math.max(1, Math.ceil((targetElapsed - startElapsed) / 90))
+
+    clearInterval(simTimerRef.current)
+    setSimPreview(null)
+    setSimModal(false)
+    setFastSimulating(true)
+    setPaused(false)
+    setPhase(startElapsed >= totalSeconds
+      ? (startElapsed >= extraHalfSeconds ? 'extra_time_second' : 'extra_time_first')
+      : (startElapsed >= halfSeconds ? 'second_half' : 'first_half'))
+
+    let simulatedElapsed = startElapsed
+    let halfWhistlePlayed = targetElapsed === extraTimeSeconds ? startElapsed >= extraHalfSeconds : startElapsed >= halfSeconds
+    simTimerRef.current = setInterval(() => {
+      simulatedElapsed = Math.min(targetElapsed, simulatedElapsed + tickSize)
+      const revealedGoals = generatedGoals.filter(goal => matchMinuteToRuntimeSeconds(goal.minute) <= simulatedElapsed)
+      const revealedFouls = generatedFouls.filter(foul => matchMinuteToRuntimeSeconds(foul.minute) <= simulatedElapsed)
+      const revealedActions = generatedActions.filter(action => matchMinuteToRuntimeSeconds(action.minute) <= simulatedElapsed)
+      setElapsed(simulatedElapsed)
+      setGoals([...startGoals, ...revealedGoals])
+      setFouls([...startFouls, ...revealedFouls])
+      setMatchActions([...startActions, ...revealedActions])
+      setHomeScore(homeScore + revealedGoals.filter(goal => goal.team === 'home').length)
+      setAwayScore(awayScore + revealedGoals.filter(goal => goal.team === 'away').length)
+      if (simulatedElapsed >= halfSeconds && targetElapsed === totalSeconds) {
+        setPhase('second_half')
+        if (!halfWhistlePlayed) {
+          halfWhistlePlayed = true
+          playWhistlePattern(2)
+        }
+      }
+      if (simulatedElapsed >= extraHalfSeconds && targetElapsed === extraTimeSeconds) {
+        setPhase('extra_time_second')
+        if (!halfWhistlePlayed) {
+          halfWhistlePlayed = true
+          playWhistlePattern(2)
+        }
+      }
+
+      if (simulatedElapsed >= targetElapsed) {
+        clearInterval(simTimerRef.current)
+        setHomeScore(result.hScore)
+        setAwayScore(result.aScore)
+        setGoals(result.newGoals)
+        setFouls(result.newFouls)
+        setMatchActions([...startActions, ...generatedActions])
+        const needsExtraTime = targetElapsed === totalSeconds && isKnockoutMatch && result.hScore === result.aScore
+        const needsPenalties = targetElapsed === extraTimeSeconds && isKnockoutMatch && result.hScore === result.aScore
+        if (needsPenalties) {
+          const homeWins = Math.random() >= 0.5
+          setPenaltyShootout(homeWins
+            ? { home: 5, away: 4, winner: homeClub.id }
+            : { home: 4, away: 5, winner: awayClub.id })
+        }
+        setPhase(needsExtraTime ? 'extra_time_ready' : targetPhase)
+        setFastSimulating(false)
+        if (targetPhase === 'full_time' && !needsExtraTime) {
+          setPostMatchReady(false)
+          setMvp(null)
+        }
+        playWhistlePattern(targetPhase === 'full_time' || needsExtraTime ? 3 : 2)
+        showNotification(
+          needsPenalties ? 'PENALTIES' : needsExtraTime ? 'FULL TIME' : targetPhase === 'full_time' ? 'FULL TIME' : targetPhase === 'extra_time_half' ? 'EXTRA TIME HALF' : 'HALF TIME',
+          targetPhase === 'full_time' && !needsExtraTime ? () => setPostMatchReady(true) : undefined,
+        )
+      }
+    }, 40)
   }
   const timerRef = useRef(null)
   const countdownRef = useRef(null)
+  const simTimerRef = useRef(null)
 
   const totalSeconds = (duration ?? 10) * 60
   const halfSeconds = totalSeconds / 2
+  const extraHalfSeconds = totalSeconds + totalSeconds / 6
+  const extraTimeSeconds = totalSeconds + totalSeconds / 3
 
-  function showNotification(text) {
+  // Runtime duration can be short (for example five real minutes), while the
+  // football clock and every recorded event always use a standard 90-minute match.
+  function toMatchMinute(runtimeSeconds) {
+    return Math.min(120, Math.max(1, Math.floor((runtimeSeconds / totalSeconds) * 90)))
+  }
+
+  function matchMinuteToRuntimeSeconds(matchMinute) {
+    return ((matchMinute || 1) / 90) * totalSeconds
+  }
+
+  function playWhistlePattern(count = 1) {
+    if (isMuted) return
+    const AudioContext = window.AudioContext || window.webkitAudioContext
+    if (!AudioContext) return
+    const context = audioContextRef.current || new AudioContext()
+    audioContextRef.current = context
+    context.resume?.()
+    const start = context.currentTime + 0.02
+    for (let index = 0; index < count; index += 1) {
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+      const at = start + index * 0.28
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(1850, at)
+      oscillator.frequency.exponentialRampToValueAtTime(2250, at + 0.16)
+      gain.gain.setValueAtTime(0.0001, at)
+      gain.gain.exponentialRampToValueAtTime(0.18, at + 0.015)
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.2)
+      oscillator.connect(gain)
+      gain.connect(context.destination)
+      oscillator.start(at)
+      oscillator.stop(at + 0.21)
+    }
+  }
+
+  function showNotification(text, onDone) {
     setNotification(text)
-    setTimeout(() => setNotification(null), 2200)
+    setTimeout(() => {
+      setNotification(null)
+      onDone?.()
+    }, text === 'FULL TIME' ? 2600 : 2200)
   }
 
   function runTimer(stopAt, onEnd) {
@@ -738,7 +948,7 @@ export default function PreMatchPage() {
       count -= 1
       if (count === 0) {
         setCountdown('KICK OFF!')
-        whistleRef.current?.play().catch(() => {})
+        playWhistlePattern(1)
         setTimeout(() => {
           setCountdown(null)
           setPhase(nextPhase)
@@ -755,20 +965,57 @@ export default function PreMatchPage() {
     clearInterval(timerRef.current)
     setElapsed(halfSeconds)
     setPhase('half_time')
+    playWhistlePattern(2)
     showNotification('HALF TIME')
+  }
+
+  function finishMatchAfterExtraTime() {
+    clearInterval(timerRef.current)
+    setElapsed(extraTimeSeconds)
+    let shootout = null
+    if (isKnockoutMatch && homeScore === awayScore) {
+      const homeWins = Math.random() >= 0.5
+      shootout = homeWins ? { home: 5, away: 4, winner: homeClub.id } : { home: 4, away: 5, winner: awayClub.id }
+      setPenaltyShootout(shootout)
+    }
+    setPostMatchReady(false)
+    setPhase('full_time')
+    setMvp(null)
+    playWhistlePattern(3)
+    showNotification(shootout ? 'PENALTIES' : 'FULL TIME', () => setPostMatchReady(true))
+  }
+
+  function endExtraFirstHalf() {
+    clearInterval(timerRef.current)
+    setElapsed(extraHalfSeconds)
+    setPhase('extra_time_half')
+    playWhistlePattern(2)
+    showNotification('EXTRA TIME HALF')
   }
 
   function endMatch() {
     clearInterval(timerRef.current)
     setElapsed(totalSeconds)
+    if (isKnockoutMatch && homeScore === awayScore) {
+      setPostMatchReady(false)
+      setPhase('extra_time_ready')
+      playWhistlePattern(3)
+      showNotification('FULL TIME')
+      return
+    }
+    setPostMatchReady(false)
     setPhase('full_time')
-    showNotification('FULL TIME')
+    setMvp(null)
+    playWhistlePattern(3)
+    showNotification('FULL TIME', () => setPostMatchReady(true))
   }
 
   function handleMainButton() {
     setPaused(false)
     if (phase === 'idle') {
       setElapsed(0); setHomeScore(0); setAwayScore(0)
+      setMvp(null)
+      setPenaltyShootout(null)
       anthemRef.current?.play().catch(() => {})
       crowdRef.current?.play().catch(() => {})
       startWithCountdown('first_half', halfSeconds, endFirstHalf)
@@ -778,6 +1025,14 @@ export default function PreMatchPage() {
       startWithCountdown('second_half', totalSeconds, endMatch)
     } else if (phase === 'second_half') {
       endMatch()
+    } else if (phase === 'extra_time_ready') {
+      startWithCountdown('extra_time_first', extraHalfSeconds, endExtraFirstHalf)
+    } else if (phase === 'extra_time_first') {
+      endExtraFirstHalf()
+    } else if (phase === 'extra_time_half') {
+      startWithCountdown('extra_time_second', extraTimeSeconds, finishMatchAfterExtraTime)
+    } else if (phase === 'extra_time_second') {
+      finishMatchAfterExtraTime()
     }
   }
 
@@ -791,14 +1046,20 @@ export default function PreMatchPage() {
   function handleResume() {
     if (redCardWarning) return
     setPaused(false)
-    const stopAt = phase === 'first_half' ? halfSeconds : totalSeconds
-    const onEnd = phase === 'first_half' ? endFirstHalf : endMatch
+    const stopAt = phase === 'first_half' ? halfSeconds
+      : phase === 'second_half' ? totalSeconds
+        : phase === 'extra_time_first' ? extraHalfSeconds
+          : extraTimeSeconds
+    const onEnd = phase === 'first_half' ? endFirstHalf
+      : phase === 'second_half' ? endMatch
+        : phase === 'extra_time_first' ? endExtraFirstHalf
+          : finishMatchAfterExtraTime
     runTimer(stopAt, onEnd)
   }
 
-  const matchRunning = (phase === 'first_half' || phase === 'second_half') && !paused
+  const matchRunning = ['first_half', 'second_half', 'extra_time_first', 'extra_time_second'].includes(phase) && !paused
 
-  const goalMinute = Math.max(1, Math.floor(elapsed / 60))
+  const goalMinute = toMatchMinute(elapsed)
 
   function openGoalModal() {
     setGoalStep('team')
@@ -815,8 +1076,6 @@ export default function PreMatchPage() {
     setGoalStep(null)
     // 🎉 trigger confetti
     setShowConfetti(true)
-    // add to live ticker
-    setTickerEvents(prev => [...prev, { type: 'goal', minute, team: goalTeam, player: goalScorer, assist }])
   }
 
   const anyModalOpen = goalStep !== null || foulStep !== null || playerDetail !== null
@@ -857,8 +1116,6 @@ export default function PreMatchPage() {
         setRedCardMinute(minute)
       }
     }
-    // add card to live ticker
-    setTickerEvents(prev => [...prev, { type: card, minute, team: foulPlayerTeam, player: foulPlayer }])
     setFoulStep(null)
     setFoulPlayer(null)
     setFoulPlayerTeam(null)
@@ -886,11 +1143,10 @@ export default function PreMatchPage() {
     : awaySlots.filter(Boolean)
 
   useEffect(() => {
-    const audios = [anthemRef.current, crowdRef.current, whistleRef.current]
+    const audios = [anthemRef.current, crowdRef.current]
     audios.forEach(a => {
       if (a) {
         if (a === crowdRef.current) a.volume = isMuted ? 0 : 0.2
-        else if (a === whistleRef.current) a.volume = isMuted ? 0 : 0.6
         else a.volume = isMuted ? 0 : 0.5
       }
     })
@@ -900,14 +1156,16 @@ export default function PreMatchPage() {
     return () => {
       clearInterval(timerRef.current)
       clearInterval(countdownRef.current)
+      clearInterval(simTimerRef.current)
       // Stop all audio on unmount
-      const audios = [anthemRef.current, crowdRef.current, whistleRef.current]
+      const audios = [anthemRef.current, crowdRef.current]
       audios.forEach(a => {
         if (a) {
           a.pause()
           a.currentTime = 0
         }
       })
+      audioContextRef.current?.close?.()
     }
   }, [])
 
@@ -917,13 +1175,19 @@ export default function PreMatchPage() {
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
   }
 
+  const displayMatchSeconds = Math.round((elapsed / totalSeconds) * 90 * 60)
+
   useEffect(() => {
     if (!homeClub || !awayClub) { navigate(matchesPath); return }
-    const awayFetch = allStarsTeamIds
+    const awayFetch = isDraft
+      ? Promise.resolve(awayClub.roster || [])
+      : allStarsTeamIds
       ? Promise.all(allStarsTeamIds.map(id => fetchPlayers({ clubId: id }))).then(arrs => arrs.flat())
       : fetchPlayers(nationalMode ? { nationality: awayClub.name } : { clubId: awayClub.id })
     Promise.all([
-      fetchPlayers(nationalMode ? { nationality: homeClub.name } : { clubId: homeClub.id }),
+      isDraft
+        ? Promise.resolve(homeClub.roster || [])
+        : fetchPlayers(nationalMode ? { nationality: homeClub.name } : { clubId: homeClub.id }),
       awayFetch,
     ]).then(([homePlayers, awayPlayers]) => {
       const makeSlots = (players, uncapped = false) => {
@@ -965,7 +1229,23 @@ export default function PreMatchPage() {
   async function handleSaveAndExit() {
     if (!mvp || isSaving) return
     setIsSaving(true)
-    if (matchId) {
+    if (isDraft) {
+      const draftEvents = [
+        ...goals.filter(goal => goal.scorer).map(goal => ({
+          type: 'goal', player: goal.scorer, assist: goal.assist || null, minute: goal.minute, team: goal.team,
+        })),
+        ...fouls.filter(foul => foul.player).map(foul => ({
+          type: 'foul', player: foul.player, card: foul.card, minute: foul.minute, team: foul.team,
+        })),
+      ]
+      try {
+        await completeMatch(null, { homeScore, awayScore, events: draftEvents, mvp, penaltyWinner: penaltyShootout?.winner })
+      } catch (err) {
+        console.error('Error saving career match:', err)
+        setIsSaving(false)
+        return
+      }
+    } else if (matchId) {
       // Build events array from goals, fouls, mvp
       const events = []
       goals.forEach(g => {
@@ -994,7 +1274,14 @@ export default function PreMatchPage() {
         events.push({ player_id: mvp.id, club_id: mvpClub.id, event_type: 'mvp', minute: null })
       }
       try {
-        await completeMatch(matchId, { homeScore, awayScore, events })
+        await completeMatch(matchId, {
+          homeScore,
+          awayScore,
+          events,
+          penaltyWinner: penaltyShootout?.winner ?? null,
+          penaltyHomeScore: penaltyShootout?.home ?? null,
+          penaltyAwayScore: penaltyShootout?.away ?? null,
+        })
       } catch (err) {
         console.error('Error saving match:', err)
         setIsSaving(false)
@@ -1021,7 +1308,7 @@ export default function PreMatchPage() {
               </svg>
             </button>
             <div>
-              <h1 className="font-heading font-black text-2xl uppercase tracking-wide leading-none whitespace-nowrap">Friendly Match</h1>
+              <h1 className="font-heading font-bold text-3xl uppercase tracking-wide leading-none whitespace-nowrap">{matchTitle}</h1>
             </div>
           </div>
           {/* Desktop buttons (hidden on mobile) */}
@@ -1039,18 +1326,19 @@ export default function PreMatchPage() {
           {phase !== 'full_time' && (
             <button
               onClick={() => setSimModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-600 font-heading font-black text-sm uppercase tracking-widest hover:bg-amber-100 transition-colors cursor-pointer mr-2"
+              disabled={fastSimulating}
+              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 font-semibold text-sm hover:bg-amber-100 transition-colors cursor-pointer mr-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Sim
+              {fastSimulating ? 'Simulating ×60' : 'Sim'}
             </button>
           )}
           {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
-            <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
+            <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">
               Foul
             </button>
           )}
           {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
-            <button onClick={openGoalModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
+            <button onClick={openGoalModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">
               Goal
             </button>
           )}
@@ -1068,8 +1356,8 @@ export default function PreMatchPage() {
           )}
           <button
             onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
-            disabled={(phase === 'full_time' && !mvp) || isSaving}
-            className={`px-5 py-2.5 rounded-xl font-heading font-black text-sm uppercase tracking-widest transition-colors
+            disabled={(phase === 'full_time' && !mvp) || isSaving || fastSimulating}
+            className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors
               ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
                 : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
           >
@@ -1077,6 +1365,10 @@ export default function PreMatchPage() {
             {phase === 'first_half' && 'End 1st Half'}
             {phase === 'half_time' && 'Start 2nd Half'}
             {phase === 'second_half' && 'End Match'}
+            {phase === 'extra_time_ready' && 'Play Extra Time'}
+            {phase === 'extra_time_first' && 'End ET 1st Half'}
+            {phase === 'extra_time_half' && 'Start ET 2nd Half'}
+            {phase === 'extra_time_second' && 'End Extra Time'}
             {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
           </button>
           </div>
@@ -1086,9 +1378,10 @@ export default function PreMatchPage() {
           {phase !== 'full_time' && (
             <button
               onClick={() => setSimModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-600 font-heading font-black text-sm uppercase tracking-widest hover:bg-amber-100 transition-colors cursor-pointer mr-auto"
+              disabled={fastSimulating}
+              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-600 font-heading font-black text-sm uppercase tracking-widest hover:bg-amber-100 transition-colors cursor-pointer mr-auto disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Sim
+              {fastSimulating ? 'Simulating ×60' : 'Sim'}
             </button>
           )}
           {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
@@ -1115,7 +1408,7 @@ export default function PreMatchPage() {
           )}
           <button
             onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
-            disabled={(phase === 'full_time' && !mvp) || isSaving}
+            disabled={(phase === 'full_time' && !mvp) || isSaving || fastSimulating}
             className={`px-5 py-2.5 rounded-xl font-heading font-black text-sm uppercase tracking-widest transition-colors
               ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
                 : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
@@ -1124,6 +1417,10 @@ export default function PreMatchPage() {
             {phase === 'first_half' && 'End 1st Half'}
             {phase === 'half_time' && 'Start 2nd Half'}
             {phase === 'second_half' && 'End Match'}
+            {phase === 'extra_time_ready' && 'Play Extra Time'}
+            {phase === 'extra_time_first' && 'End ET 1st Half'}
+            {phase === 'extra_time_half' && 'Start ET 2nd Half'}
+            {phase === 'extra_time_second' && 'End Extra Time'}
             {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
           </button>
         </div>
@@ -1146,10 +1443,10 @@ export default function PreMatchPage() {
               <img src={homeClub.badge_url} alt={homeClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
             ) : (
               <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
-                  style={{ backgroundColor: homeClub.badge_color ?? "#6b7280" }}>{homeClub.short_name}</div>
+                  style={{ backgroundColor: homeClub.badge_color ?? "#6b7280" }}>{(homeClub.short_name || homeClub.name).slice(0, 3).toUpperCase()}</div>
             )
           )}
-          <div className="font-heading font-black text-[#0A1318] uppercase tracking-wide truncate text-sm">
+          <div className="font-semibold text-[#0A1318] truncate text-base">
             <span className="hidden sm:inline">{homeClub.name}</span>
             <span className="sm:hidden">{homeClub.short_name}</span>
           </div>
@@ -1161,26 +1458,31 @@ export default function PreMatchPage() {
             <span className="font-heading font-black text-3xl text-[#0A1318] tabular-nums w-6 text-right">{homeScore}</span>
             <div className="flex flex-col items-center">
               <span className="font-heading font-black text-lg text-[#0A1318] tabular-nums leading-none">
-                {phase === 'idle' && formatTime(halfSeconds)}
-                {phase === 'first_half' && formatTime(halfSeconds - elapsed)}
-                {phase === 'half_time' && formatTime(0)}
-                {phase === 'second_half' && formatTime(totalSeconds - elapsed)}
-                {phase === 'full_time' && formatTime(0)}
+                {formatTime(displayMatchSeconds)}
               </span>
             </div>
             <span className="font-heading font-black text-3xl text-[#0A1318] tabular-nums w-6 text-left">{awayScore}</span>
           </div>
-          <div className="text-[10px] font-heading font-bold uppercase tracking-widest text-gray-400">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
             {(phase === 'idle' || phase === 'first_half') && '1st Half'}
             {phase === 'half_time' && 'Half Time'}
             {phase === 'second_half' && '2nd Half'}
+            {phase === 'extra_time_ready' && 'Extra Time'}
+            {phase === 'extra_time_first' && 'ET 1st Half'}
+            {phase === 'extra_time_half' && 'ET Half Time'}
+            {phase === 'extra_time_second' && 'ET 2nd Half'}
             {phase === 'full_time' && 'Full Time'}
           </div>
+          {penaltyShootout && (
+            <div className="mt-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-[#FD5461]">
+              PEN {penaltyShootout.home}–{penaltyShootout.away}
+            </div>
+          )}
         </div>
 
         {/* Away name + badge */}
         <div className="flex items-center gap-3 flex-1 min-w-0 justify-end">
-          <div className="font-heading font-black text-[#0A1318] uppercase tracking-wide truncate text-sm text-right">
+          <div className="font-semibold text-[#0A1318] truncate text-base text-right">
             <span className="hidden sm:inline">{awayClub.name}</span>
             <span className="sm:hidden">{awayClub.short_name}</span>
           </div>
@@ -1197,21 +1499,25 @@ export default function PreMatchPage() {
               <img src={awayClub.badge_url} alt={awayClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
             ) : (
               <div className="w-10 h-10 rounded-lg flex items-center justify-center font-heading font-black text-white text-sm flex-shrink-0"
-                  style={{ backgroundColor: awayClub.badge_color ?? "#6b7280" }}>{awayClub.short_name}</div>
+                  style={{ backgroundColor: awayClub.badge_color ?? "#6b7280" }}>{(awayClub.short_name || awayClub.name).slice(0, 3).toUpperCase()}</div>
             )
           )}
         </div>
       </div>
 
-      {/* Live Event Ticker */}
-      <LiveTicker
-        events={tickerEvents}
+      <MatchEventFeed
+        goals={goals}
+        fouls={fouls}
+        actions={matchActions}
+        mvp={postMatchReady ? mvp : null}
+        mvpTeam={homeSlots.some(player => player?.id === mvp?.id) ? 'home' : 'away'}
+        phase={phase}
         homeClub={homeClub}
         awayClub={awayClub}
       />
 
-      {/* Match Events Timeline */}
-      {(goals.length > 0 || fouls.length > 0) && (() => {
+      {/* Legacy split timeline retained temporarily for data migration, but no longer rendered. */}
+      {false && (() => {
         const ICON = { goal: '⚽', yellow: '🟨', red: '🟥' }
         const allEvents = [
           ...goals.map(g => ({ type: 'goal', minute: g.minute, team: g.team, player: g.scorer, assist: g.assist })),
@@ -1261,7 +1567,7 @@ export default function PreMatchPage() {
       })()}
 
       {/* MVP Banner — shown when full_time */}
-      {phase === 'full_time' && (() => {
+      {phase === 'full_time' && postMatchReady && (() => {
         const mvpGoals   = mvp ? goals.filter(g => g.scorer?.id === mvp.id).length : 0
         const mvpAssists = mvp ? goals.filter(g => g.assist?.id === mvp.id).length : 0
         const mvpYellows = mvp ? fouls.filter(f => f.player?.id === mvp.id && f.card === 'yellow').length : 0
@@ -1477,6 +1783,22 @@ export default function PreMatchPage() {
                 <div className="space-y-4">
                   <p className="text-gray-500 text-sm">Select how you want to simulate the remaining match time.</p>
                   <div className="grid grid-cols-1 gap-3">
+                    {['extra_time_ready', 'extra_time_first'].includes(phase) && (
+                      <button
+                        onClick={() => handleSimAction('extra_half')}
+                        className="w-full cursor-pointer rounded-2xl border-2 border-transparent bg-gray-50 py-4 font-heading text-sm font-black uppercase tracking-widest text-gray-900 transition-all hover:border-gray-200 hover:bg-gray-100"
+                      >
+                        Simulate until ET Half-time
+                      </button>
+                    )}
+                    {['extra_time_ready', 'extra_time_first', 'extra_time_half', 'extra_time_second'].includes(phase) && (
+                      <button
+                        onClick={() => handleSimAction('extra_full')}
+                        className="w-full cursor-pointer rounded-2xl bg-[#0A1318] py-4 font-heading text-sm font-black uppercase tracking-widest text-white transition-all hover:bg-gray-800"
+                      >
+                        Simulate until 120 minutes
+                      </button>
+                    )}
                     {(phase === 'idle' || phase === 'first_half') && (
                       <button 
                         onClick={() => handleSimAction('half')}
@@ -1485,12 +1807,12 @@ export default function PreMatchPage() {
                         Simulate until Half-time
                       </button>
                     )}
-                    <button 
+                    {!['extra_time_ready', 'extra_time_first', 'extra_time_half', 'extra_time_second'].includes(phase) && <button
                       onClick={() => handleSimAction('full')}
                       className="w-full py-4 rounded-2xl bg-[#0A1318] text-white font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-800 transition-all cursor-pointer"
                     >
                       Simulate until Full-time
-                    </button>
+                    </button>}
                   </div>
                 </div>
               ) : (
@@ -1569,9 +1891,17 @@ export default function PreMatchPage() {
                         setFouls(simPreview.newFouls)
                         setPhase(simPreview.targetPhase)
                         setElapsed(simPreview.targetElapsed)
+                        if (simPreview.targetPhase === 'full_time') {
+                          setPostMatchReady(false)
+                          setMvp(null)
+                        }
+                        playWhistlePattern(simPreview.targetPhase === 'full_time' ? 3 : 2)
                         setSimPreview(null)
                         setSimModal(false)
-                        showNotification(simPreview.targetPhase === 'full_time' ? 'FULL TIME' : 'HALF TIME')
+                        showNotification(
+                          simPreview.targetPhase === 'full_time' ? 'FULL TIME' : 'HALF TIME',
+                          simPreview.targetPhase === 'full_time' ? () => setPostMatchReady(true) : undefined,
+                        )
                       }}
                       className="py-4 rounded-2xl bg-[#FD5461] text-white font-heading font-black text-sm uppercase tracking-widest hover:bg-red-500 transition-all shadow-lg shadow-red-200 cursor-pointer"
                     >
@@ -1763,7 +2093,6 @@ export default function PreMatchPage() {
       {/* Audio Elements */}
       <audio ref={anthemRef} src="/Inazuma11 OST 1 - Holy Ground (Anime ver.).mp3" preload="auto" loop />
       <audio ref={crowdRef} src="/audio/crowd.mp3" preload="auto" loop />
-      <audio ref={whistleRef} src="/audio/whistle.mp3" preload="auto" />
 
       <style>{`
         @keyframes countdownPop {

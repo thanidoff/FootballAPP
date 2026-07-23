@@ -1,17 +1,243 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
-import { updateDraftState } from '../../../services/draftSave'
-import { generateSchedule, simulateMatch } from '../../../utils/draftLogic'
+import { DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
+import { generateMockRoster, generateSchedule, simulateMatch } from '../../../utils/draftLogic'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
+import LeagueSetupModal from '../../../components/matches/LeagueSetupModal'
+import LeagueStandingsTable from '../../../components/draft/LeagueStandingsTable'
+import AnimatedTabs from '../../../components/ui/AnimatedTabs'
+import { MOCK_CLUBS } from '../../../data/mockGameData'
+import { FIFA_NATIONS } from '../../../utils/fifaNations'
+import { ArrowDown, ArrowUp, Banknote, CalendarClock, Crown, Eye, Medal, Play, Settings2, Trophy } from 'lucide-react'
+import ResultScore from '../../../components/draft/ResultScore'
 
 // --- HELPER COMPONENTS ---
 
-function TopList({ title, icon, itemsMap, allPlayers }) {
+function PlayerIdentity({ player }) {
+  const flagCode = FIFA_NATIONS.find(nation => nation.name === player?.nationality)?.code
+  const club = player?.club
+  return (
+    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 type-body-sm text-gray-500">
+      {club?.badge_url
+        ? <img src={club.badge_url} alt="" className="h-4 w-4 shrink-0 object-contain" />
+        : club
+          ? <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[7px] font-medium uppercase text-white" style={{ backgroundColor: club.badge_color || '#0A1318' }}>{(club.short_name || club.name || 'CLB').slice(0, 2)}</span>
+          : null}
+      <span className="truncate">{club?.name || club?.short_name || 'Free Agent'}</span>
+      <span className="text-gray-300">·</span>
+      {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} alt="" className="h-3 w-[18px] shrink-0 rounded-[2px] object-cover ring-1 ring-black/10" />}
+      <span className="truncate">{player?.nationality || 'Unknown nation'}</span>
+    </div>
+  )
+}
+
+const PODIUM_STYLES = [
+  { row: '', badge: 'bg-[#FD5461] text-white shadow-sm shadow-red-200', value: 'text-[#0A1318]' },
+  { row: '', badge: 'bg-[#0A1318] text-white shadow-sm shadow-gray-200', value: 'text-[#0A1318]' },
+  { row: '', badge: 'border-2 border-[#FD5461] bg-white text-[#FD5461]', value: 'text-[#0A1318]' },
+]
+
+function previousPlayerRanks(season, statKey) {
+  const playedWeeks = (season?.matches || []).filter(week => week.matches?.some(match => match.played)).map(week => week.week)
+  const latestWeek = playedWeeks.length ? Math.max(...playedWeeks) : null
+  if (latestWeek == null) return new Map()
+  const totals = {}
+  ;(season.matches || []).filter(week => week.week < latestWeek).forEach(week => week.matches?.filter(match => match.played).forEach(match => {
+    ;(match.events || []).forEach(event => {
+      const playerId = statKey === 'topScorers' && event.type === 'goal' ? event.player?.id
+        : statKey === 'topAssists' && event.type === 'goal' ? event.assist?.id
+          : statKey === 'mostFouls' && event.type === 'foul' ? event.player?.id : null
+      if (playerId != null) totals[playerId] = (totals[playerId] || 0) + 1
+    })
+    if (statKey === 'mostMvps' && match.mvp?.id != null) totals[match.mvp.id] = (totals[match.mvp.id] || 0) + 1
+  }))
+  return new Map(Object.entries(totals).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([id], index) => [String(id), index + 1]))
+}
+
+function RankBadge({ rank }) {
+  const podium = PODIUM_STYLES[rank - 1]
+  if (!podium) return <span className="w-7 text-center text-xs font-semibold text-gray-400">{rank}</span>
+  return (
+    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${podium.badge}`} aria-label={`Rank ${rank}`}>
+      {rank === 1 ? <Crown size={14} strokeWidth={2.5} /> : <Medal size={14} strokeWidth={2.5} />}
+    </span>
+  )
+}
+
+function RankTrend({ change }) {
+  if (!change) return null
+  const rising = change > 0
+  return <span className={`flex shrink-0 items-center gap-0.5 type-caption ${rising ? 'text-green-600' : 'text-[#FD5461]'}`}>{rising ? <ArrowUp size={13} /> : <ArrowDown size={13} />}{Math.abs(change)}</span>
+}
+
+function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, cup, locked, payouts, onSave, saving }) {
+  const setPlacement = (index, millions) => setPrizes(current => ({
+    ...current,
+    placements: current.placements.map((value, itemIndex) => itemIndex === index ? Math.max(0, Number(millions) || 0) * 1_000_000 : value),
+  }))
+  const setAward = (key, millions) => setPrizes(current => ({
+    ...current,
+    awards: { ...current.awards, [key]: Math.max(0, Number(millions) || 0) * 1_000_000 },
+  }))
+  const awardRows = [
+    ['topScorers', 'Top Scorer', 'Club of the player with most goals'],
+    ['topAssists', 'Top Assists', 'Club of the player with most assists'],
+    ['mostMvps', 'Most MVP', 'Club of the player with most MVP awards'],
+  ]
+  const cupRows = [
+    { label: 'Position 1', positions: [0] },
+    { label: 'Position 2', positions: [1] },
+    { label: 'Position 3', positions: [2] },
+    { label: 'Positions 4–5', positions: [3, 4] },
+    { label: 'Positions 6–8', positions: [5, 6, 7] },
+  ]
+  const setCupGroup = (positions, millions) => setCupPrizes(current => current.map((value, index) => positions.includes(index) ? Math.max(0, Number(millions) || 0) * 1_000_000 : value))
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-[#0A1318]">League placement prizes</h3>
+        <p className="mt-1 text-sm text-gray-500">Paid to each club when the final league match is completed.</p>
+        <div className="mt-4 space-y-2">
+          {prizes.placements.map((amount, index) => <label key={index} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"><RankBadge rank={index + 1} /><span className="min-w-0 flex-1 text-sm font-semibold">Position {index + 1}</span><span className="text-sm text-gray-400">$</span><input disabled={locked} type="number" min="0" step="0.1" value={(amount / 1_000_000).toFixed(1)} onChange={event => setPlacement(index, event.target.value)} className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-right text-sm font-semibold outline-none focus:border-[#FD5461] disabled:bg-gray-50" /><span className="text-sm font-medium text-gray-500">M</span></label>)}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold text-[#0A1318]">Season player award club bonuses</h3>
+        <p className="mt-1 text-sm text-gray-500">Combined from every league and cup match, then paid to the winner's recorded club.</p>
+        <div className="mt-4 space-y-2">
+          {awardRows.map(([key, label, description]) => <label key={key} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-[#FD5461]"><Banknote size={18} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="block truncate text-xs text-gray-400">{description}</span></span><span className="text-sm text-gray-400">$</span><input disabled={locked} type="number" min="0" step="0.1" value={(prizes.awards[key] / 1_000_000).toFixed(1)} onChange={event => setAward(key, event.target.value)} className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-right text-sm font-semibold outline-none focus:border-[#FD5461] disabled:bg-gray-50" /><span className="text-sm font-medium text-gray-500">M</span></label>)}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold text-[#0A1318]">Cup placement prizes</h3>
+        <p className="mt-1 text-sm text-gray-500">Positions 1–3 have separate rewards; positions 4–5 and 6–8 share a reward tier.</p>
+        <div className="mt-4 space-y-2">
+          {cupRows.map((row, rowIndex) => <label key={row.label} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"><RankBadge rank={rowIndex + 1} /><span className="min-w-0 flex-1 text-sm font-semibold">{row.label}</span><span className="text-sm text-gray-400">$</span><input disabled={locked || cup?.status === 'completed'} type="number" min="0" step="0.1" value={(cupPrizes[row.positions[0]] / 1_000_000).toFixed(1)} onChange={event => setCupGroup(row.positions, event.target.value)} className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-right text-sm font-semibold outline-none focus:border-[#FD5461] disabled:bg-gray-50" /><span className="text-sm font-medium text-gray-500">M</span></label>)}
+        </div>
+        {!cup && <p className="mt-3 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">These rewards will be applied automatically when this season's cup is created.</p>}
+      </div>
+      {locked && <div className="rounded-2xl bg-gray-50 p-4"><p className="text-sm font-semibold">Prizes paid</p><p className="mt-1 text-sm text-gray-500">{payouts?.length || 0} payouts were added to club budgets when this season ended.</p></div>}
+      {!locked && <button onClick={onSave} disabled={saving} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/20 hover:bg-red-500 disabled:opacity-50">{saving ? 'Saving...' : 'Save prize settings'}</button>}
+    </div>
+  )
+}
+
+function SeasonRewardSummary({ season, cup, allPlayers, teams, onContinue }) {
+  return (
+    <div className="space-y-6">
+      <SeasonPrizeResults season={season} cup={cup} allPlayers={allPlayers} teams={teams} />
+      <button onClick={onContinue} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white hover:bg-red-500">
+        Continue to new season setup
+      </button>
+    </div>
+  )
+
+  /* Kept below temporarily for compatibility with older save snapshots. */
+  const settings = {
+    placements: season.prizeSettings?.placements || DEFAULT_LEAGUE_PRIZES.placements,
+    awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(season.prizeSettings?.awards || {}) },
+  }
+  const rows = (season.standings || []).slice(0, 5).map((standing, index) => ({
+    ...standing,
+    position: index + 1,
+    placementPrize: settings.placements[index] || 0,
+    awards: [],
+  }))
+  const awardLabels = { topScorers: 'Top Scorer', topAssists: 'Top Assists', mostMvps: 'Most MVP' }
+  Object.entries(awardLabels).forEach(([key, label]) => {
+    const leader = Object.entries(season.stats?.[key] || {}).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]
+    if (!leader) return
+    const playerId = leader[0]
+    const snapshot = season.stats?.playerSnapshots?.[playerId]
+    const current = allPlayers.find(player => String(player.id) === String(playerId))
+    const player = snapshot ? { ...current, ...snapshot } : current
+    const clubId = snapshot?.club?.id || current?.club?.id
+    const row = rows.find(item => String(item.club_id) === String(clubId))
+    if (row) row.awards.push({ label, playerName: player?.name || 'Unknown player', amount: settings.awards[key] || 0 })
+  })
+  return (
+    <div className="space-y-5">
+      <div><h3 className="text-sm font-semibold">Final rewards by club</h3><p className="mt-1 text-sm text-gray-500">League position and player awards are combined into each club's total.</p></div>
+      <div className="space-y-2">{rows.map(row => { const total = row.placementPrize + row.awards.reduce((sum, award) => sum + award.amount, 0); return <article key={row.club_id} className="rounded-2xl border border-gray-200 p-4"><div className="flex items-center gap-3"><RankBadge rank={row.position} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{row.club_name}</div><div className="text-xs text-gray-500">Position {row.position} · ${(row.placementPrize / 1_000_000).toFixed(1)}M</div></div><div className="text-right"><div className="text-xs text-gray-400">Total reward</div><div className="text-lg font-bold text-[#FD5461]">${(total / 1_000_000).toFixed(1)}M</div></div></div>{row.awards.length > 0 && <div className="mt-3 space-y-1 border-t border-gray-100 pt-3">{row.awards.map(award => <div key={award.label} className="flex items-center justify-between gap-3 text-sm"><span className="min-w-0 truncate"><span className="font-medium">{award.label}</span><span className="text-gray-400"> · {award.playerName}</span></span><span className="shrink-0 font-semibold text-green-600">+${(award.amount / 1_000_000).toFixed(1)}M</span></div>)}</div>}</article> })}</div>
+      <button onClick={onContinue} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white hover:bg-red-500">Continue to new season setup</button>
+    </div>
+  )
+}
+
+function formatPrize(amount) {
+  return `$${(Math.max(0, Number(amount) || 0) / 1_000_000).toFixed(1)}M`
+}
+
+function PrizeClubBadge({ club, className = 'h-9 w-9' }) {
+  const name = club?.club_name || club?.clubName || club?.name || 'Club'
+  const shortName = club?.short_name || club?.shortName || name.slice(0, 3).toUpperCase()
+  const badgeUrl = club?.badge_url || club?.badgeUrl
+  if (badgeUrl) return <img src={badgeUrl} alt="" className={`${className} shrink-0 rounded-lg object-contain`} />
+  return <span className={`${className} flex shrink-0 items-center justify-center rounded-lg text-[10px] font-semibold uppercase text-white`} style={{ backgroundColor: club?.badge_color || club?.badgeColor || '#0A1318' }}>{shortName.slice(0, 3)}</span>
+}
+
+function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
+  const standings = season?.standings || []
+  const payouts = season?.prizePayouts || []
+  const snapshots = season?.stats?.playerSnapshots || {}
+  const teamById = id => teams?.find(team => String(team.club_id) === String(id))
+  const placementRows = standings.map((standing, index) => {
+    const payout = payouts.find(item => item.type === 'placement' && String(item.clubId) === String(standing.club_id))
+    return { ...standing, position: index + 1, amount: payout?.amount ?? season?.prizeSettings?.placements?.[index] ?? 0 }
+  })
+  const awardDefinitions = [
+    { key: 'topScorers', label: 'Top Scorer', unit: 'goals' },
+    { key: 'topAssists', label: 'Top Assists', unit: 'assists' },
+    { key: 'mostMvps', label: 'Most MVP', unit: 'MVP awards' },
+  ]
+  const awardRows = awardDefinitions.map(definition => {
+    const leader = Object.entries(season?.stats?.[definition.key] || {}).sort((a, b) => Number(b[1]) - Number(a[1]) || String(a[0]).localeCompare(String(b[0])))[0]
+    if (!leader || Number(leader[1]) <= 0) return null
+    const [playerId, count] = leader
+    const current = allPlayers.find(player => String(player.id) === String(playerId))
+    const snapshot = snapshots[playerId]
+    const player = snapshot ? { ...current, ...snapshot, club: snapshot.club } : current
+    const payout = payouts.find(item => item.type === 'player_award' && String(item.playerId) === String(playerId) && item.label === definition.label)
+    return { ...definition, playerId, count, player, amount: payout?.amount ?? season?.prizeSettings?.awards?.[definition.key] ?? 0 }
+  }).filter(Boolean)
+  const finalMatch = cup?.rounds?.[3]?.[0]
+  const cupRows = (cup?.prizePayouts || []).map(row => ({ ...row, club: teamById(row.clubId) || row }))
+  const homeClub = finalMatch ? teamById(finalMatch.home) : null
+  const awayClub = finalMatch ? teamById(finalMatch.away) : null
+  const championPayout = cupRows.find(row => row.position === 1)
+
+  return (
+    <div className="space-y-7">
+      <section>
+        <div className="mb-3 flex items-center gap-2"><Trophy size={18} className="text-[#FD5461]" /><h3 className="text-base font-semibold text-[#0A1318]">League rewards</h3></div>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          {placementRows.map(row => <div key={row.club_id} className="flex items-center gap-3 border-b border-gray-100 p-3 last:border-b-0"><RankBadge rank={row.position} /><PrizeClubBadge club={row} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-[#0A1318]">{row.club_name}</div><div className="mt-0.5 text-xs text-gray-500">{row.stats?.PTS || 0} PTS{row.position === 1 ? ' · League winner' : ''}</div></div><span className="shrink-0 text-sm font-semibold text-[#FD5461]">{formatPrize(row.amount)}</span></div>)}
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-1 flex items-center gap-2"><Crown size={18} className="text-[#FD5461]" /><h3 className="text-base font-semibold text-[#0A1318]">Player awards</h3></div>
+        <p className="mb-3 text-sm text-gray-500">Final totals from every league and cup match in this season.</p>
+        {awardRows.length ? <div className="space-y-2">{awardRows.map(row => <article key={row.key} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100">{row.player?.photo_url ? <img src={row.player.photo_url} alt="" className="h-full w-full object-cover" /> : <span className="text-sm font-medium text-gray-400">{row.player?.name?.charAt(0) || '?'}</span>}</div><div className="min-w-0 flex-1"><div className="text-xs font-medium text-[#FD5461]">{row.label}</div><div className="truncate text-sm font-semibold text-[#0A1318]">{row.player?.name || 'Unknown player'}</div><PlayerIdentity player={row.player} /></div><div className="shrink-0 text-right"><div className="text-sm font-semibold text-[#0A1318]">{row.count} {row.unit}</div><div className="mt-1 text-sm font-semibold text-[#FD5461]">{formatPrize(row.amount)}</div></div></article>)}</div> : <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm text-gray-500">No player awards were recorded.</div>}
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center gap-2"><Medal size={18} className="text-[#FD5461]" /><h3 className="text-base font-semibold text-[#0A1318]">Cup rewards</h3></div>
+          {finalMatch?.played ? <div className="mb-3 rounded-2xl border border-red-100 bg-red-50/50 p-4"><div className="mb-3 text-center text-xs font-medium uppercase tracking-wide text-[#FD5461]">Cup final</div><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3"><div className="flex min-w-0 items-center gap-2"><PrizeClubBadge club={homeClub} /><span className="truncate text-sm font-medium">{homeClub?.club_name || 'Home'}</span></div><div className="text-center"><ResultScore homeScore={finalMatch.homeScore} awayScore={finalMatch.awayScore} winner={String(finalMatch.winner) === String(finalMatch.home) ? 'home' : String(finalMatch.winner) === String(finalMatch.away) ? 'away' : null} />{finalMatch.decidedOnPenalties && <div className="mt-1 text-xs text-gray-500">{finalMatch.penalties?.home}–{finalMatch.penalties?.away} penalties</div>}</div><div className="flex min-w-0 items-center justify-end gap-2"><span className="truncate text-right text-sm font-medium">{awayClub?.club_name || 'Away'}</span><PrizeClubBadge club={awayClub} /></div></div>{championPayout && <div className="mt-3 border-t border-red-100 pt-3 text-center text-sm"><span className="text-gray-500">Winner · </span><span className="font-semibold">{championPayout.clubName}</span><span className="ml-2 font-semibold text-[#FD5461]">{formatPrize(championPayout.amount)}</span></div>}</div> : <div className="mb-3 rounded-2xl bg-gray-50 p-5 text-center text-sm text-gray-500">No completed cup final was recorded for this season.</div>}
+        {cupRows.length > 0 && <div className="grid gap-2 sm:grid-cols-2">{cupRows.map(row => <div key={`${row.position}-${row.clubId}`} className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-2.5"><RankBadge rank={row.position} /><PrizeClubBadge club={row.club} className="h-8 w-8" /><div className="min-w-0 flex-1 truncate text-sm font-medium">{row.clubName || row.club?.club_name}</div><span className="text-sm font-semibold text-[#FD5461]">{formatPrize(row.amount)}</span></div>)}</div>}
+      </section>
+    </div>
+  )
+}
+
+function TopList({ title, icon, itemsMap, allPlayers, playerSnapshots }) {
   // Convert map { playerId: count } to array and sort
   const items = Object.entries(itemsMap || {})
     .map(([playerId, count]) => {
-      const p = allPlayers.find(player => player.id === playerId)
+      const current = allPlayers.find(player => String(player.id) === String(playerId))
+      const snapshot = playerSnapshots?.[playerId]
+      const p = snapshot ? { ...current, ...snapshot, club: snapshot.club } : current
       return { player: p, count }
     })
     .filter(i => i.player && i.count > 0)
@@ -32,8 +258,8 @@ function TopList({ title, icon, itemsMap, allPlayers }) {
       ) : (
         <div className="divide-y divide-gray-50">
           {displayItems.map((item, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="text-[10px] font-heading font-black text-gray-300 w-4">{i + 1}</span>
+            <div key={i} className={`flex items-center gap-3 px-4 py-2.5 ${PODIUM_STYLES[i]?.row || ''}`}>
+              <RankBadge rank={i + 1} />
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center ring-1 ring-black/5">
                 {item.player?.photo_url
                   ? <img src={item.player.photo_url} alt={item.player.name} className="w-full h-full object-cover" />
@@ -42,11 +268,9 @@ function TopList({ title, icon, itemsMap, allPlayers }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-heading font-bold text-xs text-[#0A1318] truncate">{item.player?.name}</div>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <span className="text-[10px] text-gray-400 font-heading truncate">{item.player?.club?.short_name || 'Free Agent'}</span>
-                </div>
+                <PlayerIdentity player={item.player} />
               </div>
-              <span className="font-heading font-black text-xl text-[#0A1318] tabular-nums flex-shrink-0">
+              <span className={`font-heading font-black text-xl tabular-nums flex-shrink-0 ${PODIUM_STYLES[i]?.value || 'text-[#0A1318]'}`}>
                 {item.count}
               </span>
             </div>
@@ -62,8 +286,8 @@ function StandingsTable({ standings, championId }) {
     <div className="text-center py-8 text-gray-300 font-heading font-bold uppercase tracking-widest text-xs">No matches yet</div>
   )
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-      <div className="grid grid-cols-[auto_1fr_repeat(6,auto)] gap-x-3 px-4 py-2 border-b border-gray-100 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400">
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="grid grid-cols-[auto_1fr_repeat(6,auto)] gap-x-3 border-b border-gray-100 px-5 py-3 text-xs font-medium text-gray-500">
         <div className="w-5 text-center">#</div>
         <div>Team</div>
         <div className="w-7 text-center">P</div>
@@ -82,10 +306,10 @@ function StandingsTable({ standings, championId }) {
           const gd = s.GD || 0
           return (
             <div key={row.club_id}
-              className={`grid grid-cols-[auto_1fr_repeat(6,auto)] gap-x-3 px-4 py-2.5 items-center
-                ${isChamp ? 'bg-amber-50' : ''}`}>
+              className={`grid grid-cols-[auto_1fr_repeat(6,auto)] gap-x-3 px-5 py-3 items-center
+                ${isChamp ? 'bg-[#FD5461]/[0.07]' : ''}`}>
               <div className={`w-5 text-center text-[10px] font-heading font-black
-                ${i === 0 ? 'text-amber-500' : isTop4 ? 'text-[#0A1318]' : isBottom2 ? 'text-[#FD5461]' : 'text-gray-400'}`}>
+                ${i === 0 ? 'text-[#FD5461]' : isTop4 ? 'text-[#0A1318]' : isBottom2 ? 'text-[#FD5461]' : 'text-gray-400'}`}>
                 {i + 1}
               </div>
               <div className="flex items-center gap-2 min-w-0">
@@ -94,24 +318,24 @@ function StandingsTable({ standings, championId }) {
                 ) : (
                   <div className="w-5 h-5 rounded bg-gray-200" />
                 )}
-                <span className="font-heading font-medium text-sm text-[#0A1318] truncate">{row.club_name}</span>
-                {isChamp && <span className="text-xs">🏆</span>}
+                <span className="font-heading font-bold text-base text-[#0A1318] truncate">{row.club_name}</span>
+                {isChamp && <Trophy size={14} className="shrink-0 text-[#FD5461]" strokeWidth={2.25} />}
               </div>
-              <div className="w-7 text-center text-sm font-heading font-bold text-gray-500 tabular-nums">{(s.W||0) + (s.D||0) + (s.L||0)}</div>
-              <div className="w-7 text-center text-sm font-heading font-bold text-gray-500 tabular-nums">{s.W||0}</div>
-              <div className="w-7 text-center text-sm font-heading font-bold text-gray-500 tabular-nums">{s.D||0}</div>
-              <div className="w-7 text-center text-sm font-heading font-bold text-gray-500 tabular-nums">{s.L||0}</div>
-              <div className={`w-9 text-center text-sm font-heading font-bold tabular-nums ${gd > 0 ? 'text-green-600' : gd < 0 ? 'text-[#FD5461]' : 'text-gray-400'}`}>
+              <div className="w-7 text-center text-base font-heading font-bold text-gray-500 tabular-nums">{(s.W||0) + (s.D||0) + (s.L||0)}</div>
+              <div className="w-7 text-center text-base font-heading font-bold text-gray-500 tabular-nums">{s.W||0}</div>
+              <div className="w-7 text-center text-base font-heading font-bold text-gray-500 tabular-nums">{s.D||0}</div>
+              <div className="w-7 text-center text-base font-heading font-bold text-gray-500 tabular-nums">{s.L||0}</div>
+              <div className={`w-9 text-center text-base font-heading font-bold tabular-nums ${gd > 0 ? 'text-green-600' : gd < 0 ? 'text-[#FD5461]' : 'text-gray-400'}`}>
                 {gd > 0 ? `+${gd}` : gd}
               </div>
-              <div className="w-9 text-center text-sm font-heading font-black text-[#0A1318] tabular-nums">{s.PTS||0}</div>
+              <div className="w-9 text-center text-base font-heading font-black text-[#0A1318] tabular-nums">{s.PTS||0}</div>
             </div>
           )
         })}
       </div>
       <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-50">
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-amber-500" />
+          <div className="w-2 h-2 rounded-full bg-[#FD5461]" />
           <span className="text-[9px] font-heading font-bold text-gray-400">1st — Champion</span>
         </div>
       </div>
@@ -125,7 +349,15 @@ export default function DraftMatchesTab() {
   const { saveData, setSaveData, saveId } = useOutletContext()
   const navigate = useNavigate()
   const [processing, setProcessing] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [newSeasonSetupOpen, setNewSeasonSetupOpen] = useState(false)
+  const [rewardSummaryOpen, setRewardSummaryOpen] = useState(false)
+  const [prizeSettingsOpen, setPrizeSettingsOpen] = useState(false)
+  const [savingPrizes, setSavingPrizes] = useState(false)
+  const [prizeDraft, setPrizeDraft] = useState(DEFAULT_LEAGUE_PRIZES)
+  const [cupPrizeDraft, setCupPrizeDraft] = useState(DEFAULT_CUP_PRIZES)
   const [activeTab, setActiveTab] = useState('matches') // matches, standings, stats
+  const [desktopStat, setDesktopStat] = useState('topScorers')
   
   const seasons = saveData.settings?.seasons || []
   
@@ -143,6 +375,42 @@ export default function DraftMatchesTab() {
 
   const seasonData = seasons[currentSeasonIdx]
   const isActiveSeason = seasonData?.status === 'active'
+  const activeSeasonIdx = seasons.findIndex(season => season.status === 'active')
+  const seasonCup = (saveData.settings?.cups || []).find(cup => String(cup.seasonId) === String(seasonData?.id))
+
+  function openPrizeSettings() {
+    setPrizeDraft({
+      placements: [...(seasonData?.prizeSettings?.placements || DEFAULT_LEAGUE_PRIZES.placements)],
+      awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(seasonData?.prizeSettings?.awards || {}) },
+    })
+    setCupPrizeDraft([...(seasonCup?.prizeSettings || seasonData?.cupPrizeSettings || DEFAULT_CUP_PRIZES)])
+    setPrizeSettingsOpen(true)
+  }
+
+  async function savePrizeSettings() {
+    if (!isActiveSeason) return
+    setSavingPrizes(true)
+    try {
+      let nextState = await updateDraftSeasonPrizeSettings(saveId, seasonData.id, prizeDraft)
+      nextState = {
+        ...nextState,
+        settings: {
+          ...nextState.settings,
+          seasons: nextState.settings.seasons.map(season => String(season.id) === String(seasonData.id) ? { ...season, cupPrizeSettings: [...cupPrizeDraft] } : season),
+        },
+      }
+      await updateDraftState(saveId, nextState)
+      if (seasonCup && seasonCup.status !== 'completed') {
+        nextState = await updateDraftCupPrizeSettings(saveId, seasonCup.id, cupPrizeDraft)
+      }
+      setSaveData(nextState)
+      setPrizeSettingsOpen(false)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setSavingPrizes(false)
+    }
+  }
 
   const matchesConfig = seasonData?.matches || []
   const currentWeek = saveData.currentWeek || 1
@@ -173,24 +441,25 @@ export default function DraftMatchesTab() {
   }, [saveData])
 
   const weekData = matchesConfig.find(w => w.week === selectedWeek)
-  const currentWeekData = matchesConfig.find(w => w.week === currentWeek)
 
-  async function handleGenerateSchedule() {
+  async function handleGenerateSchedule(teamIds) {
     setProcessing(true)
     try {
-      const teamIds = saveData.teams.map(t => t.club_id)
       const schedule = generateSchedule(teamIds)
       
-      const newTeams = saveData.teams.map(t => ({
+      const selectedIds = new Set(teamIds)
+      const newTeams = saveData.teams.map(t => selectedIds.has(t.club_id) ? ({
         ...t,
         stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
-      }))
+      }) : t)
 
       const newSettings = { ...saveData.settings }
       newSettings.seasons = [{
         id: 1,
+        teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
+        prizeSettings: { placements: [...DEFAULT_LEAGUE_PRIZES.placements], awards: { ...DEFAULT_LEAGUE_PRIZES.awards } },
         status: 'active'
       }]
 
@@ -205,6 +474,7 @@ export default function DraftMatchesTab() {
       setSaveData(newSaveData)
       setSelectedWeek(1)
       setCurrentSeasonIdx(0)
+      setSetupOpen(false)
     } catch (err) {
       console.error(err)
       alert('Failed to generate schedule')
@@ -213,25 +483,42 @@ export default function DraftMatchesTab() {
     }
   }
 
-  async function handleStartNewSeason() {
+  async function handleStartNewSeason(teamIds) {
     setProcessing(true)
     try {
-      const teamIds = saveData.teams.map(t => t.club_id)
       const schedule = generateSchedule(teamIds)
       
       // Reset team stats
-      const newTeams = saveData.teams.map(t => ({
-        ...t,
-        stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
-      }))
+      const teamMap = new Map(saveData.teams.map(team => [team.club_id, team]))
+      MOCK_CLUBS.forEach(club => {
+        if (!teamMap.has(club.id) && teamIds.includes(club.id)) teamMap.set(club.id, {
+          club_id: club.id, club_name: club.name, short_name: club.short_name,
+          badge_url: club.badge_url, badge_color: club.badge_color,
+          budget: 100_000_000, roster: generateMockRoster(club), locked_player_ids: [],
+        })
+      })
+      const selectedIds = new Set(teamIds)
+      const newTeams = [...teamMap.values()].map(t => selectedIds.has(t.club_id) ? ({
+        ...t, stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
+      }) : t)
 
       const newSettings = { ...saveData.settings }
       const newSeasonId = (newSettings.seasons.length > 0 ? Math.max(...newSettings.seasons.map(s => s.id)) : 0) + 1
+      const previousSeason = newSettings.seasons[newSettings.seasons.length - 1]
+      const inheritedLeaguePrizes = {
+        placements: [...(previousSeason?.prizeSettings?.placements || DEFAULT_LEAGUE_PRIZES.placements)],
+        awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(previousSeason?.prizeSettings?.awards || {}) },
+      }
+      const previousCup = [...(newSettings.cups || [])].reverse().find(cup => cup.prizeSettings)
+      const inheritedCupPrizes = [...(previousSeason?.cupPrizeSettings || previousCup?.prizeSettings || DEFAULT_CUP_PRIZES)]
       
       newSettings.seasons.push({
         id: newSeasonId,
+        teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
+        prizeSettings: inheritedLeaguePrizes,
+        cupPrizeSettings: inheritedCupPrizes,
         status: 'active'
       })
 
@@ -246,6 +533,7 @@ export default function DraftMatchesTab() {
       setSaveData(newSaveData)
       setCurrentSeasonIdx(newSettings.seasons.length - 1)
       setSelectedWeek(1)
+      setNewSeasonSetupOpen(false)
     } catch (err) {
       console.error(err)
       alert('Failed to start new season')
@@ -254,9 +542,10 @@ export default function DraftMatchesTab() {
     }
   }
 
-  function handlePlayMatch(matchIndex) {
-    if (!weekData || !isActiveSeason || selectedWeek !== currentWeek) return
-    const match = weekData.matches[matchIndex]
+  function handlePlayMatch(matchIndex, week = selectedWeek) {
+    const targetWeek = matchesConfig.find(item => item.week === week)
+    if (!targetWeek || !isActiveSeason || week !== currentWeek) return
+    const match = targetWeek.matches[matchIndex]
     const homeTeam = saveData.teams.find(t => t.club_id === match.home)
     const awayTeam = saveData.teams.find(t => t.club_id === match.away)
 
@@ -267,76 +556,54 @@ export default function DraftMatchesTab() {
         duration: 5,
         returnPath: `/draft/${saveId}/matches`,
         saveId,
-        currentWeek,
+        currentWeek: week,
         matchIndex
       }
     })
   }
 
-  async function handleAdvanceWeek() {
-    setProcessing(true)
-    try {
-      const isEndOfSeason = currentWeek >= matchesConfig.length
-      const newSaveData = { ...saveData }
-      
-      if (isEndOfSeason) {
-        // Conclude Season
-        const newSettings = { ...saveData.settings }
-        const currentSeasonObj = newSettings.seasons[currentSeasonIdx]
-        
-        currentSeasonObj.status = 'completed'
-        
-        // Finalize Standings
-        const standings = (saveData.teams || []).map(t => ({
-          club_id: t.club_id,
-          club_name: t.club_name,
-          badge_url: t.badge_url,
-          stats: { ...t.stats }
-        })).sort((a, b) => {
-          if ((a.stats?.PTS||0) !== (b.stats?.PTS||0)) return (b.stats?.PTS||0) - (a.stats?.PTS||0)
-          if ((a.stats?.GD||0) !== (b.stats?.GD||0)) return (b.stats?.GD||0) - (a.stats?.GD||0)
-          return (b.stats?.GF||0) - (a.stats?.GF||0)
-        })
-        
-        currentSeasonObj.standings = standings
-        if (standings.length > 0) currentSeasonObj.champion = standings[0].club_id
-        
-        newSaveData.settings = newSettings
-        // Stay on current week visually
-      } else {
-        newSaveData.currentWeek = currentWeek + 1
-      }
+  const leagueTeams = (saveData.teams || []).map(team => ({
+    id: team.club_id,
+    name: team.club_name,
+    short_name: team.short_name || team.club_name?.slice(0, 3).toUpperCase(),
+    badge_url: team.badge_url,
+    badge_color: team.badge_color,
+  }))
+  const leaguePlayers = (saveData.teams || []).flatMap(team =>
+    (team.roster || []).map(player => ({ ...player, club_id: team.club_id }))
+  )
 
-      await updateDraftState(saveId, newSaveData)
-      setSaveData(newSaveData)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setProcessing(false)
-    }
-  }
-
-  if (!seasonData && seasons.length === 0) {
+  if (!seasonData || matchesConfig.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 p-12 shadow-sm text-center">
-        <div className="text-6xl mb-6">📅</div>
-        <h2 className="text-2xl font-heading font-black text-[#0A1318] uppercase tracking-wide mb-2">No Schedule</h2>
-        <p className="text-gray-500 mb-8 max-w-md mx-auto">Generate a double round-robin league schedule for all your drafted teams to start the season.</p>
-        <Button onClick={handleGenerateSchedule} disabled={processing}>
-          {processing ? 'Generating...' : 'Generate Schedule'}
-        </Button>
-      </div>
+      <>
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 shadow-sm text-center">
+          <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-[#FD5461]/10 text-[#FD5461] flex items-center justify-center text-2xl">⚽</div>
+          <h2 className="text-2xl font-heading font-black text-[#0A1318] uppercase tracking-wide mb-2">Create Your League</h2>
+          <p className="text-gray-500 mb-8 max-w-md mx-auto">Select 5 clubs. The bottom club is relegated when the season ends.</p>
+          <Button onClick={() => setSetupOpen(true)} disabled={processing}>Select League Clubs</Button>
+        </div>
+        <LeagueSetupModal
+          open={setupOpen}
+          onClose={() => setSetupOpen(false)}
+          onCreate={handleGenerateSchedule}
+          teams={leagueTeams}
+          players={leaguePlayers}
+          requiredTeams={5}
+        />
+      </>
     )
   }
 
-  const allPlayed = currentWeekData?.matches.every(m => m.played)
   const existingWeeks = matchesConfig.map(w => w.week)
 
   // Current Standings Calculation
-  const activeStandings = isActiveSeason ? (saveData.teams || []).map(t => ({
+  const seasonTeamIds = new Set(seasonData.teamIds || saveData.teams.map(t => t.club_id))
+  const activeStandings = isActiveSeason ? (saveData.teams || []).filter(t => seasonTeamIds.has(t.club_id)).map(t => ({
     club_id: t.club_id,
     club_name: t.club_name,
     badge_url: t.badge_url,
+    badge_color: t.badge_color,
+    short_name: t.short_name,
     stats: { ...t.stats }
   })).sort((a, b) => {
     if ((a.stats?.PTS||0) !== (b.stats?.PTS||0)) return (b.stats?.PTS||0) - (a.stats?.PTS||0)
@@ -345,6 +612,20 @@ export default function DraftMatchesTab() {
   }) : seasonData.standings
 
   const championObj = seasonData.champion ? activeStandings.find(s => s.club_id === seasonData.champion) : null
+  const desktopStatOptions = [
+    { key: 'topScorers', label: 'Goals' }, { key: 'topAssists', label: 'Assists' },
+    { key: 'mostMvps', label: 'MVP' }, { key: 'mostFouls', label: 'Fouls' },
+  ]
+  const desktopLeaders = Object.entries(seasonData.stats?.[desktopStat] || {})
+    .map(([id, value]) => {
+      const current = allPlayers.find(player => String(player.id) === String(id))
+      const snapshot = seasonData.stats?.playerSnapshots?.[id]
+      return { player: snapshot ? { ...current, ...snapshot, club: snapshot.club } : current, value }
+    })
+    .filter(item => item.player && item.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8)
+  const priorRanks = previousPlayerRanks(seasonData, desktopStat)
 
   const canGoPrev = currentSeasonIdx > 0
   const canGoNext = currentSeasonIdx < seasons.length - 1
@@ -352,26 +633,46 @@ export default function DraftMatchesTab() {
   return (
     <div className="space-y-6">
       {/* Season Header */}
-      <div className="flex items-center justify-between gap-2 sm:gap-4 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 mb-5">
-        <div className="flex-1 min-w-0">
-          <div className="font-heading font-black text-sm sm:text-base uppercase tracking-wide text-[#0A1318] truncate">
-            Season {seasonData.id}
-          </div>
-          <div className={`text-[9px] sm:text-[10px] font-heading font-black uppercase tracking-widest mt-0.5
-            ${isActiveSeason ? 'text-[#FD5461]' : 'text-gray-400'}`}>
-            {isActiveSeason ? `● Active · Week ${currentWeek}/${matchesConfig.length}` : '✓ Completed'}
-          </div>
+      <div className={`flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 mb-5 sm:gap-4 ${isActiveSeason ? 'border-gray-100 bg-gray-50' : 'border-[#FD5461]/20 bg-[#FD5461]/[0.06]'}`}>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-[#0A1318] sm:text-base">
+          <span className="truncate">Season {seasonData.id}</span>
+          {isActiveSeason && <><span className="text-gray-300">·</span><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#FD5461]" />Active</span><span className="text-gray-300">·</span><span>Week {currentWeek} of {matchesConfig.length}</span></>}
+          {!isActiveSeason && championObj && <>
+            <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden="true" />
+            <span className="inline-flex min-w-0 items-center gap-2">
+              {championObj.badge_url
+                ? <img src={championObj.badge_url} alt="" className="h-7 w-7 shrink-0 object-contain" />
+                : <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[8px] font-semibold text-white" style={{ backgroundColor: championObj.badge_color || '#0A1318' }}>{(championObj.short_name || championObj.club_name).slice(0, 3).toUpperCase()}</span>}
+              <span className="truncate font-semibold">{championObj.club_name}</span>
+              <span className="rounded-full bg-[#FD5461]/10 px-2.5 py-1 text-xs font-semibold text-[#FD5461]">Winner</span>
+            </span>
+          </>}
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={openPrizeSettings} className="flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-slate-100 hover:text-slate-900" aria-label={isActiveSeason ? 'Season prize settings' : 'View locked season prizes'}>
+            {isActiveSeason ? <Settings2 size={16} strokeWidth={2.25} /> : <Eye size={16} strokeWidth={2} />}
+            <span className="hidden sm:inline">{isActiveSeason ? 'Prizes' : 'View prizes'}</span>
+          </button>
+          {!isActiveSeason && activeSeasonIdx >= 0 && <button
+            type="button"
+            onClick={() => setCurrentSeasonIdx(activeSeasonIdx)}
+            className="flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-[#FD5461] px-3.5 text-sm font-semibold text-white shadow-sm shadow-red-500/20 transition-[background-color,transform,box-shadow] hover:bg-red-500 hover:shadow-md hover:shadow-red-500/25 active:scale-[0.98]"
+            aria-label="Return to current season"
+          >
+            <CalendarClock size={16} strokeWidth={2} />
+            <span className="hidden sm:inline">Current</span>
+          </button>}
           {seasons.length > 1 && (
             <div className="flex items-center bg-white rounded-xl border border-gray-200 p-1">
               <button onClick={() => canGoPrev && setCurrentSeasonIdx(i => i - 1)} disabled={!canGoPrev}
+                aria-label="Previous season"
                 className="w-8 h-7 sm:w-10 sm:h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 text-gray-600">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
               <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
               <button onClick={() => canGoNext && setCurrentSeasonIdx(i => i + 1)} disabled={!canGoNext}
+                aria-label="Next season"
                 className="w-8 h-7 sm:w-10 sm:h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 text-gray-600">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
@@ -379,57 +680,84 @@ export default function DraftMatchesTab() {
           )}
 
           {!isActiveSeason && currentSeasonIdx === seasons.length - 1 && (
-            <button onClick={handleStartNewSeason} disabled={processing}
-              className="flex items-center justify-center h-9 sm:h-10 px-3 sm:px-4 rounded-xl border-2 border-[#0A1318] font-heading font-black text-[10px] sm:text-xs uppercase tracking-widest text-[#0A1318] hover:bg-gray-50 transition-colors cursor-pointer whitespace-nowrap">
+            <button onClick={() => setRewardSummaryOpen(true)} disabled={processing}
+              className="flex h-9 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-[#FD5461] px-4 text-sm font-semibold text-white shadow-sm shadow-red-500/20 transition-[background-color,box-shadow,transform] hover:bg-red-500 hover:shadow-md hover:shadow-red-500/25 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:px-5">
               + New Season
             </button>
           )}
         </div>
       </div>
 
-      {/* Champion Banner */}
-      {!isActiveSeason && championObj && (
-        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl px-5 py-4 mb-4 flex items-center gap-4">
-          <div className="text-3xl">🏆</div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-amber-500 mb-0.5">League Champion</div>
-            <div className="font-heading font-black text-lg uppercase tracking-wide text-[#0A1318] truncate">{championObj.club_name}</div>
-          </div>
-          {championObj.badge_url ? (
-             <img src={championObj.badge_url} alt="" className="w-12 h-12 object-contain" />
-          ) : (
-             <div className="w-12 h-12 rounded-xl bg-[#0A1318] font-heading font-black text-white flex items-center justify-center text-xs">
-               {championObj.club_name.substring(0,3).toUpperCase()}
-             </div>
-          )}
-        </div>
-      )}
+      {/* Desktop: full league overview in one screen */}
+      <div className="hidden gap-6 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(470px,1fr)]">
+        <section className="space-y-5">
+          {matchesConfig.map(week => (
+            <div key={week.week}>
+              <div className="mb-2"><span className={`inline-flex rounded-full px-3 py-1.5 text-sm font-medium ${week.week === currentWeek && isActiveSeason
+                ? 'bg-[#FD5461] text-white'
+                : (isActiveSeason ? week.week < currentWeek : week.matches.every(match => match.played))
+                  ? 'bg-[#FD5461]/10 text-[#FD5461] ring-1 ring-inset ring-[#FD5461]/20'
+                  : 'bg-gray-100 text-gray-500'
+              }`}>Week {week.week}</span></div>
+              <div className="space-y-2">
+                {week.matches.map((match, index) => {
+                  const home = saveData.teams.find(team => team.club_id === match.home)
+                  const away = saveData.teams.find(team => team.club_id === match.away)
+                  return (
+                    <article key={index} className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[opacity,background-color] duration-200 ${isActiveSeason && week.week > currentWeek ? 'bg-gray-50 opacity-55' : ''}`}>
+                      <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_140px_minmax(0,1fr)] items-center gap-3 px-4 py-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-heading text-[9px] font-black text-white" style={{ backgroundColor: home?.badge_color || '#0A1318' }}>{home?.club_name?.slice(0, 3).toUpperCase()}</span>
+                          <span className="truncate font-heading text-sm font-black uppercase">{home?.club_name}</span>
+                        </div>
+                        <div className="flex items-center justify-center text-center">
+                          {match.played ? (
+                            <ResultScore homeScore={match.homeScore} awayScore={match.awayScore} compact />
+                          ) : isActiveSeason && week.week === currentWeek ? (
+                            <Button size="md" variant="secondary" onClick={() => handlePlayMatch(index, week.week)} disabled={processing} className="min-w-32 whitespace-nowrap">
+                              <Play size={15} fill="currentColor" />
+                              Play match
+                            </Button>
+                          ) : (
+                            <span className="type-title-sm text-[#0A1318]">VS</span>
+                          )}
+                        </div>
+                        <div className="flex min-w-0 items-center justify-end gap-3">
+                          <span className="truncate text-right font-heading text-sm font-black uppercase">{away?.club_name}</span>
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-heading text-[9px] font-black text-white" style={{ backgroundColor: away?.badge_color || '#0A1318' }}>{away?.club_name?.slice(0, 3).toUpperCase()}</span>
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </section>
 
-      {/* Tabs */}
-      <div className="flex gap-8 border-b border-gray-100 mb-6 px-1">
-        {[
-          { key: 'matches', label: 'Matches' },
-          { key: 'standings', label: 'Standings' },
-          { key: 'stats', label: 'Stats' },
-        ].map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className={`pb-3 font-heading font-black text-sm uppercase tracking-widest transition-all cursor-pointer border-b-2 -mb-[1px]
-              ${activeTab === tab.key ? 'border-[#0A1318] text-[#0A1318]' : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'}`}>
-            {tab.label}
-          </button>
-        ))}
+        <aside className="space-y-6">
+          <LeagueStandingsTable standings={activeStandings} championId={seasonData.champion} onTeamClick={row => navigate(`/draft/${saveId}/squads?team=${row.club_id}`)} />
+          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <header className="border-b border-gray-100 p-4"><h2 className="text-base font-semibold">Player Stats</h2><div className="mt-3 flex flex-wrap gap-1">{desktopStatOptions.map(option => <button key={option.key} onClick={() => setDesktopStat(option.key)} className={`min-h-9 cursor-pointer rounded-full px-4 text-xs font-medium transition-colors ${desktopStat === option.key ? 'bg-[#FD5461] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{option.label}</button>)}</div></header>
+            {desktopLeaders.length ? <div className="divide-y divide-gray-100 bg-white">{desktopLeaders.map(({ player, value }, index) => <div key={player.id} className="flex items-center gap-3 bg-white px-4 py-3"><RankBadge rank={index + 1} /><span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-white text-xs font-black text-gray-400 ring-1 ring-black/5">{player.photo_url ? <img src={player.photo_url} alt="" className="h-full w-full object-cover" /> : player.name?.charAt(0)}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{player.name}</span><PlayerIdentity player={player} /></span><RankTrend change={priorRanks.has(String(player.id)) ? priorRanks.get(String(player.id)) - (index + 1) : 0} /><span className="text-xl font-semibold text-[#0A1318]">{value}</span></div>)}</div> : <div className="px-5 py-12 text-center text-sm text-gray-400">No stats recorded yet.</div>}
+          </section>
+        </aside>
       </div>
 
+      {/* Tabs */}
+      <AnimatedTabs items={[{ id: 'matches', label: 'Matches' }, { id: 'standings', label: 'Standings' }, { id: 'stats', label: 'Stats' }]} value={activeTab} onChange={setActiveTab} ariaLabel="League views" className="mb-6 gap-3 lg:hidden" />
+
       {/* Tab Content */}
+      <div key={activeTab} className="lg:hidden ui-tab-content-enter">
       {activeTab === 'standings' && (
-        <StandingsTable standings={activeStandings} championId={seasonData.champion} />
+        <LeagueStandingsTable standings={activeStandings} championId={seasonData.champion} onTeamClick={row => navigate(`/draft/${saveId}/squads?team=${row.club_id}`)} />
       )}
 
       {activeTab === 'stats' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-          <TopList title="Top Scorer" icon="⚽" itemsMap={seasonData.stats?.topScorers} allPlayers={allPlayers} />
-          <TopList title="Top Assist" icon="👟" itemsMap={seasonData.stats?.topAssists} allPlayers={allPlayers} />
-          <TopList title="Most MVP" icon="⭐" itemsMap={seasonData.stats?.mostMvps} allPlayers={allPlayers} />
+          <TopList title="Top Scorer" icon="⚽" itemsMap={seasonData.stats?.topScorers} allPlayers={allPlayers} playerSnapshots={seasonData.stats?.playerSnapshots} />
+          <TopList title="Top Assist" icon="👟" itemsMap={seasonData.stats?.topAssists} allPlayers={allPlayers} playerSnapshots={seasonData.stats?.playerSnapshots} />
+          <TopList title="Most MVP" icon="⭐" itemsMap={seasonData.stats?.mostMvps} allPlayers={allPlayers} playerSnapshots={seasonData.stats?.playerSnapshots} />
         </div>
       )}
 
@@ -446,13 +774,11 @@ export default function DraftMatchesTab() {
                     <button key={w}
                       onClick={() => setSelectedWeek(w)}
                       className={`flex-shrink-0 px-4 py-2 rounded-full font-heading font-black text-xs uppercase tracking-widest transition-all cursor-pointer border
-                        ${selectedWeek === w
-                          ? 'bg-[#0A1318] text-white border-[#0A1318]'
-                          : done 
-                            ? 'bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-100'
-                            : isCurrent 
-                              ? 'bg-[#FD5461]/10 text-[#FD5461] border-[#FD5461]/30 hover:bg-[#FD5461]/20'
-                              : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'
+                        ${isCurrent
+                          ? `bg-[#FD5461] text-white border-[#FD5461] ${selectedWeek === w ? 'shadow-sm ring-2 ring-[#FD5461]/20' : 'hover:bg-[#F44757]'}`
+                          : done
+                            ? `bg-[#FD5461]/10 text-[#FD5461] border-[#FD5461]/20 ${selectedWeek === w ? 'ring-2 ring-[#FD5461]/20' : 'hover:bg-[#FD5461]/15'}`
+                            : `bg-gray-50 text-gray-400 border-gray-200 ${selectedWeek === w ? 'ring-2 ring-gray-200' : 'hover:bg-gray-100'}`
                         }`}>
                       Wk {w}
                       {done && <span className="ml-1 opacity-70">✓</span>}
@@ -460,11 +786,6 @@ export default function DraftMatchesTab() {
                   )
                 })}
               </div>
-              {isActiveSeason && allPlayed && selectedWeek === currentWeek && (
-                <Button onClick={handleAdvanceWeek} disabled={processing} className="bg-green-600 hover:bg-green-700 flex-shrink-0">
-                  {currentWeek >= matchesConfig.length ? 'Conclude Season' : 'Advance to Next Week'}
-                </Button>
-              )}
             </div>
           )}
 
@@ -474,7 +795,7 @@ export default function DraftMatchesTab() {
               const awayTeam = saveData.teams.find(t => t.club_id === match.away)
               
               return (
-                <div key={idx} className="bg-white rounded-2xl border border-gray-100 overflow-hidden transition-all duration-150 shadow-sm hover:shadow-md">
+                <div key={idx} className={`rounded-2xl border border-gray-100 bg-white overflow-hidden transition-[opacity,box-shadow,background-color] duration-150 shadow-sm ${isActiveSeason && selectedWeek > currentWeek ? 'bg-gray-50 opacity-55' : 'hover:shadow-md'}`}>
                   <div className="flex items-center gap-3 px-4 py-3.5">
                     {/* Home */}
                     <div className="flex items-center gap-2.5 flex-1 min-w-0">
@@ -492,25 +813,19 @@ export default function DraftMatchesTab() {
                     </div>
 
                     {/* Center */}
-                    <div className="flex flex-col items-center gap-1 flex-shrink-0 w-28 sm:w-36">
+                    <div className="flex w-28 flex-shrink-0 flex-col items-center gap-1 sm:w-36">
                       {match.played ? (
-                        <div className="flex items-center gap-2">
-                          <span className={`font-heading font-black text-2xl tabular-nums w-7 text-right ${match.homeScore > match.awayScore ? 'text-[#0A1318]' : 'text-gray-300'}`}>
-                            {match.homeScore}
-                          </span>
-                          <span className="font-heading font-bold text-base text-gray-300">–</span>
-                          <span className={`font-heading font-black text-2xl tabular-nums w-7 text-left ${match.awayScore > match.homeScore ? 'text-[#0A1318]' : 'text-gray-300'}`}>
-                            {match.awayScore}
-                          </span>
-                        </div>
+                        <>
+                          <ResultScore homeScore={match.homeScore} awayScore={match.awayScore} />
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 type-caption text-gray-500">Completed</span>
+                        </>
+                      ) : isActiveSeason && selectedWeek === currentWeek ? (
+                        <Button size="md" variant="secondary" onClick={() => handlePlayMatch(idx)} disabled={processing} className="min-w-28 whitespace-nowrap">
+                          <Play size={15} fill="currentColor" /> Play match
+                        </Button>
                       ) : (
-                        <span className="font-heading font-black text-lg text-gray-200 tracking-widest">VS</span>
+                        <span className="type-title-sm text-[#0A1318]">VS</span>
                       )}
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-[9px] font-heading font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 ${match.played ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {match.played ? 'Completed' : 'Scheduled'}
-                        </span>
-                      </div>
                     </div>
 
                     {/* Away */}
@@ -529,23 +844,41 @@ export default function DraftMatchesTab() {
                     </div>
                   </div>
 
-                  {!match.played && isActiveSeason && selectedWeek === currentWeek && (
-                    <div className="border-t border-gray-50 px-4 py-2.5">
-                      <button 
-                        onClick={() => handlePlayMatch(idx)}
-                        disabled={processing}
-                        className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[#0A1318] text-white font-heading font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        ▶ Play Match
-                      </button>
-                    </div>
-                  )}
                 </div>
               )
             })}
           </div>
         </>
       )}
+      </div>
+      <LeagueSetupModal
+        open={newSeasonSetupOpen}
+        onClose={() => setNewSeasonSetupOpen(false)}
+        onCreate={handleStartNewSeason}
+        initialSelectedIds={(seasonData?.standings || []).slice(0, 4).map(row => row.club_id)}
+        teams={[
+          ...MOCK_CLUBS,
+          ...leagueTeams.filter(team => !MOCK_CLUBS.some(club => club.id === team.id)),
+        ].filter(team => team.id !== (seasonData?.standings || []).at(-1)?.club_id)}
+        players={leaguePlayers}
+        requiredTeams={5}
+      />
+      <Modal open={prizeSettingsOpen} onClose={() => setPrizeSettingsOpen(false)} title={`Season ${seasonData.id} prizes`} width="max-w-2xl">
+        {isActiveSeason ? <PrizeSettingsForm
+          prizes={prizeDraft}
+          setPrizes={setPrizeDraft}
+          cupPrizes={cupPrizeDraft}
+          setCupPrizes={setCupPrizeDraft}
+          cup={seasonCup}
+          locked={!isActiveSeason}
+          payouts={seasonData.prizePayouts}
+          onSave={savePrizeSettings}
+          saving={savingPrizes}
+        /> : <SeasonPrizeResults season={seasonData} cup={seasonCup} allPlayers={allPlayers} teams={saveData.teams || []} />}
+      </Modal>
+      <Modal open={rewardSummaryOpen} onClose={() => setRewardSummaryOpen(false)} title={`Season ${seasonData.id} reward summary`} width="max-w-2xl">
+        <SeasonRewardSummary season={seasonData} cup={seasonCup} allPlayers={allPlayers} teams={saveData.teams || []} onContinue={() => { setRewardSummaryOpen(false); setNewSeasonSetupOpen(true) }} />
+      </Modal>
     </div>
   )
 }

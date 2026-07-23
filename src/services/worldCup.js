@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { FIFA_NATIONS } from '../utils/fifaNations'
+import { requireUserId } from './auth'
 
 export function getRoundName(round, totalRounds) {
   const diff = totalRounds - round;
@@ -29,10 +30,11 @@ export function getShortRoundName(round, totalRounds) {
 }
 
 export async function seedNationalTeams() {
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('clubs')
     .select('name')
     .eq('is_national', true)
+  if (existingError) throw existingError
 
   const existingNames = new Set((existing ?? []).map(c => c.name))
 
@@ -63,10 +65,12 @@ function shuffle(arr) {
 }
 
 export async function fetchSeasons(type = 'national') {
+  const ownerId = await requireUserId()
   const { data, error } = await supabase
     .from('world_cup_seasons')
     .select('*, champion_club:clubs!world_cup_seasons_champion_club_id_fkey(*)')
     .eq('type', type)
+    .eq('owner_id', ownerId)
     .order('number')
   if (error) throw error
   return data
@@ -93,23 +97,27 @@ export async function fetchClubTeams() {
 }
 
 export async function createSeason(clubIds, type = 'national') {
-  const { data: existing } = await supabase
+  const ownerId = await requireUserId()
+  const { data: existing, error: existingError } = await supabase
     .from('world_cup_seasons')
     .select('number')
     .eq('type', type)
+    .eq('owner_id', ownerId)
     .order('number', { ascending: false })
     .limit(1)
+  if (existingError) throw existingError
   const nextNumber = (existing?.[0]?.number ?? 0) + 1
 
   const { data: season, error: seasonErr } = await supabase
     .from('world_cup_seasons')
-    .insert({ name: type === 'club' ? `Club Cup ${nextNumber}` : `World Cup ${nextNumber}`, number: nextNumber, current_round: 1, type })
+    .insert({ name: type === 'club' ? `Club Cup ${nextNumber}` : `World Cup ${nextNumber}`, number: nextNumber, current_round: 1, type, owner_id: ownerId })
     .select()
     .single()
   if (seasonErr) throw seasonErr
 
   const teamRows = clubIds.map(club_id => ({ season_id: season.id, club_id }))
-  await supabase.from('world_cup_teams').insert(teamRows)
+  const { error: teamErr } = await supabase.from('world_cup_teams').insert(teamRows)
+  if (teamErr) throw teamErr
 
   const shuffled = shuffle(clubIds)
   const matchRows = []
@@ -123,7 +131,8 @@ export async function createSeason(clubIds, type = 'national') {
       status: 'scheduled',
     })
   }
-  await supabase.from('world_cup_matches').insert(matchRows)
+  const { error: matchErr } = await supabase.from('world_cup_matches').insert(matchRows)
+  if (matchErr) throw matchErr
 
   return season
 }
@@ -166,7 +175,7 @@ export async function startMatch(matchId) {
   if (error) throw error
 }
 
-export async function completeMatch(matchId, { homeScore, awayScore, events }) {
+export async function completeMatch(matchId, { homeScore, awayScore, events, penaltyWinner = null, penaltyHomeScore = null, penaltyAwayScore = null }) {
   const { data: match, error: fetchErr } = await supabase
     .from('world_cup_matches')
     .select('home_club_id, away_club_id')
@@ -174,8 +183,10 @@ export async function completeMatch(matchId, { homeScore, awayScore, events }) {
     .single()
   if (fetchErr) throw fetchErr
 
-  // In knockout, home wins on draw
-  const winner_club_id = homeScore >= awayScore ? match.home_club_id : match.away_club_id
+  const winner_club_id = homeScore === awayScore
+    ? ([match.home_club_id, match.away_club_id].includes(penaltyWinner) ? penaltyWinner : null)
+    : (homeScore > awayScore ? match.home_club_id : match.away_club_id)
+  if (!winner_club_id) throw new Error('A tied knockout match requires a penalty winner.')
 
   const { error } = await supabase
     .from('world_cup_matches')
@@ -184,6 +195,8 @@ export async function completeMatch(matchId, { homeScore, awayScore, events }) {
       home_score: homeScore,
       away_score: awayScore,
       winner_club_id,
+      penalty_home_score: penaltyHomeScore,
+      penalty_away_score: penaltyAwayScore,
       played_at: new Date().toISOString(),
     })
     .eq('id', matchId)
@@ -221,24 +234,28 @@ export async function advanceToNextRound(seasonId, currentRound) {
       status: 'scheduled',
     })
   }
-  await supabase.from('world_cup_matches').insert(matchRows)
-  await supabase
+  const { error: matchError } = await supabase.from('world_cup_matches').insert(matchRows)
+  if (matchError) throw matchError
+  const { error: seasonError } = await supabase
     .from('world_cup_seasons')
     .update({ current_round: nextRound })
     .eq('id', seasonId)
+  if (seasonError) throw seasonError
 }
 
 export async function completeSeason(seasonId) {
+  const ownerId = await requireUserId()
   // Find champion = winner of the final round
-  const { data: final } = await supabase
+  const { data: final, error: finalError } = await supabase
     .from('world_cup_matches')
     .select('winner_club_id')
     .eq('season_id', seasonId)
     .order('round', { ascending: false })
     .limit(1)
     .single()
+  if (finalError) throw finalError
 
-  await supabase
+  const { error: seasonError } = await supabase
     .from('world_cup_seasons')
     .update({
       status: 'completed',
@@ -246,32 +263,36 @@ export async function completeSeason(seasonId) {
       champion_club_id: final?.winner_club_id ?? null,
     })
     .eq('id', seasonId)
+  if (seasonError) throw seasonError
 
-  await _saveSeasonAwards(seasonId)
+  await _saveSeasonAwards(seasonId, ownerId)
 }
 
-async function _saveSeasonAwards(seasonId) {
-  const { data: matches } = await supabase
+async function _saveSeasonAwards(seasonId, ownerId) {
+  const { data: matches, error: matchesError } = await supabase
     .from('world_cup_matches')
     .select('id')
     .eq('season_id', seasonId)
     .eq('status', 'completed')
+  if (matchesError) throw matchesError
 
   if (!matches?.length) return
   const matchIds = matches.map(m => m.id)
 
-  const { data: events } = await supabase
+  const { data: events, error: eventsError } = await supabase
     .from('world_cup_match_events')
     .select('player_id, club_id, event_type')
     .in('match_id', matchIds)
+  if (eventsError) throw eventsError
 
   if (!events?.length) return
 
-  const { data: season } = await supabase
+  const { data: season, error: seasonError } = await supabase
     .from('world_cup_seasons')
     .select('name')
     .eq('id', seasonId)
     .single()
+  if (seasonError) throw seasonError
 
   const tally = {}
   for (const e of events) {
@@ -301,9 +322,13 @@ async function _saveSeasonAwards(seasonId) {
     season_id:   seasonId,
     award_type:  a.type,
     season_name: season?.name ?? '',
+    competition_type: 'cup',
+    metric_value: a.entry[1][a.type === 'top_scorer' ? 'goal' : a.type === 'top_assist' ? 'assist' : a.type === 'most_mvp' ? 'mvp' : a.type === 'most_yellow' ? 'yellow_card' : 'red_card'],
+    owner_id: ownerId,
   }))
 
-  await supabase.from('player_awards').upsert(rows, { onConflict: 'player_id,season_id,award_type' })
+  const { error } = await supabase.from('player_awards').upsert(rows, { onConflict: 'player_id,season_id,award_type,competition_type' })
+  if (error) throw error
 }
 
 export async function fetchMatchEvents(matchId) {
@@ -317,21 +342,23 @@ export async function fetchMatchEvents(matchId) {
 }
 
 export async function fetchSeasonStats(seasonId) {
-  const { data: matches } = await supabase
+  const { data: matches, error: matchesError } = await supabase
     .from('world_cup_matches')
     .select('id')
     .eq('season_id', seasonId)
     .eq('status', 'completed')
+  if (matchesError) throw matchesError
 
   if (!matches?.length) {
     return { topScorer: [], topAssist: [], mostMvp: [], mostYellow: [], mostRed: [] }
   }
 
   const matchIds = matches.map(m => m.id)
-  const { data: events } = await supabase
+  const { data: events, error: eventsError } = await supabase
     .from('world_cup_match_events')
     .select('player_id, club_id, event_type')
     .in('match_id', matchIds)
+  if (eventsError) throw eventsError
 
   if (!events?.length) {
     return { topScorer: [], topAssist: [], mostMvp: [], mostYellow: [], mostRed: [] }
@@ -340,10 +367,14 @@ export async function fetchSeasonStats(seasonId) {
   const playerIds = [...new Set(events.map(e => e.player_id))]
   const clubIds   = [...new Set(events.map(e => e.club_id).filter(Boolean))]
 
-  const [{ data: players }, { data: clubs }] = await Promise.all([
+  const [playersResult, clubsResult] = await Promise.all([
     supabase.from('players').select('id, name, photo_url').in('id', playerIds),
     supabase.from('clubs').select('id, name, short_name, badge_color, badge_url').in('id', clubIds),
   ])
+  if (playersResult.error) throw playersResult.error
+  if (clubsResult.error) throw clubsResult.error
+  const players = playersResult.data
+  const clubs = clubsResult.data
 
   const playerMap = Object.fromEntries((players ?? []).map(p => [p.id, p]))
   const clubMap   = Object.fromEntries((clubs ?? []).map(c => [c.id, c]))

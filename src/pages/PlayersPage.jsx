@@ -17,9 +17,14 @@ import ScrollToTop from '../components/ui/ScrollToTop'
 import PageWrapper from '../components/ui/PageWrapper'
 import { SkeletonCard, SkeletonRow } from '../components/ui/SkeletonCard'
 import PlayerProfileModal from '../components/players/PlayerProfileModal'
+import AnimatedTabs from '../components/ui/AnimatedTabs'
+import DesktopPlayerTable from '../components/players/DesktopPlayerTable'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
 const POS_DOT = { GK: 'bg-amber-400', DEF: 'bg-[#3b82f6]', MF: 'bg-[#22c55e]', FWD: 'bg-[#FD5461]' }
+const OUTFIELD_STATS = ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']
+const GOALKEEPER_STATS = ['DIV', 'HAN', 'KIC', 'REF', 'SPD', 'POS']
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState([])
@@ -30,7 +35,8 @@ export default function PlayersPage() {
   // tab: 'all' | 'free'
   const [tab, setTab] = useState('all')
   const [viewMode, setViewMode] = useState('card') // 'card' | 'list'
-  const [ovrSort, setOvrSort] = useState('desc') // 'desc' | 'asc'
+  const [sortKey, setSortKey] = useState('OVR')
+  const [sortDirection, setSortDirection] = useState('desc')
   const [modal, setModal] = useState(null)
   const [saving, setSaving] = useState(false)
   // sign modal
@@ -57,15 +63,42 @@ export default function PlayersPage() {
 
   useEffect(() => { load() }, [load])
 
+  const statColumns = posFilter === 'GK' ? GOALKEEPER_STATS : OUTFIELD_STATS
   const filtered = players
     .filter((p) => {
       const matchTab = tab === 'all' || (tab === 'free' && !p.club_id)
       const matchPos = posFilter === 'ALL' || p.position === posFilter
+      const matchStatType = sortKey === 'OVR' || posFilter === 'GK' || p.position !== 'GK'
       const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.nationality.toLowerCase().includes(search.toLowerCase())
-      return matchTab && matchPos && matchSearch
+      return matchTab && matchPos && matchStatType && matchSearch
     })
-    .sort((a, b) => ovrSort === 'desc' ? b.ovr - a.ovr : a.ovr - b.ovr)
+    .sort((a, b) => {
+      const aValue = sortKey === 'OVR' ? a.ovr : (a.stats?.[sortKey] ?? 0)
+      const bValue = sortKey === 'OVR' ? b.ovr : (b.stats?.[sortKey] ?? 0)
+      return sortDirection === 'desc' ? bValue - aValue : aValue - bValue
+    })
+
+  const handleSort = key => {
+    if (sortKey === key) setSortDirection(direction => direction === 'desc' ? 'asc' : 'desc')
+    else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const handlePositionFilter = position => {
+    setPosFilter(position)
+    setSortKey('OVR')
+    setSortDirection('desc')
+  }
+
+  const openSigning = player => {
+    setSigning(player)
+    setSelectedClub('')
+    setAgreedFee(player.market_value)
+    setFeeDisplay((player.market_value / 1_000_000).toFixed(1))
+  }
 
   const freeCount = players.filter((p) => !p.club_id).length
 
@@ -179,23 +212,7 @@ export default function PlayersPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
-        {[
-          { key: 'all', label: `All Players (${players.length})` },
-          { key: 'free', label: `Free Agents (${freeCount})` },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`flex-1 sm:flex-none px-4 py-2 text-sm font-heading font-bold uppercase tracking-wide border-b-2 -mb-px transition-colors text-center
-              ${tab === key
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-400 hover:text-gray-700'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <AnimatedTabs items={[{ id: 'all', label: `All Players (${players.length})` }, { id: 'free', label: `Free Agents (${freeCount})` }]} value={tab} onChange={setTab} ariaLabel="Player groups" className="mb-4 gap-1" />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -210,7 +227,7 @@ export default function PlayersPage() {
           {POS_FILTERS.map((pos) => (
             <button
               key={pos}
-              onClick={() => setPosFilter(pos)}
+              onClick={() => handlePositionFilter(pos)}
               className={`px-3 py-2 rounded-lg text-xs font-heading font-bold tracking-widest uppercase transition-colors
                 ${posFilter === pos ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
             >
@@ -218,15 +235,20 @@ export default function PlayersPage() {
             </button>
           ))}
           <button
-            onClick={() => setOvrSort((s) => s === 'desc' ? 'asc' : 'desc')}
-            className="px-3 py-2 rounded-lg text-xs font-heading font-bold tracking-widest uppercase transition-colors bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1"
+            onClick={() => handleSort('OVR')}
+            aria-label={`Sort by overall rating ${sortDirection === 'desc' ? 'ascending' : 'descending'}`}
+            aria-pressed={sortKey === 'OVR'}
+            title={sortDirection === 'desc' ? 'Highest OVR first' : 'Lowest OVR first'}
+            className={`flex cursor-pointer items-center gap-1 rounded-lg px-3 py-2 font-heading text-xs font-bold uppercase tracking-widest shadow-sm transition-colors ${sortKey === 'OVR' ? 'bg-[#0A1318] text-white hover:bg-slate-800' : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
           >
-            OVR {ovrSort === 'desc' ? '↓' : '↑'}
+            OVR {sortDirection === 'desc' ? <ArrowDown size={13} /> : <ArrowUp size={13} />}
           </button>
           {/* View toggle */}
           <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
             <button
               onClick={() => setViewMode('card')}
+              aria-label="Card view"
+              aria-pressed={viewMode === 'card'}
               className={`p-2 rounded-lg transition-all cursor-pointer ${viewMode === 'card' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -238,6 +260,8 @@ export default function PlayersPage() {
             </button>
             <button
               onClick={() => setViewMode('list')}
+              aria-label="List view"
+              aria-pressed={viewMode === 'list'}
               className={`p-2 rounded-lg transition-all cursor-pointer ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -252,7 +276,7 @@ export default function PlayersPage() {
 
       {loading && (
         viewMode === 'card' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="player-card-grid">
             {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : (
@@ -274,8 +298,9 @@ export default function PlayersPage() {
       )}
 
       {!loading && filtered.length > 0 && (
-        viewMode === 'card' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div key={`${tab}-${posFilter}-${sortKey}-${sortDirection}-${viewMode}`} className="ui-content-refresh">
+        {viewMode === 'card' ? (
+          <div className="player-card-grid">
             {filtered.map((player, i) => (
               <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 40, 400)}ms`, animationFillMode: 'both' }}>
                 <PlayerCard
@@ -284,17 +309,27 @@ export default function PlayersPage() {
                   onEdit={() => setModal({ mode: 'edit', player })}
                   onDelete={() => handleDelete(player.id)}
                   onSign={() => {
-                    setSigning(player);
-                    setSelectedClub('');
-                    setAgreedFee(player.market_value);
-                    setFeeDisplay((player.market_value / 1_000_000).toFixed(1));
+                    openSigning(player)
                   }}
                 />
               </div>
             ))}
           </div>
         ) : (
-          <div className="space-y-2">
+          <>
+          <DesktopPlayerTable
+            players={filtered}
+            statColumns={statColumns}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            onProfile={setProfilePlayer}
+            onEdit={player => setModal({ mode: 'edit', player })}
+            onDelete={handleDelete}
+            onSign={openSigning}
+            signDisabled={clubs.length === 0}
+          />
+          <div className="space-y-2 lg:hidden">
             {filtered.map((player, i) => (
               <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 30, 300)}ms`, animationFillMode: 'both' }}>
               <PlayerListRow
@@ -304,7 +339,7 @@ export default function PlayersPage() {
                   <>
                     <Button variant="ghost" size="sm" onClick={() => setModal({ mode: 'edit', player })}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(player.id)}>Del</Button>
-                    <Button size="sm" onClick={() => { setSigning(player); setSelectedClub(''); setAgreedFee(player.market_value); setFeeDisplay((player.market_value / 1_000_000).toFixed(1)) }} disabled={clubs.length === 0}>
+                    <Button size="sm" onClick={() => openSigning(player)} disabled={clubs.length === 0}>
                       {player.club_id ? 'Transfer' : 'Sign'}
                     </Button>
                   </>
@@ -313,7 +348,9 @@ export default function PlayersPage() {
               </div>
             ))}
           </div>
-        )
+          </>
+        )}
+        </div>
       )}
 
       {/* Create modal */}

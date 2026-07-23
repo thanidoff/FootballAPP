@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { requireUserId } from './auth'
 
 // Circle-method round-robin for 6 teams → 5 rounds × 3 matches
 function generateRoundRobin(teamIds) {
@@ -51,30 +52,36 @@ export function computeStandings(teams, matches) {
 }
 
 export async function fetchLeagueSeasons() {
+  const ownerId = await requireUserId()
   const { data, error } = await supabase
     .from('league_seasons')
     .select('*, champion_club:clubs!league_seasons_champion_club_id_fkey(*)')
+    .eq('owner_id', ownerId)
     .order('number')
   if (error) throw error
   return data
 }
 
 export async function createLeagueSeason(clubIds) {
-  const { data: existing } = await supabase
+  const ownerId = await requireUserId()
+  const { data: existing, error: existingError } = await supabase
     .from('league_seasons')
     .select('number')
+    .eq('owner_id', ownerId)
     .order('number', { ascending: false })
     .limit(1)
+  if (existingError) throw existingError
   const nextNumber = (existing?.[0]?.number ?? 0) + 1
 
   const { data: season, error: sErr } = await supabase
     .from('league_seasons')
-    .insert({ name: `League Season ${nextNumber}`, number: nextNumber })
+    .insert({ name: `League Season ${nextNumber}`, number: nextNumber, owner_id: ownerId })
     .select()
     .single()
   if (sErr) throw sErr
 
-  await supabase.from('league_teams').insert(clubIds.map(club_id => ({ season_id: season.id, club_id })))
+  const { error: teamErr } = await supabase.from('league_teams').insert(clubIds.map(club_id => ({ season_id: season.id, club_id })))
+  if (teamErr) throw teamErr
 
   const firstLeg = generateRoundRobin(clubIds)
   const matchRows = []
@@ -90,7 +97,8 @@ export async function createLeagueSeason(clubIds) {
       matchRows.push({ season_id: season.id, week: ri + 6, match_order: mi + 1, home_club_id: away, away_club_id: home })
     })
   })
-  await supabase.from('league_matches').insert(matchRows)
+  const { error: matchErr } = await supabase.from('league_matches').insert(matchRows)
+  if (matchErr) throw matchErr
   return season
 }
 
@@ -160,7 +168,7 @@ export async function advanceLeagueWeek(seasonId, currentWeek) {
 }
 
 export async function createFinalMatch(seasonId, homeClubId) {
-  await supabase.from('league_matches').insert({
+  const { error: matchError } = await supabase.from('league_matches').insert({
     season_id: seasonId,
     week: 11,
     match_order: 1,
@@ -169,28 +177,35 @@ export async function createFinalMatch(seasonId, homeClubId) {
     status: 'scheduled',
     is_final: true,
   })
-  await supabase
+  if (matchError) throw matchError
+  const { error: seasonError } = await supabase
     .from('league_seasons')
     .update({ current_week: 11, champion_club_id: homeClubId })
     .eq('id', seasonId)
+  if (seasonError) throw seasonError
 }
 
 export async function completeLeagueSeason(seasonId) {
-  await supabase
+  const { error } = await supabase
     .from('league_seasons')
     .update({ status: 'completed', ended_at: new Date().toISOString() })
     .eq('id', seasonId)
+  if (error) throw error
   await _saveLeagueAwards(seasonId)
 }
 
 async function _saveLeagueAwards(seasonId) {
-  const { data: matches } = await supabase.from('league_matches').select('id').eq('season_id', seasonId).eq('status', 'completed')
+  const ownerId = await requireUserId()
+  const { data: matches, error: matchesError } = await supabase.from('league_matches').select('id').eq('season_id', seasonId).eq('status', 'completed')
+  if (matchesError) throw matchesError
   if (!matches?.length) return
   const matchIds = matches.map(m => m.id)
-  const { data: events } = await supabase.from('league_match_events').select('player_id, club_id, event_type').in('match_id', matchIds)
+  const { data: events, error: eventsError } = await supabase.from('league_match_events').select('player_id, club_id, event_type').in('match_id', matchIds)
+  if (eventsError) throw eventsError
   if (!events?.length) return
 
-  const { data: season } = await supabase.from('league_seasons').select('name').eq('id', seasonId).single()
+  const { data: season, error: seasonError } = await supabase.from('league_seasons').select('name').eq('id', seasonId).single()
+  if (seasonError) throw seasonError
 
   const tally = {}
   for (const e of events) {
@@ -209,8 +224,11 @@ async function _saveLeagueAwards(seasonId) {
   const rows = awards.map(a => ({
     player_id: a.entry[0], club_id: tally[a.entry[0]].club_id,
     season_id: seasonId, award_type: a.type, season_name: season?.name ?? '',
+    competition_type: 'league', metric_value: a.entry[1][a.type === 'top_scorer' ? 'goal' : a.type === 'top_assist' ? 'assist' : a.type === 'most_mvp' ? 'mvp' : a.type === 'most_yellow' ? 'yellow_card' : 'red_card'],
+    owner_id: ownerId,
   }))
-  await supabase.from('player_awards').upsert(rows, { onConflict: 'player_id,season_id,award_type' })
+  const { error } = await supabase.from('player_awards').upsert(rows, { onConflict: 'player_id,season_id,award_type,competition_type' })
+  if (error) throw error
 }
 
 export async function fetchLeagueMatchEvents(matchId) {
@@ -224,19 +242,25 @@ export async function fetchLeagueMatchEvents(matchId) {
 }
 
 export async function fetchLeagueStats(seasonId) {
-  const { data: matches } = await supabase.from('league_matches').select('id').eq('season_id', seasonId).eq('status', 'completed')
+  const { data: matches, error: matchesError } = await supabase.from('league_matches').select('id').eq('season_id', seasonId).eq('status', 'completed')
+  if (matchesError) throw matchesError
   if (!matches?.length) return { topScorer: [], topAssist: [], mostMvp: [], mostYellow: [], mostRed: [] }
 
   const matchIds = matches.map(m => m.id)
-  const { data: events } = await supabase.from('league_match_events').select('player_id, club_id, event_type').in('match_id', matchIds)
+  const { data: events, error: eventsError } = await supabase.from('league_match_events').select('player_id, club_id, event_type').in('match_id', matchIds)
+  if (eventsError) throw eventsError
   if (!events?.length) return { topScorer: [], topAssist: [], mostMvp: [], mostYellow: [], mostRed: [] }
 
   const playerIds = [...new Set(events.map(e => e.player_id))]
   const clubIds = [...new Set(events.map(e => e.club_id).filter(Boolean))]
-  const [{ data: players }, { data: clubs }] = await Promise.all([
+  const [playersResult, clubsResult] = await Promise.all([
     supabase.from('players').select('id, name, photo_url').in('id', playerIds),
     supabase.from('clubs').select('id, name, short_name, badge_color, badge_url').in('id', clubIds),
   ])
+  if (playersResult.error) throw playersResult.error
+  if (clubsResult.error) throw clubsResult.error
+  const players = playersResult.data
+  const clubs = clubsResult.data
   const playerMap = Object.fromEntries((players ?? []).map(p => [p.id, p]))
   const clubMap = Object.fromEntries((clubs ?? []).map(c => [c.id, c]))
   const tally = {}

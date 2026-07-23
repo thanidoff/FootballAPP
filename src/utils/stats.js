@@ -13,7 +13,7 @@ export const POSITION_LABELS = {
 }
 
 export const STATS_BY_POSITION = {
-  GK: ['DIV', 'HAN', 'KIC', 'REF', 'SPD', 'POS'],
+  GK: ['PAC', 'PAS', 'DRI', 'PHY', 'SAV', 'GKA'],
   DEF: ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY'],
   MF: ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY'],
   FWD: ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY'],
@@ -32,22 +32,45 @@ export const STAT_LABELS = {
   DRI: 'Dribbling',
   DEF: 'Defending',
   PHY: 'Physicality',
+  SAV: 'Saving',
+  GKA: 'Goalkeeper Awareness',
 }
 
-// FIFA-style OVR weights per position (Synced with Supabase migration)
+export const ALL_STATS = ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY', 'SAV', 'GKA']
+
 const OVR_WEIGHTS = {
-  GK:  { DIV: 0.35, HAN: 0.15, KIC: 0.02, REF: 0.38, SPD: 0.02, POS: 0.08 },
-  DEF: { PAC: 0.15, SHO: 0.02, PAS: 0.08, DRI: 0.05, DEF: 0.45, PHY: 0.25 },
-  MF:  { PAC: 0.12, SHO: 0.10, PAS: 0.30, DRI: 0.25, DEF: 0.12, PHY: 0.11 },
-  FWD: { PAC: 0.22, SHO: 0.48, PAS: 0.07, DRI: 0.18, DEF: 0.01, PHY: 0.04 },
+  GK:  { SAV: 0.40, GKA: 0.30, PAS: 0.10, PHY: 0.08, PAC: 0.07, DRI: 0.05 },
+  DEF: { DEF: 0.37, PHY: 0.24, PAC: 0.14, PAS: 0.13, DRI: 0.08, SHO: 0.04 },
+  MF:  { PAS: 0.28, DRI: 0.22, DEF: 0.17, PHY: 0.13, PAC: 0.10, SHO: 0.10 },
+  FWD: { SHO: 0.32, DRI: 0.20, PAC: 0.18, PHY: 0.13, PAS: 0.12, DEF: 0.05 },
+}
+
+export function normalizeStats(stats = {}) {
+  const average = (...values) => {
+    const present = values.filter(value => Number.isFinite(Number(value))).map(Number)
+    return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : 50
+  }
+  const normalized = {
+    PAC: stats.PAC ?? stats.SPD ?? 50,
+    SHO: stats.SHO ?? 30,
+    PAS: stats.PAS ?? stats.KIC ?? 50,
+    DRI: stats.DRI ?? average(stats.HAN, stats.KIC),
+    DEF: stats.DEF ?? 30,
+    PHY: stats.PHY ?? stats.HAN ?? 50,
+    SAV: stats.SAV ?? average(stats.REF, stats.DIV, stats.HAN),
+    GKA: stats.GKA ?? stats.POS ?? 50,
+  }
+  return Object.fromEntries(Object.entries(normalized).map(([key, value]) => [key, Math.round(Number(value) || 0)]))
 }
 
 export function calculateOVR(position, stats) {
   const weights = OVR_WEIGHTS[position]
   if (!weights) return 0
+  if (!stats || Object.keys(stats).length === 0) return 0
+  const normalized = normalizeStats(stats)
   const keys = STATS_BY_POSITION[position]
   const total = keys.reduce((sum, key) => {
-    return sum + (stats[key] ?? 0) * (weights[key] ?? 0)
+    return sum + (normalized[key] ?? 0) * (weights[key] ?? 0)
   }, 0)
   return Math.round(total)
 }
@@ -71,7 +94,7 @@ export function getOVRTier(ovr) {
 }
 
 export function getDefaultStats(position) {
-  return Object.fromEntries(STATS_BY_POSITION[position].map((s) => [s, 50]))
+  return Object.fromEntries(ALL_STATS.map((stat) => [stat, 50]))
 }
 
 export function getStatLabel(value) {

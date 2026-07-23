@@ -1,39 +1,105 @@
-import { useEffect } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 
 export default function Modal({ open, onClose, title, children, width = 'max-w-lg' }) {
-  useEffect(() => {
-    if (!open) return
-    document.body.style.overflow = 'hidden'
-    const handler = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', handler)
+  const [rendered, setRendered] = useState(open)
+  const [closing, setClosing] = useState(false)
+  const titleId = useId()
+  const previousFocus = useRef(null)
+  const dialogRef = useRef(null)
+  const shouldRender = open || rendered
+
+  useLayoutEffect(() => {
+    if (open) {
+      previousFocus.current = document.activeElement
+      setRendered(true)
+      setClosing(false)
+      return
     }
-  }, [open, onClose])
+    if (!rendered) return
+    setClosing(true)
+    const timer = window.setTimeout(() => {
+      setRendered(false)
+      setClosing(false)
+      previousFocus.current?.focus?.()
+    }, 140)
+    return () => window.clearTimeout(timer)
+  }, [open, rendered])
 
-  if (!open) return null
+  useLayoutEffect(() => {
+    if (!shouldRender) return
+    const originalOverflow = document.body.style.overflow
+    const originalPaddingRight = document.body.style.paddingRight
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    document.body.style.overflow = 'hidden'
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`
+    return () => {
+      document.body.style.overflow = originalOverflow
+      document.body.style.paddingRight = originalPaddingRight
+    }
+  }, [shouldRender])
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ animation: 'fadeIn 0.15s ease-out' }}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+  useEffect(() => {
+    if (!rendered || closing) return
+    const dialog = dialogRef.current
+    const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const firstFocusable = dialog?.querySelector(focusableSelector)
+    ;(firstFocusable || dialog)?.focus?.({ preventScroll: true })
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab' || !dialog) return
+      const focusable = [...dialog.querySelectorAll(focusableSelector)].filter(element => !element.hasAttribute('hidden'))
+      if (!focusable.length) {
+        e.preventDefault()
+        dialog.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [rendered, closing, onClose])
+
+  if (!shouldRender) return null
+
+  return createPortal(
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}>
+      <button tabIndex={-1} aria-label="Close modal" className="absolute inset-0 bg-[#0A1318]/55 backdrop-blur-sm" onClick={onClose} disabled={closing} />
       <div
-        className={`relative w-full ${width} bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]`}
-        style={{ animation: 'modalSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`relative flex w-full ${width} max-h-[min(700px,calc(100dvh-2rem))] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-          <h2 className="font-heading font-black text-xl uppercase tracking-wide">{title}</h2>
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-6 py-5 sm:px-8">
+          <h2 id={titleId} className="type-heading text-[#0A1318]">{title}</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 active:scale-95 transition-all duration-150 cursor-pointer"
+            aria-label="Close"
+            disabled={closing}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-400 ui-transition-fast transition-[background-color,color,transform] hover:bg-gray-100 hover:text-gray-700 active:scale-95"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
+            <X size={18} strokeWidth={2} />
           </button>
         </div>
-        <div className="px-6 py-5 overflow-y-auto scrollbar-hide">{children}</div>
+        <div className="overflow-y-auto px-6 py-6 scrollbar-hide sm:px-8">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

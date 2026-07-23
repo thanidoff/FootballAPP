@@ -8,6 +8,7 @@ import {
 } from '../services/league'
 import LeagueSetupModal from '../components/matches/LeagueSetupModal'
 import MatchResultModal from '../components/matches/MatchResultModal'
+import useOverlayBehavior from '../hooks/useOverlayBehavior'
 
 const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 const ALL_STARS_CLUB = { id: '__allstars__', name: 'All Stars', short_name: 'ALL', badge_color: '#FD5461', is_national: false }
@@ -274,6 +275,7 @@ function TopList({ title, icon, items, unit, onViewAll }) {
 }
 
 function AllStatsModal({ open, onClose, title, icon, items, unit }) {
+  useOverlayBehavior(open, onClose)
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -399,6 +401,7 @@ function StatsPanel({ seasonId }) {
 }
 
 function ConfirmModal({ open, title, desc, confirmLabel, onClose, onConfirm, loading }) {
+  useOverlayBehavior(open, onClose)
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>

@@ -9,11 +9,16 @@ create table if not exists draft_saves (
   teams jsonb not null default '[]',
   free_agents jsonb not null default '[]',
   current_week smallint not null default 1,
-  created_at timestamptz default now()
+  owner_id uuid references auth.users(id) on delete cascade,
+  schema_version integer not null default 2,
+  created_at timestamptz default now(),
+  updated_at timestamptz not null default now()
 );
 
 -- RLS
 alter table draft_saves enable row level security;
 
-create policy "public read draft_saves"  on draft_saves for select using (true);
-create policy "public write draft_saves" on draft_saves for all    using (true);
+create policy "Owners can read career saves" on draft_saves for select to authenticated using (auth.uid() = owner_id);
+create policy "Owners can create career saves" on draft_saves for insert to authenticated with check (auth.uid() = owner_id);
+create policy "Owners can update career saves" on draft_saves for update to authenticated using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+create policy "Owners can delete career saves" on draft_saves for delete to authenticated using (auth.uid() = owner_id);

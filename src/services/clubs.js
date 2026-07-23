@@ -1,5 +1,6 @@
-import { supabase } from '../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { uploadDataUrl } from './storage'
+import { MOCK_CLUBS } from '../data/mockGameData'
 
 async function resolveBadgeUrl(badge, clubId) {
   if (!badge) return undefined
@@ -8,6 +9,8 @@ async function resolveBadgeUrl(badge, clubId) {
 }
 
 export async function fetchClubs() {
+  if (!isSupabaseConfigured) return MOCK_CLUBS.map(club => ({ ...club }))
+
   const { data, error } = await supabase
     .from('clubs')
     .select('*')
@@ -17,6 +20,8 @@ export async function fetchClubs() {
 }
 
 export async function fetchClub(id) {
+  if (!isSupabaseConfigured) return MOCK_CLUBS.find(club => club.id === id) ?? null
+
   const { data, error } = await supabase
     .from('clubs')
     .select('*')
@@ -36,7 +41,8 @@ export async function createClub({ name, short_name, badge_color, budget, badge,
 
   const badge_url = await resolveBadgeUrl(badge, data.id)
   if (badge_url) {
-    await supabase.from('clubs').update({ badge_url }).eq('id', data.id)
+    const { error: badgeError } = await supabase.from('clubs').update({ badge_url }).eq('id', data.id)
+    if (badgeError) throw badgeError
     data.badge_url = badge_url
   }
 
@@ -73,6 +79,8 @@ export async function fetchClubRecords(clubId) {
     supabase.from('world_cup_match_events').select('player_id, event_type').eq('club_id', clubId),
     supabase.from('league_match_events').select('player_id, event_type').eq('club_id', clubId),
   ])
+  const eventError = [friendly.error, worldCup.error, league.error].find(Boolean)
+  if (eventError) throw eventError
 
   const allEvents = [
     ...(friendly.data ?? []),
@@ -91,10 +99,11 @@ export async function fetchClubRecords(clubId) {
   const playerIds = Object.keys(tally)
   if (!playerIds.length) return { topScorers: [], topAssists: [], mostMvps: [], mostYellows: [], mostReds: [] }
 
-  const { data: players } = await supabase
+  const { data: players, error: playersError } = await supabase
     .from('players')
     .select('*, clubs(id, name, short_name, badge_color, badge_url, is_national)')
     .in('id', playerIds)
+  if (playersError) throw playersError
 
   const playerMap = Object.fromEntries((players ?? []).map(p => [p.id, {
     ...p,

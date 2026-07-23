@@ -1,0 +1,270 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useOutletContext } from 'react-router-dom'
+import { Check, ChevronLeft, ChevronRight, Settings2, Shuffle, Trophy } from 'lucide-react'
+import { MOCK_CLUBS } from '../../../data/mockGameData'
+import { DEFAULT_CUP_PRIZES, updateDraftCupPrizeSettings, updateDraftState } from '../../../services/draftSave'
+import { createSeededRandom } from '../../../utils/matchEngine'
+import { generateMockRoster } from '../../../utils/draftLogic'
+import Modal from '../../../components/ui/Modal'
+import { ScoreChip } from '../../../components/draft/ResultScore'
+
+const ROUND_NAMES = { 1: 'Quarter Finals', 2: 'Semi Finals', 3: 'Final' }
+
+const CUP_PRIZE_GROUPS = [
+  { label: 'Position 1', positions: [0] },
+  { label: 'Position 2', positions: [1] },
+  { label: 'Position 3', positions: [2] },
+  { label: 'Positions 4–5', positions: [3, 4] },
+  { label: 'Positions 6–8', positions: [5, 6, 7] },
+]
+
+function CupPrizeFields({ prizes, setPrizes, disabled = false }) {
+  const updateGroup = (positions, value) => setPrizes(current => current.map((amount, index) => positions.includes(index) ? Math.max(0, Number(value) || 0) * 1_000_000 : amount))
+  return <div className="space-y-2">{CUP_PRIZE_GROUPS.map((group, index) => <label key={group.label} className="flex items-center gap-3 rounded-2xl border border-gray-200 p-3"><span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${index === 0 ? 'bg-[#FD5461] text-white' : index === 1 ? 'bg-[#0A1318] text-white' : index === 2 ? 'border-2 border-[#FD5461] text-[#FD5461]' : 'bg-gray-100 text-gray-500'}`}>{index + 1}</span><span className="flex-1 text-sm font-semibold">{group.label}</span><span className="text-sm text-gray-400">$</span><input disabled={disabled} type="number" min="0" step="0.1" value={(prizes[group.positions[0]] / 1_000_000).toFixed(1)} onChange={event => updateGroup(group.positions, event.target.value)} className="w-24 rounded-xl border border-gray-200 px-3 py-2 text-right text-sm font-semibold outline-none focus:border-[#FD5461] disabled:bg-gray-50" /><span className="text-sm text-gray-500">M</span></label>)}</div>
+}
+
+function toClub(team) {
+  return team?.club_id ? { id: team.club_id, name: team.club_name, short_name: team.short_name || team.club_name.slice(0, 3).toUpperCase(), badge_url: team.badge_url, badge_color: team.badge_color, roster: team.roster || [] } : { ...team, roster: team?.roster || [] }
+}
+
+function Badge({ club }) {
+  return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[10px] font-black text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>{club?.short_name || club?.name?.slice(0, 3).toUpperCase()}</span>
+}
+
+function createCupTeam(club, index) {
+  return {
+    club_id: club.id,
+    club_name: club.name,
+    short_name: club.short_name,
+    badge_url: club.badge_url,
+    badge_color: club.badge_color,
+    budget: 100_000_000,
+    stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 },
+    roster: generateMockRoster(club, index),
+  }
+}
+
+function BracketMatch({ match, home, away, homeLabel, awayLabel, active, onPlay }) {
+  const homeWon = match?.played && String(match.winner) === String(match.home)
+  const awayWon = match?.played && String(match.winner) === String(match.away)
+  const winnerName = homeWon ? home?.name : awayWon ? away?.name : null
+  return (
+    <article className={`relative rounded-2xl border bg-white shadow-sm transition-all ${active ? 'border-[#FD5461]/40 shadow-red-500/10' : 'border-gray-200'}`}>
+      <div className="divide-y divide-gray-100">
+        <div className="flex h-14 items-center gap-3 px-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50">{home ? <Badge club={home} /> : <span className="text-xs font-black text-gray-300">?</span>}</span><span className={`min-w-0 flex-1 truncate text-xs font-bold ${home ? 'text-[#0A1318]' : 'text-gray-400'}`}>{home?.name || homeLabel}</span>{match?.played && <ScoreChip value={match.homeScore} side="home" winner={homeWon ? 'home' : awayWon ? 'away' : null} />}</div>
+        <div className="flex h-14 items-center gap-3 px-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50">{away ? <Badge club={away} /> : <span className="text-xs font-black text-gray-300">?</span>}</span><span className={`min-w-0 flex-1 truncate text-xs font-bold ${away ? 'text-[#0A1318]' : 'text-gray-400'}`}>{away?.name || awayLabel}</span>{match?.played && <ScoreChip value={match.awayScore} side="away" winner={homeWon ? 'home' : awayWon ? 'away' : null} />}</div>
+      </div>
+      {match?.played && match.decidedOnPenalties && (
+        <div className="border-t border-red-100 bg-red-50/60 px-3 py-2 text-center text-[11px] font-medium text-[#FD5461]">
+          Penalties {match.penalties?.home}–{match.penalties?.away}{winnerName ? ` · ${winnerName} advances` : ''}
+        </div>
+      )}
+      {active && !match?.played && <button onClick={onPlay} className="m-2 w-[calc(100%-1rem)] rounded-lg bg-[#0A1318] py-2 font-heading text-[10px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#FD5461]">Play match</button>}
+    </article>
+  )
+}
+
+export default function DraftCupTab() {
+  const { saveData, setSaveData, saveId } = useOutletContext()
+  const navigate = useNavigate()
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [selected, setSelected] = useState([])
+  const [mobileRound, setMobileRound] = useState(1)
+  const [prizeOpen, setPrizeOpen] = useState(false)
+  const [prizeDraft, setPrizeDraft] = useState(DEFAULT_CUP_PRIZES)
+  const [savingPrizes, setSavingPrizes] = useState(false)
+
+  const leagueSeasons = saveData.settings?.seasons || []
+  const completedLeague = [...leagueSeasons].reverse().find(season => season.status === 'completed')
+  const qualifiedIds = completedLeague?.standings?.slice(0, 4).map(row => row.club_id) || []
+  const allClubs = useMemo(() => {
+    const map = new Map(MOCK_CLUBS.map(club => [club.id, club]))
+    ;(saveData.teams || []).forEach(team => map.set(team.club_id, toClub(team)))
+    return [...map.values()]
+  }, [saveData.teams])
+  const candidates = allClubs
+  const cups = saveData.settings?.cups || []
+  const cup = cups.find(item => item.status === 'active') || cups[cups.length - 1]
+  const isFirstCup = cups.length === 0 && !leagueSeasons.some(season => season.status === 'completed')
+  const selectionTarget = 8
+
+  useEffect(() => {
+    if (!cup && completedLeague?.cupPrizeSettings) setPrizeDraft([...completedLeague.cupPrizeSettings])
+  }, [cup, completedLeague])
+
+  function openSetup() {
+    setSelected(isFirstCup ? [] : qualifiedIds.slice(0, 8))
+    setSetupOpen(true)
+  }
+
+  function toggle(id) {
+    setSelected(current => current.includes(id) ? current.filter(item => item !== id) : current.length < selectionTarget ? [...current, id] : current)
+  }
+
+  async function createCup() {
+    if (selected.length !== selectionTarget) return
+    const cupId = globalThis.crypto?.randomUUID?.() || `cup-${Date.now()}`
+    const drawRandom = createSeededRandom(cupId)
+    const shuffled = [...selected]
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(drawRandom() * (index + 1))
+      ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+    }
+    const firstRound = Array.from({ length: 4 }, (_, index) => ({ home: shuffled[index * 2], away: shuffled[index * 2 + 1], played: false }))
+    const selectedQualifierIds = selected.filter(id => qualifiedIds.includes(id))
+    const selectedInvitedIds = selected.filter(id => !qualifiedIds.includes(id))
+    const newCup = {
+      id: cupId,
+      seasonId: completedLeague?.id || null,
+      number: cups.length + 1,
+      status: 'active', round: 1, qualifiedIds: selectedQualifierIds, invitedIds: selectedInvitedIds,
+      rounds: { 1: firstRound },
+      prizeSettings: [...prizeDraft],
+      createdAt: new Date().toISOString(),
+    }
+    const cupTeamIds = new Set(selected)
+    const existingIds = new Set((saveData.teams || []).map(team => team.club_id))
+    const addedTeams = allClubs
+      .filter(club => cupTeamIds.has(club.id) && !existingIds.has(club.id))
+      .map((club, index) => createCupTeam(club, index))
+    const newSaveData = {
+      ...saveData,
+      teams: [...(saveData.teams || []), ...addedTeams],
+      settings: { ...saveData.settings, cups: [...cups, newCup] },
+    }
+    await updateDraftState(saveId, newSaveData)
+    setSaveData(newSaveData)
+    setSetupOpen(false)
+    setSelected([])
+  }
+
+  function playMatch(match, index, round = cup.round) {
+    const home = allClubs.find(club => club.id === match.home), away = allClubs.find(club => club.id === match.away)
+    navigate('/matches/draft/prematch', { state: { homeClub: home, awayClub: away, duration: 5, returnPath: `/draft/${saveId}/cup`, saveId, cupRound: round, matchIndex: index } })
+  }
+
+  function openPrizeSettings() {
+    setPrizeDraft([...(cup?.prizeSettings || completedLeague?.cupPrizeSettings || DEFAULT_CUP_PRIZES)])
+    setPrizeOpen(true)
+  }
+
+  async function savePrizeSettings() {
+    setSavingPrizes(true)
+    try {
+      const nextState = await updateDraftCupPrizeSettings(saveId, cup.id, prizeDraft)
+      setSaveData(nextState)
+      setPrizeOpen(false)
+    } finally {
+      setSavingPrizes(false)
+    }
+  }
+
+  if (!isFirstCup && !completedLeague && (!cup || cup.status === 'completed')) return (
+    <div className="rounded-2xl border border-gray-200 bg-white px-6 py-20 text-center shadow-sm">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-[#FD5461]"><Trophy size={28} /></div>
+      <h2 className="mt-5 font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Cup qualification</h2>
+      <p className="mx-auto mt-2 max-w-lg text-sm text-gray-500">Complete a 5-team league season first. The top four clubs qualify automatically for the next 8-team cup.</p>
+      <button onClick={() => navigate(`/draft/${saveId}/matches`)} className="mt-7 rounded-xl bg-[#FD5461] px-6 py-3 font-heading text-xs font-black uppercase tracking-wider text-white">Open League</button>
+    </div>
+  )
+
+  if (!cup || cup.status === 'completed') return (
+    <>
+      {cup?.champion && <div className="mb-5 rounded-2xl border border-[#FD5461]/35 bg-[#FD5461]/[0.07] p-5"><div className="text-[10px] font-black uppercase tracking-widest text-[#FD5461]">Last cup champion</div><div className="mt-1 font-heading text-xl font-black uppercase text-[#0A1318]">{allClubs.find(club => club.id === cup.champion)?.name}</div></div>}
+      <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-[#FD5461]" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">Create the 8-team cup</h2><p className="mt-2 text-sm text-gray-500">Select any eight clubs. League qualifiers are preselected but can be changed before the unrestricted random draw.</p><div className="mt-7 flex flex-wrap justify-center gap-2"><button onClick={() => { setPrizeDraft([...DEFAULT_CUP_PRIZES]); setPrizeOpen(true) }} className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-600 hover:border-[#FD5461] hover:text-[#FD5461]"><Settings2 size={16} />Set prizes</button><button onClick={openSetup} className="rounded-xl bg-[#FD5461] px-6 py-3 font-heading text-xs font-black uppercase tracking-wider text-white">Select 8 clubs</button></div></div>
+      <Modal open={setupOpen} onClose={() => setSetupOpen(false)} title="Complete the field" width="max-w-3xl">
+        <div className="space-y-5">
+            <p className="type-body-sm text-gray-500">Select any 8 clubs · {selected.length}/8 selected · all pairings are random</p>
+            <div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {candidates.map(club => {
+                  const active = selected.includes(club.id)
+                  const qualifier = qualifiedIds.includes(club.id)
+                  return <button key={club.id} onClick={() => toggle(club.id)} className={`flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3 text-left transition-[border-color,background-color] duration-200 ${active ? 'border-[#FD5461] bg-red-50' : 'border-gray-100 bg-white hover:border-slate-300 hover:bg-slate-50'}`}><Badge club={club} /><span className="min-w-0 flex-1"><span className="block truncate type-body font-medium">{club.name}</span>{qualifier && <span className="type-caption text-gray-400">League qualifier · preselected, editable</span>}</span>{active && <Check size={18} className="text-[#FD5461]" />}</button>
+                })}
+              </div>
+            </div>
+            <div className="border-t border-gray-100 pt-4"><button onClick={createCup} disabled={selected.length !== selectionTarget} className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FD5461] py-3 type-body font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300"><Shuffle size={16} />{selected.length === selectionTarget ? 'Shuffle all 8 clubs' : `Select ${selectionTarget - selected.length} more`}</button></div>
+        </div>
+      </Modal>
+      <Modal open={prizeOpen} onClose={() => setPrizeOpen(false)} title={`Club Cup ${cups.length + 1} prizes`} width="max-w-xl"><div className="space-y-5"><p className="text-sm text-gray-500">Set five reward tiers before drawing the tournament.</p><CupPrizeFields prizes={prizeDraft} setPrizes={setPrizeDraft} /><button onClick={() => setPrizeOpen(false)} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white">Use these prizes</button></div></Modal>
+    </>
+  )
+
+  const rounds = cup.rounds || {}
+  const qf = rounds[1] || []
+  const sf = rounds[2] || []
+  const finalRound = rounds[3] || []
+  const lineColor = done => done ? '#FD5461' : '#D7DCE2'
+  const columnData = [
+    { round: 1, title: 'Quarter Finals', short: 'Round of 8', count: 4 },
+    { round: 2, title: 'Semi Finals', short: 'Final 4', count: 2 },
+    { round: 3, title: 'Final', short: 'Championship', count: 1 },
+  ]
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4"><div><p className="text-[10px] font-black uppercase tracking-widest text-[#FD5461]">Club Cup {cup.number}</p><h2 className="mt-1 font-heading text-xl font-black uppercase">Tournament bracket</h2></div><div className="flex items-center gap-2"><button onClick={openPrizeSettings} className="flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-600 hover:border-[#FD5461] hover:text-[#FD5461]"><Settings2 size={16} />Prizes</button><span className="rounded-full bg-[#FD5461] px-4 py-2 font-heading text-[10px] font-black uppercase tracking-widest text-white">Now · {ROUND_NAMES[cup.round]}</span></div></div>
+      <div className="rounded-2xl border border-gray-200 bg-[#F8F9FA] p-4 shadow-sm lg:hidden">
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-2">
+          <button onClick={() => setMobileRound(round => Math.max(1, round - 1))} disabled={mobileRound === 1} aria-label="Previous round" className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-[#0A1318] transition-all hover:border-[#FD5461] hover:text-[#FD5461] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-300 disabled:hover:border-gray-200"><ChevronLeft size={19} strokeWidth={2.25} /></button>
+          <div className="min-w-0 text-center"><p className="text-[9px] font-black uppercase tracking-[.2em] text-[#FD5461]">{columnData[mobileRound - 1].short}</p><h3 className="mt-0.5 truncate font-heading text-base font-black uppercase text-[#0A1318]">{columnData[mobileRound - 1].title}</h3></div>
+          <button onClick={() => setMobileRound(round => Math.min(3, round + 1))} disabled={mobileRound === 3} aria-label="Next round" className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-[#0A1318] transition-all hover:border-[#FD5461] hover:text-[#FD5461] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-300 disabled:hover:border-gray-200"><ChevronRight size={19} strokeWidth={2.25} /></button>
+        </div>
+        <div key={mobileRound} className="space-y-4" style={{ animation: 'fadeSlideUp 0.35s cubic-bezier(.22,1,.36,1) both' }}>
+          {Array.from({ length: columnData[mobileRound - 1].count }, (_, index) => {
+            const match = rounds[mobileRound]?.[index]
+            const home = match ? allClubs.find(club => club.id === match.home) : null
+            const away = match ? allClubs.find(club => club.id === match.away) : null
+            const previousPrefix = mobileRound === 2 ? 'QF' : 'SF'
+            return <BracketMatch key={index} match={match} home={home} away={away} homeLabel={`Winner of ${previousPrefix} ${index * 2 + 1}`} awayLabel={`Winner of ${previousPrefix} ${index * 2 + 2}`} active={mobileRound === cup.round && Boolean(match)} onPlay={() => playMatch(match, index, mobileRound)} />
+          })}
+        </div>
+        <div className="mt-5 flex items-center justify-center gap-2">{[1, 2, 3].map(round => <button key={round} onClick={() => setMobileRound(round)} aria-label={`Show ${ROUND_NAMES[round]}`} className={`h-2 rounded-full transition-all ${mobileRound === round ? 'w-7 bg-[#FD5461]' : 'w-2 bg-gray-300'}`} />)}</div>
+      </div>
+      <div className="hidden overflow-x-auto rounded-2xl border border-gray-200 bg-[#F8F9FA] p-5 shadow-sm lg:block">
+        <div className="min-w-[980px]">
+          <div className="grid grid-cols-3 gap-12">
+            {columnData.map(column => <header key={column.round} className="text-center"><p className="text-[9px] font-black uppercase tracking-[.2em] text-[#FD5461]">{column.short}</p><h3 className="mt-1 font-heading text-lg font-black uppercase text-[#0A1318]">{column.title}</h3></header>)}
+          </div>
+          <div className="relative mt-4 h-[720px]">
+            <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 980 720" preserveAspectRatio="none" aria-hidden="true">
+              <g fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors duration-500">
+                <path d="M295 90 H319 V180" stroke={lineColor(qf[0]?.played)} />
+                <path d="M295 270 H319 V180" stroke={lineColor(qf[1]?.played)} />
+                <path d="M319 180 H343" stroke={lineColor(Boolean(sf[0]))} />
+                <path d="M295 450 H319 V540" stroke={lineColor(qf[2]?.played)} />
+                <path d="M295 630 H319 V540" stroke={lineColor(qf[3]?.played)} />
+                <path d="M319 540 H343" stroke={lineColor(Boolean(sf[1]))} />
+                <path d="M638 180 H662 V360" stroke={lineColor(sf[0]?.played)} />
+                <path d="M638 540 H662 V360" stroke={lineColor(sf[1]?.played)} />
+                <path d="M662 360 H686" stroke={lineColor(Boolean(finalRound[0]))} />
+              </g>
+              <circle cx="319" cy="180" r="3" fill={lineColor(Boolean(sf[0]))} className="transition-colors duration-500" />
+              <circle cx="319" cy="540" r="3" fill={lineColor(Boolean(sf[1]))} className="transition-colors duration-500" />
+              <circle cx="662" cy="360" r="3" fill={lineColor(Boolean(finalRound[0]))} className="transition-colors duration-500" />
+            </svg>
+            <div className="absolute inset-0 grid grid-cols-3 gap-12">
+              {columnData.map(column => {
+                const positions = column.round === 1 ? [90, 270, 450, 630] : column.round === 2 ? [180, 540] : [360]
+                return <section key={column.round} className="relative h-full">{Array.from({ length: column.count }, (_, index) => {
+                  const match = rounds[column.round]?.[index]
+                  const home = match ? allClubs.find(club => club.id === match.home) : null
+                  const away = match ? allClubs.find(club => club.id === match.away) : null
+                  const previousPrefix = column.round === 2 ? 'QF' : 'SF'
+                  return <div key={index} className="absolute left-0 right-0 -translate-y-1/2" style={{ top: positions[index] }}><BracketMatch match={match} home={home} away={away} homeLabel={`Winner of ${previousPrefix} ${index * 2 + 1}`} awayLabel={`Winner of ${previousPrefix} ${index * 2 + 2}`} active={column.round === cup.round && Boolean(match)} onPlay={() => playMatch(match, index, column.round)} /></div>
+                })}</section>
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+      <Modal open={prizeOpen} onClose={() => setPrizeOpen(false)} title={`Club Cup ${cup.number} prizes`} width="max-w-xl">
+        <div className="space-y-5">
+          <div><h3 className="text-sm font-semibold">Final tournament positions</h3><p className="mt-1 text-sm text-gray-500">All eight clubs receive their configured prize when the final ends.</p></div>
+          <CupPrizeFields prizes={prizeDraft} setPrizes={setPrizeDraft} disabled={cup.status === 'completed'} />
+          <button onClick={savePrizeSettings} disabled={savingPrizes} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50">{savingPrizes ? 'Saving...' : 'Save cup prizes'}</button>
+        </div>
+      </Modal>
+    </div>
+  )
+}

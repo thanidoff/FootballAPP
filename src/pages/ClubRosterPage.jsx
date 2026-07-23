@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { ChartNoAxesColumn, Users } from 'lucide-react'
 import { fetchClub, fetchClubs } from '../services/clubs'
 import { fetchPlayers, updatePlayer, saveRosterOrder, saveNationalRosterOrder } from '../services/players'
 import { releasePlayer } from '../services/transfers'
@@ -19,6 +20,7 @@ import PlayerForm from '../components/players/PlayerForm'
 import PlayerProfileModal from '../components/players/PlayerProfileModal'
 import ClubRecordsContent from '../components/clubs/ClubRecordsContent'
 import { useToast } from '../components/ui/Toast'
+import SegmentedControl from '../components/ui/SegmentedControl'
 
 const TIER_STYLES = {
   special: { ovrBg: 'bg-[#FD5461]', ovrText: 'text-white' },
@@ -560,22 +562,7 @@ export default function ClubRosterPage() {
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8 w-full sm:w-fit">
-        <button
-          onClick={() => setActiveTab('squad')}
-          className={`flex-1 sm:flex-none px-8 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-widest transition-all
-            ${activeTab === 'squad' ? 'bg-white shadow-sm text-[#0A1318]' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-          Squad
-        </button>
-        <button
-          onClick={() => setActiveTab('records')}
-          className={`flex-1 sm:flex-none px-8 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-widest transition-all
-            ${activeTab === 'records' ? 'bg-white shadow-sm text-[#0A1318]' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-          Records
-        </button>
-      </div>
+      <SegmentedControl className="mb-8 w-full sm:w-fit" ariaLabel="Club details" value={activeTab} onChange={setActiveTab} items={[{ id: 'squad', label: 'Squad', icon: Users }, { id: 'records', label: 'Records', icon: ChartNoAxesColumn }]} />
 
       <div className="relative overflow-hidden">
         <div 
@@ -591,7 +578,7 @@ export default function ClubRosterPage() {
             </div>
             <div className={isList
               ? 'space-y-1.5 mb-6'
-              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6'}>
+              : 'player-card-grid mb-6'}>
               {starters.map((player, i) => renderSlot(player, i))}
             </div>
 
@@ -605,7 +592,7 @@ export default function ClubRosterPage() {
             </div>
             <div className={isList
               ? 'space-y-1.5'
-              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}>
+              : 'player-card-grid'}>
               {subs.map((player, i) => renderSlot(player, i + 5))}
             </div>
 
@@ -621,7 +608,7 @@ export default function ClubRosterPage() {
                 </div>
                 <div className={isList
                   ? 'space-y-1.5'
-                  : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}>
+                  : 'player-card-grid'}>
                   {extra.map((player, i) => renderSlot(player, i + 12))}
                 </div>
               </>

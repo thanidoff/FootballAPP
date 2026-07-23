@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { resetFriendlyData, resetWorldCupData, resetLeagueData, resetAllMatchData, releaseAllPlayers } from '../../services/admin'
+import useOverlayBehavior from '../../hooks/useOverlayBehavior'
+import { LogOut } from 'lucide-react'
+import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 
 const NAV_ITEMS = [
   { to: '/players', label: 'Players' },
   { to: '/clubs', label: 'Clubs' },
   { to: '/matches', label: 'Matches' },
-  { to: '/draft', label: 'Draft Mode' },
 ]
 
 const RESET_ITEMS = [
@@ -53,6 +55,7 @@ function ResetRow({ label, onDone }) {
 function AdminDrawer({ open, onClose }) {
   const [releaseConfirm, setReleaseConfirm] = useState(false)
   const [loadingRelease, setLoadingRelease] = useState(false)
+  const { shouldRender, closing } = useOverlayBehavior(open, handleClose)
 
   function handleClose() {
     setReleaseConfirm(false)
@@ -64,12 +67,11 @@ function AdminDrawer({ open, onClose }) {
     try { await releaseAllPlayers() } finally { setLoadingRelease(false); setReleaseConfirm(false) }
   }
 
-  if (!open) return null
+  if (!shouldRender) return null
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={handleClose}>
+    <div className={`fixed inset-0 z-50 flex justify-end ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`} onClick={handleClose}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-      <div className="relative bg-white w-full max-w-xs h-full shadow-2xl flex flex-col"
-        style={{ animation: 'slideInRight 0.25s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}
+      <div className={`relative flex h-full w-full max-w-xs flex-col bg-white shadow-2xl ${closing ? 'ui-drawer-exit' : 'ui-drawer-enter'}`}
         onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between px-5 pt-6 pb-4 border-b border-gray-100">
@@ -120,6 +122,12 @@ function AdminDrawer({ open, onClose }) {
               </div>
             )}
           </div>
+
+          {isSupabaseConfigured && (
+            <button onClick={() => supabase.auth.signOut()} className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100 hover:text-[#0A1318] active:scale-[0.98]">
+              <LogOut size={16} /> Sign out
+            </button>
+          )}
         </div>
       </div>
 
@@ -191,6 +199,12 @@ export default function Layout() {
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </button>
+            <NavLink
+              to="/draft"
+              className="ml-2 inline-flex items-center rounded-lg bg-[#FD5461] px-4 py-2 text-sm font-heading font-black uppercase tracking-wide text-white shadow-sm shadow-red-500/25 transition-colors hover:bg-red-500"
+            >
+              Play Game
+            </NavLink>
           </nav>
 
           {/* Mobile hamburger */}
@@ -235,8 +249,13 @@ export default function Layout() {
 
       <AdminDrawer open={adminOpen} onClose={() => setAdminOpen(false)} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <Outlet />
+      <main className="mx-auto max-w-7xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8">
+        <div
+          key={location.pathname.startsWith('/draft/') ? 'draft-career' : location.pathname}
+          className={location.pathname.startsWith('/draft/') ? undefined : 'ui-tab-content-enter'}
+        >
+          <Outlet />
+        </div>
       </main>
 
       <style>{`

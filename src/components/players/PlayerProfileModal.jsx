@@ -6,6 +6,8 @@ import PositionBadge from '../ui/PositionBadge'
 import StatBar from '../ui/StatBar'
 import { STATS_BY_POSITION } from '../../utils/stats'
 import Spinner from '../ui/Spinner'
+import { Trophy } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 
@@ -39,7 +41,7 @@ function ClubBadge({ club, size = 'sm' }) {
   )
 }
 
-export default function PlayerProfileModal({ player, open, onClose, onEdit, onRelease }) {
+export default function PlayerProfileModal({ player, open, onClose, onEdit, onRelease, historyLoader = fetchPlayerHistory, editing = false, editContent, onBackEdit }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('stats') // 'stats' | 'history' | 'awards'
@@ -47,11 +49,11 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
   useEffect(() => {
     if (open && player) {
       setLoading(true)
-      fetchPlayerHistory(player.id)
+      historyLoader(player.id)
         .then(setData)
         .finally(() => setLoading(false))
     }
-  }, [open, player])
+  }, [historyLoader, open, player])
 
   if (!player) return null
 
@@ -59,7 +61,8 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
   const statKeys = STATS_BY_POSITION[player.position] || []
 
   return (
-    <Modal open={open} onClose={onClose} title="Player Profile" width="max-w-2xl">
+    <Modal open={open} onClose={onClose} title={editing ? <span className="flex items-center gap-2"><button type="button" onClick={onBackEdit} className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-slate-100 hover:text-[#0A1318]" aria-label="Back to player profile"><ArrowLeft size={19} /></button><span>Edit Player</span></span> : 'Player Profile'} width="max-w-2xl">
+      {editing ? <div key="edit" className="ui-modal-content-forward">{editContent}</div> : <div key="profile" className="ui-modal-content-back">
       <div className="flex flex-col sm:flex-row gap-6 mb-8">
         {/* Photo and Basic Info */}
         <div className="flex flex-col items-center gap-4 flex-shrink-0">
@@ -98,7 +101,7 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
             <div className="flex gap-2">
               {onEdit && (
                 <button
-                  onClick={() => { onClose(); onEdit(player) }}
+                  onClick={() => { if (editContent) onEdit(player); else { onClose(); onEdit(player) } }}
                   className="p-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                   title="Edit Player"
                 >
@@ -143,7 +146,6 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
           </div>
         </div>
       </div>
-
       {/* Tabs */}
       <div className="flex gap-6 border-b border-gray-100 mb-6">
         {[
@@ -164,7 +166,7 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
 
       <div className="min-h-[300px]">
         {tab === 'stats' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+          <div className="grid grid-cols-1 gap-y-3">
             {statKeys.map(key => (
               <StatBar key={key} label={key} value={player.stats[key]} />
             ))}
@@ -172,22 +174,22 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
         )}
 
         {tab === 'history' && (
-          <div className="space-y-4">
+          <div className="h-full min-h-[300px] space-y-4">
             {loading ? (
               <div className="flex justify-center py-12"><Spinner /></div>
             ) : !data?.history?.length ? (
               <div className="text-center py-12 text-gray-400 font-heading font-bold uppercase tracking-widest text-sm">No career data available</div>
             ) : (
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <table className="w-full text-left">
+              <div className="scrollbar-hide min-h-[300px] overflow-x-auto rounded-2xl border border-gray-100 bg-white">
+                <table className="w-full min-w-[680px] text-left">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-[10px] font-heading font-black uppercase tracking-widest text-gray-400">Club / National Team</th>
-                      <th className="px-4 py-3 text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 text-center">G</th>
-                      <th className="px-4 py-3 text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 text-center">A</th>
-                      <th className="px-4 py-3 text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 text-center">MVP</th>
-                      <th className="px-4 py-3 text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 text-center">🟨</th>
-                      <th className="px-4 py-3 text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 text-center">🟥</th>
+                      <th className="px-3 py-3 text-[10px] font-medium uppercase tracking-wide text-gray-400 text-center">Goals</th>
+                      <th className="px-3 py-3 text-[10px] font-medium uppercase tracking-wide text-gray-400 text-center">Assists</th>
+                      <th className="px-3 py-3 text-[10px] font-medium uppercase tracking-wide text-gray-400 text-center">Player of the Match</th>
+                      <th className="px-3 py-3 text-[10px] font-medium uppercase tracking-wide text-gray-400 text-center">Yellow Cards</th>
+                      <th className="px-3 py-3 text-[10px] font-medium uppercase tracking-wide text-gray-400 text-center">Red Cards</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -221,11 +223,11 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
               <div className="text-center py-12 text-gray-400 font-heading font-bold uppercase tracking-widest text-sm">No awards yet</div>
             ) : (
               data.awards.map((a, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                <div key={i} className="flex items-center justify-between rounded-2xl border border-[#FD5461]/25 bg-[#FD5461]/[0.07] p-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-xl">🏆</div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FD5461] text-white"><Trophy size={19} strokeWidth={2.25} /></div>
                     <div>
-                      <div className="text-[10px] font-heading font-black uppercase tracking-widest text-amber-600 mb-0.5">{a.season_name}</div>
+                      <div className="mb-0.5 text-[10px] font-heading font-black uppercase tracking-widest text-[#FD5461]">{a.season_name}</div>
                       <div className="font-heading font-black text-sm uppercase tracking-wide text-[#0A1318]">
                         {a.award_type.replace(/_/g, ' ')}
                       </div>
@@ -242,6 +244,7 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
           </div>
         )}
       </div>
+      </div>}
     </Modal>
   )
 }

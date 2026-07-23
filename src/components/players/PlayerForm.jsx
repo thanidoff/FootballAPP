@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import {
   POSITIONS, POSITION_LABELS, STATS_BY_POSITION, STAT_LABELS,
-  calculateOVR, getDefaultStats, STAT_MAX,
+  ALL_STATS, calculateOVR, getDefaultStats, normalizeStats, STAT_MAX,
 } from '../../utils/stats'
 import Input from '../ui/Input'
 import Select from '../ui/Select'
@@ -10,9 +11,10 @@ import ImageUploadCrop from '../ui/ImageUploadCrop'
 import ClubSelect from '../ui/ClubSelect'
 import NationalityInput from '../ui/NationalityInput'
 
-export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [] }) {
+export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [], onDirtyChange }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [form, setForm] = useState(() => {
-    if (initialValues) return initialValues
+    if (initialValues) return { ...initialValues, stats: normalizeStats(initialValues.stats) }
     const pos = 'FWD'
     return {
       first_name: '',
@@ -30,8 +32,14 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
   const [mvDisplay, setMvDisplay] = useState(() =>
     initialValues ? (initialValues.market_value / 1_000_000).toFixed(1) : ''
   )
+  const initialSnapshot = useRef(JSON.stringify(initialValues ? { ...initialValues, stats: normalizeStats(initialValues.stats) } : null))
+
+  useEffect(() => {
+    onDirtyChange?.(JSON.stringify(form) !== initialSnapshot.current)
+  }, [form, onDirtyChange])
 
   const statKeys = STATS_BY_POSITION[form.position]
+  const hiddenStatKeys = ALL_STATS.filter(key => !statKeys.includes(key))
   const ovr = calculateOVR(form.position, form.stats)
 
   function handlePositionChange(e) {
@@ -152,7 +160,7 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
           <p className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500">
             Attributes
           </p>
-          <span className="font-heading font-black text-2xl text-gray-900">
+          <span className="text-lg font-semibold tabular-nums text-gray-900">
             OVR {ovr}
           </span>
         </div>
@@ -175,6 +183,40 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
               </div>
             </div>
           ))}
+        </div>
+        <button
+          type="button"
+          aria-expanded={advancedOpen}
+          onClick={() => setAdvancedOpen(value => !value)}
+          className="mt-4 flex min-h-10 w-full cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-600 transition-[background-color,border-color,color,transform] duration-200 hover:border-gray-300 hover:bg-slate-50 active:scale-[0.99]"
+        >
+          <span>Advanced attributes</span>
+          <ChevronDown size={17} className={`transition-transform duration-200 ${advancedOpen ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${advancedOpen ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden" aria-hidden={!advancedOpen} inert={!advancedOpen}>
+            <p className="mb-3 text-xs leading-5 text-gray-500">
+              Hidden attributes are used when this player takes a different position during a match.
+            </p>
+            <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4">
+              {hiddenStatKeys.map(key => (
+                <div key={key}>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                    {key} <span className="font-normal normal-case text-gray-400">· {STAT_LABELS[key]}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={STAT_MAX}
+                    value={form.stats[key] ?? 50}
+                    onChange={event => handleStatChange(key, event.target.value)}
+                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-[#FD5461]"
+                  />
+                  <div className="mt-0.5 text-right text-xs font-medium text-gray-600">{form.stats[key] ?? 50}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

@@ -12,6 +12,7 @@ import { useToast } from '../components/ui/Toast'
 import { supabase } from '../lib/supabase'
 import PageWrapper from '../components/ui/PageWrapper'
 import { SkeletonClubCard } from '../components/ui/SkeletonCard'
+import AnimatedTabs from '../components/ui/AnimatedTabs'
 
 // UEFA, CONMEBOL, CONCACAF, AFC, CAF, OFC
 const ZONE_MAP = {
@@ -102,13 +103,14 @@ export default function ClubsPage() {
       setError(null)
       const [clubsData, { data: players }] = await Promise.all([
         fetchClubs(),
-        supabase.from('players').select('club_id, nationality, ovr, roster_order, national_roster_order'),
+        supabase.from('players').select('club_id, nationality, ovr, ovr_v2, roster_order, national_roster_order'),
       ])
       setClubs(clubsData)
       // club OVR: keyed by club_id (for regular clubs)
       // national OVR: keyed by nationality name (for national teams)
       const clubAcc = {}, natAcc = {}
       for (const p of players ?? []) {
+        p.ovr = p.ovr_v2 ?? p.ovr
         if (p.club_id) {
           if (!clubAcc[p.club_id]) clubAcc[p.club_id] = { plist: [], count: 0 }
           clubAcc[p.club_id].plist.push(p)
@@ -233,23 +235,7 @@ export default function ClubsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
-        {[
-          { key: 'clubs', label: `Clubs (${clubCount})` },
-          { key: 'national', label: `National Teams (${nationalCount})` },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => { setTab(key); setZone('ALL'); setSearch(''); setOvrSort('desc'); setNameSort('asc'); }}
-            className={`flex-1 sm:flex-none px-4 py-2 text-sm font-heading font-bold uppercase tracking-wide border-b-2 -mb-px transition-colors text-center cursor-pointer
-              ${tab === key
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-400 hover:text-gray-700'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <AnimatedTabs items={[{ id: 'clubs', label: `Clubs (${clubCount})` }, { id: 'national', label: `National Teams (${nationalCount})` }]} value={tab} onChange={nextTab => { setTab(nextTab); setZone('ALL'); setSearch(''); setOvrSort('desc'); setNameSort('asc') }} ariaLabel="Club groups" className="mb-4 gap-1" />
 
       {/* Filters */}
       <div className="flex flex-col gap-3 mb-6">
@@ -346,25 +332,6 @@ export default function ClubsPage() {
                   )}
                 </div>
 
-                {!club.is_national && (
-                  <div className="bg-gray-50 rounded-xl p-3 mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500">
-                        Budget
-                      </span>
-                      <span className="font-heading font-black text-lg text-gray-900">
-                        ${formatCurrency(club.budget)}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[#FD5461] transition-all"
-                        style={{ width: `${Math.min(100, (club.budget / 50_000_000) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
                 <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                   <Button
                     variant="light"
@@ -410,7 +377,6 @@ export default function ClubsPage() {
               name: modal.club.name,
               short_name: modal.club.short_name,
               badge_color: modal.club.badge_color,
-              budget: modal.club.budget,
               is_national: modal.club.is_national,
               badge: modal.club.badge_url ? { preview: modal.club.badge_url } : null,
             }}

@@ -38,12 +38,28 @@ create table if not exists players (
   stat_def    smallint not null default 50 check (stat_def between 1 and 140),
   stat_phy    smallint not null default 50 check (stat_phy between 1 and 140),
 
+  -- Current goalkeeper model. Legacy DIV/HAN/KIC/REF/SPD/POS columns remain
+  -- available for imported data and older clients.
+  stat_sav    smallint not null default 50 check (stat_sav between 1 and 140),
+  stat_gka    smallint not null default 50 check (stat_gka between 1 and 140),
+
   ovr         smallint generated always as (
     case position
       when 'GK'  then round(stat_div*0.21 + stat_han*0.18 + stat_kic*0.09 + stat_ref*0.21 + stat_spd*0.08 + stat_pos*0.23)
       when 'DEF' then round(stat_pac*0.17 + stat_sho*0.05 + stat_pas*0.15 + stat_dri*0.13 + stat_def*0.32 + stat_phy*0.18)
       when 'MF'  then round(stat_pac*0.15 + stat_sho*0.10 + stat_pas*0.32 + stat_dri*0.23 + stat_def*0.10 + stat_phy*0.10)
       when 'FWD' then round(stat_pac*0.21 + stat_sho*0.45 + stat_pas*0.10 + stat_dri*0.14 + stat_def*0.03 + stat_phy*0.07)
+    end
+  ) stored,
+
+  -- Current position-weighted OVR. Keep legacy `ovr` until all older clients
+  -- and exports have migrated.
+  ovr_v2      smallint generated always as (
+    case position
+      when 'GK'  then round(stat_sav*0.40 + stat_gka*0.30 + stat_pas*0.10 + stat_phy*0.08 + stat_pac*0.07 + stat_dri*0.05)
+      when 'DEF' then round(stat_def*0.37 + stat_phy*0.24 + stat_pac*0.14 + stat_pas*0.13 + stat_dri*0.08 + stat_sho*0.04)
+      when 'MF'  then round(stat_pas*0.28 + stat_dri*0.22 + stat_def*0.17 + stat_phy*0.13 + stat_pac*0.10 + stat_sho*0.10)
+      when 'FWD' then round(stat_sho*0.32 + stat_dri*0.20 + stat_pac*0.18 + stat_phy*0.13 + stat_pas*0.12 + stat_def*0.05)
     end
   ) stored,
 
@@ -63,6 +79,7 @@ create table if not exists transfers (
 -- Indexes
 create index if not exists players_club_id_idx on players(club_id);
 create index if not exists players_position_idx on players(position);
+create index if not exists players_ovr_v2_idx on players(ovr_v2 desc);
 create index if not exists transfers_player_id_idx on transfers(player_id);
 
 -- RLS (enable, but allow all for now — tighten per project need)

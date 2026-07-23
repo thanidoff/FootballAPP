@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Outlet, useLocation, Link } from 'react-router-dom'
+import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { loadDraftState } from '../../services/draftSave'
+import AnimatedTabs from '../../components/ui/AnimatedTabs'
+import { LogOut } from 'lucide-react'
 
 const TABS = [
   { id: 'overview', label: 'Dashboard' },
   { id: 'squads', label: 'Squads' },
   { id: 'transfers', label: 'Transfer Market' },
-  { id: 'matches', label: 'Matches' }
+  { id: 'matches', label: 'League' },
+  { id: 'cup', label: 'Cup' }
 ]
 
 export default function DraftDashboardPage() {
@@ -37,12 +40,16 @@ export default function DraftDashboardPage() {
   }, [saveId])
 
   if (loading) {
-    return <div className="max-w-7xl mx-auto py-16 text-center font-heading font-black text-gray-400 uppercase tracking-widest">Loading Draft Mode...</div>
+    return <div className="max-w-7xl mx-auto py-16 text-center font-heading font-black text-gray-400 uppercase tracking-widest">Loading Career...</div>
   }
   
   if (!saveData) return null
 
   const currentTab = location.pathname.split('/').pop()
+  const seasons = saveData.settings?.seasons || []
+  const activeSeasonIndex = seasons.findIndex(season => season.status === 'active')
+  const displayedSeasonIndex = activeSeasonIndex >= 0 ? activeSeasonIndex : Math.max(0, seasons.length - 1)
+  const displayedSeasonNumber = seasons[displayedSeasonIndex]?.id || displayedSeasonIndex + 1
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -50,35 +57,22 @@ export default function DraftDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-heading font-black text-[#0A1318] uppercase tracking-wider mb-1">{saveData.name}</h1>
-          <p className="text-gray-500 font-bold text-sm">Week {saveData.currentWeek || 1}</p>
+          <p className="text-sm font-medium text-gray-500">Season {displayedSeasonNumber} <span className="mx-1.5 text-[#FD5461]">·</span> Week {saveData.currentWeek || 1}</p>
         </div>
         <button 
           onClick={() => navigate('/draft')}
-          className="px-6 py-2 rounded-xl font-heading font-black text-xs uppercase tracking-widest bg-gray-100 text-[#0A1318] hover:bg-gray-200 transition-colors"
+          className="flex min-h-10 cursor-pointer items-center gap-2 rounded-xl bg-gray-100 px-5 py-2 text-sm font-medium text-[#0A1318] transition-colors hover:bg-slate-200"
         >
+          <LogOut size={16} strokeWidth={2} />
           Exit Save
         </button>
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex overflow-x-auto hide-scrollbar gap-8 mb-8 border-b border-gray-100 px-1">
-        {TABS.map(tab => (
-          <Link
-            key={tab.id}
-            to={`/draft/${saveId}/${tab.id}`}
-            className={`whitespace-nowrap pb-3 font-heading font-black text-sm uppercase tracking-widest transition-all cursor-pointer border-b-2 -mb-[1px] ${
-              currentTab === tab.id
-                ? 'border-[#0A1318] text-[#0A1318]'
-                : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
+      <AnimatedTabs items={TABS.map(tab => ({ ...tab, to: `/draft/${saveId}/${tab.id}` }))} value={currentTab} ariaLabel="Career sections" className="mb-8 gap-3" />
 
       {/* Tab Content via Outlet */}
-      <div className="bg-transparent">
+      <div key={currentTab} className="bg-transparent ui-tab-content-enter">
         {/* We pass the context to children so they can access saveData and refresh it */}
         <Outlet context={{ saveData, setSaveData, saveId }} />
       </div>

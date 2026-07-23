@@ -13,6 +13,7 @@ import {
 import NewMatchModal from '../components/matches/NewMatchModal'
 import MatchResultModal from '../components/matches/MatchResultModal'
 import SeasonSummaryModal from '../components/matches/SeasonSummaryModal'
+import useOverlayBehavior from '../hooks/useOverlayBehavior'
 
 import { FIFA_NATIONS } from '../utils/fifaNations'
 
@@ -256,6 +257,7 @@ function TopList({ title, icon, items, unit, onViewAll }) {
 }
 
 function AllStatsModal({ open, onClose, title, icon, items, unit }) {
+  useOverlayBehavior(open, onClose)
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -421,6 +423,7 @@ function StatsPanel({ seasonId }) {
 // ─── End Season Modal ───────────────────────────────────────────────────────
 
 function EndSeasonConfirmModal({ open, onClose, onConfirm, loading }) {
+  useOverlayBehavior(open, onClose)
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -447,6 +450,7 @@ function EndSeasonConfirmModal({ open, onClose, onConfirm, loading }) {
 }
 
 function CancelMatchModal({ match, open, onClose, onConfirm, loading }) {
+  useOverlayBehavior(open, onClose)
   if (!open || !match) return null
   const isLive = match.status === 'live'
   return (

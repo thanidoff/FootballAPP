@@ -24,14 +24,15 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none w-full px-4">
+      <div aria-live="polite" aria-atomic="false" className="pointer-events-none fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-[9999] flex w-full -translate-x-1/2 flex-col items-center gap-2 px-4">
         {toasts.map(t => (
           <div
             key={t.id}
-            className={`transition-all duration-300 ease-out transform pointer-events-auto
+            role={t.type === 'error' ? 'alert' : 'status'}
+            className={`pointer-events-auto transform ui-transition-normal transition-[opacity,transform]
               ${t.visible ? 'translate-y-0 opacity-100 scale-100' : '-translate-y-3 opacity-0 scale-95'}`}
           >
-            <div className={`flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl font-heading font-bold text-sm tracking-wide whitespace-nowrap
+            <div className={`flex max-w-[min(34rem,calc(100vw-2rem))] items-start gap-3 rounded-xl px-5 py-3 type-body font-medium shadow-xl
               ${t.type === 'success' ? 'bg-[#0A1318] text-white' : 'bg-[#FD5461] text-white'}`}>
               {t.type === 'success' ? (
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none" className="flex-shrink-0">

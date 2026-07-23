@@ -11,6 +11,7 @@ import {
 } from '../services/worldCup'
 import WorldCupSetupModal from '../components/matches/WorldCupSetupModal'
 import MatchResultModal from '../components/matches/MatchResultModal'
+import useOverlayBehavior from '../hooks/useOverlayBehavior'
 
 // ─── Shared UI helpers ───────────────────────────────────────────────────────
 
@@ -129,7 +130,8 @@ function WCMatchCard({ match, isActiveSeason, onStart, onResume, onClick }) {
         {/* Center */}
         <div className="flex flex-col items-center gap-1 flex-shrink-0 w-28 sm:w-36">
           {isCompleted ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="flex items-center gap-2">
               <span className={`font-heading font-black text-2xl tabular-nums w-7 text-right
                 ${match.winner_club_id === match.home_club_id ? 'text-[#0A1318]' : 'text-gray-300'}`}>
                 {match.home_score ?? 0}
@@ -139,6 +141,12 @@ function WCMatchCard({ match, isActiveSeason, onStart, onResume, onClick }) {
                 ${match.winner_club_id === match.away_club_id ? 'text-[#0A1318]' : 'text-gray-300'}`}>
                 {match.away_score ?? 0}
               </span>
+              </div>
+              {match.penalty_home_score != null && match.penalty_away_score != null && (
+                <span className="text-xs font-medium text-gray-500">
+                  PEN {match.penalty_home_score}–{match.penalty_away_score}
+                </span>
+              )}
             </div>
           ) : (
             <span className="font-heading font-black text-lg text-gray-200 tracking-widest">VS</span>
@@ -263,6 +271,7 @@ function TopList({ title, icon, items, unit, onViewAll }) {
 }
 
 function AllStatsModal({ open, onClose, title, icon, items, unit }) {
+  useOverlayBehavior(open, onClose)
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -391,6 +400,7 @@ function ChampionBanner({ club }) {
 // ─── Confirm modals ───────────────────────────────────────────────────────────
 
 function ConfirmModal({ open, title, desc, confirmLabel, onClose, onConfirm, loading }) {
+  useOverlayBehavior(open, onClose)
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>

@@ -1,3 +1,6 @@
+import { MOCK_PLAYERS } from '../data/mockGameData'
+import { simulateMatchSequences } from './matchEngine'
+
 // Shuffle array using Fisher-Yates
 function shuffle(array) {
   const arr = [...array]
@@ -9,8 +12,8 @@ function shuffle(array) {
 }
 
 export function generateInitialDraft(clubs, allPlayers, startingBudget) {
-  // We need to keep track of players who have been drafted
-  const availablePlayers = [...allPlayers]
+  const lockedIds = new Set(clubs.flatMap(club => (club.startingRoster || []).map(player => player.id)))
+  const availablePlayers = allPlayers.filter(player => !lockedIds.has(player.id))
   
   const draftedTeams = clubs.map(club => {
     // Generate an isolated team state
@@ -19,13 +22,13 @@ export function generateInitialDraft(clubs, allPlayers, startingBudget) {
       club_name: club.name,
       badge_url: club.badge_url,
       badge_color: club.badge_color,
-      budget: startingBudget,
-      roster: []
+      budget: club.startingBudget ?? startingBudget ?? 0,
+      roster: [...(club.startingRoster || [])],
+      locked_player_ids: (club.startingRoster || []).map(player => player.id),
     }
     return teamState
   })
 
-  // Perform the draft
   return rollDraft(draftedTeams, availablePlayers)
 }
 
@@ -36,13 +39,15 @@ export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex
   // If rolling specific team, return its current roster to the available pool
   if (targetTeamIndex !== null) {
     const teamToReset = newTeams[targetTeamIndex]
-    availablePlayers.push(...teamToReset.roster)
-    teamToReset.roster = []
+    const lockedIds = new Set(teamToReset.locked_player_ids || [])
+    availablePlayers.push(...teamToReset.roster.filter(player => !lockedIds.has(player.id)))
+    teamToReset.roster = teamToReset.roster.filter(player => lockedIds.has(player.id))
   } else {
     // Re-roll all: Return all rosters to pool
     for (let team of newTeams) {
-      availablePlayers.push(...team.roster)
-      team.roster = []
+      const lockedIds = new Set(team.locked_player_ids || [])
+      availablePlayers.push(...team.roster.filter(player => !lockedIds.has(player.id)))
+      team.roster = team.roster.filter(player => lockedIds.has(player.id))
     }
   }
 
@@ -55,8 +60,12 @@ export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex
   for (let tIndex of teamsToDraft) {
     const team = newTeams[tIndex]
     
-    // Requirements: 1 GK, 1 DEF, 1 MF, 1 FWD, 1 Any
-    const positionsNeeded = ['GK', 'DEF', 'MF', 'FWD', 'ANY']
+    const positionsNeeded = ['GK', 'DEF', 'MF', 'FWD']
+    for (const player of team.roster) {
+      const coveredIndex = positionsNeeded.indexOf(player.position)
+      if (coveredIndex !== -1) positionsNeeded.splice(coveredIndex, 1)
+    }
+    while (positionsNeeded.length < Math.max(0, 5 - team.roster.length)) positionsNeeded.push('ANY')
     
     for (const posReq of positionsNeeded) {
       let foundIndex = -1
@@ -116,19 +125,31 @@ export function generateSchedule(teamIds) {
   return [...schedule, ...secondHalf]
 }
 
-export function simulateMatch(homeTeam, awayTeam) {
-  // Simple calculation based on Avg OVR
-  const homeAvg = homeTeam.roster.reduce((sum, p) => sum + p.ovr, 0) / (homeTeam.roster.length || 1)
-  const awayAvg = awayTeam.roster.reduce((sum, p) => sum + p.ovr, 0) / (awayTeam.roster.length || 1)
+export function generateMockRoster(club, strengthOffset = 0) {
+  const positions = ['GK', 'DEF', 'MF', 'MF', 'FWD']
+  return positions.map((position, index) => {
+    const template = MOCK_PLAYERS.find(player => player.position === position) || MOCK_PLAYERS[index]
+    return {
+      ...template,
+      id: `${club.id}-generated-player-${index + 1}`,
+      name: `${club.short_name || club.name.slice(0, 3).toUpperCase()} Player ${index + 1}`,
+      club_id: club.id,
+      ovr: Math.max(65, (template.ovr || 70) - strengthOffset),
+      stats: template.stats || {
+        PAC: template.stat_pac, SHO: template.stat_sho, PAS: template.stat_pas,
+        DRI: template.stat_dri, DEF: template.stat_def, PHY: template.stat_phy,
+        DIV: template.stat_div, HAN: template.stat_han, KIC: template.stat_kic,
+        REF: template.stat_ref, SPD: template.stat_spd, POS: template.stat_pos,
+      },
+    }
+  })
+}
 
-  // Home advantage + random dice roll
-  const homeAdvantage = 2
-  const homeScoreBase = Math.max(0, (homeAvg + homeAdvantage - awayAvg) / 10)
-  const awayScoreBase = Math.max(0, (awayAvg - homeAvg) / 10)
-
-  // Add random element (0 to 3 goals)
-  const homeScore = Math.floor(homeScoreBase + Math.random() * 4)
-  const awayScore = Math.floor(awayScoreBase + Math.random() * 4)
-
-  return { homeScore, awayScore }
+export function simulateMatch(homeTeam, awayTeam, seed = `${homeTeam.club_id}-${awayTeam.club_id}`) {
+  const events = simulateMatchSequences((homeTeam.roster || []).slice(0, 5), (awayTeam.roster || []).slice(0, 5), { seed, possessions: 36 })
+  return {
+    homeScore: events.filter(event => event.type === 'goal' && event.team === 'home').length,
+    awayScore: events.filter(event => event.type === 'goal' && event.team === 'away').length,
+    events,
+  }
 }

@@ -17,10 +17,10 @@ export default function DraftRollPage() {
   const [isRolling, setIsRolling] = useState(false)
 
   // From setup page
-  const { clubs, budget } = location.state || {}
+  const { clubs } = location.state || {}
 
   useEffect(() => {
-    if (!saveName || !clubs || !budget) {
+    if (!saveName || !clubs?.length) {
       navigate('/draft')
       return
     }
@@ -28,7 +28,7 @@ export default function DraftRollPage() {
     async function load() {
       try {
         const allPlayers = await fetchPlayers() // Get all global players
-        const { newTeams, remainingPlayers } = generateInitialDraft(clubs, allPlayers, budget)
+        const { newTeams, remainingPlayers } = generateInitialDraft(clubs, allPlayers)
         setTeams(newTeams)
         setAvailablePool(remainingPlayers)
       } catch (err) {
@@ -38,7 +38,7 @@ export default function DraftRollPage() {
       }
     }
     load()
-  }, [saveName, clubs, budget, navigate])
+  }, [saveName, clubs, navigate])
 
   function handleReroll(teamIndex = null) {
     setIsRolling(true)
@@ -54,7 +54,7 @@ export default function DraftRollPage() {
     setIsRolling(true) // Disable buttons
     const saveObj = {
       name: saveName,
-      settings: { startingBudget: budget },
+      settings: { startingBudgets: Object.fromEntries(teams.map(team => [team.club_id, team.budget])) },
       teams: teams,
       freeAgents: availablePool,
       currentWeek: 1

@@ -1,28 +1,34 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import AuthWrapper from './components/ui/AuthWrapper'
 import Layout from './components/ui/Layout'
-import PlayersPage from './pages/PlayersPage'
-import ClubsPage from './pages/ClubsPage'
-import ClubRosterPage from './pages/ClubRosterPage'
-import MatchesPage from './pages/MatchesPage'
-import FriendlyMatchesPage from './pages/FriendlyMatchesPage'
-import PreMatchPage from './pages/PreMatchPage'
-import WorldCupPage from './pages/WorldCupPage'
-import LeaguePage from './pages/LeaguePage'
-import DraftSavesPage from './pages/DraftMode/DraftSavesPage'
-import DraftSetupPage from './pages/DraftMode/DraftSetupPage'
-import DraftRollPage from './pages/DraftMode/DraftRollPage'
-import DraftDashboardPage from './pages/DraftMode/DraftDashboardPage'
-import DraftOverviewTab from './pages/DraftMode/Tabs/DraftOverviewTab'
-import DraftSquadsTab from './pages/DraftMode/Tabs/DraftSquadsTab'
-import DraftTransfersTab from './pages/DraftMode/Tabs/DraftTransfersTab'
-import DraftMatchesTab from './pages/DraftMode/Tabs/DraftMatchesTab'
+
+const PlayersPage = lazy(() => import('./pages/PlayersPage'))
+const ClubsPage = lazy(() => import('./pages/ClubsPage'))
+const ClubRosterPage = lazy(() => import('./pages/ClubRosterPage'))
+const MatchesPage = lazy(() => import('./pages/MatchesPage'))
+const FriendlyMatchesPage = lazy(() => import('./pages/FriendlyMatchesPage'))
+const PreMatchPage = lazy(() => import('./pages/PreMatchPage'))
+const WorldCupPage = lazy(() => import('./pages/WorldCupPage'))
+const LeaguePage = lazy(() => import('./pages/LeaguePage'))
+const DraftSavesPage = lazy(() => import('./pages/DraftMode/DraftSavesPage'))
+const DraftSetupPage = lazy(() => import('./pages/DraftMode/DraftSetupPage'))
+const DraftRollPage = lazy(() => import('./pages/DraftMode/DraftRollPage'))
+const DraftDashboardPage = lazy(() => import('./pages/DraftMode/DraftDashboardPage'))
+const DraftOverviewTab = lazy(() => import('./pages/DraftMode/Tabs/DraftOverviewTab'))
+const DraftSquadsTab = lazy(() => import('./pages/DraftMode/Tabs/DraftSquadsTab'))
+const DraftTransfersTab = lazy(() => import('./pages/DraftMode/Tabs/DraftTransfersTab'))
+const DraftMatchesTab = lazy(() => import('./pages/DraftMode/Tabs/DraftMatchesTab'))
+const DraftCupTab = lazy(() => import('./pages/DraftMode/Tabs/DraftCupTab'))
+
+function PageFallback() {
+  return <div role="status" aria-live="polite" className="mx-auto mt-20 h-1 w-28 overflow-hidden rounded-full bg-gray-100"><span className="block h-full w-1/2 animate-pulse rounded-full bg-[#FD5461]" /></div>
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthWrapper>
-        <Routes>
+      <Suspense fallback={<PageFallback />}>
+      <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Navigate to="/players" replace />} />
             <Route path="players" element={<PlayersPage />} />
@@ -47,10 +53,11 @@ export default function App() {
               <Route path="squads" element={<DraftSquadsTab />} />
               <Route path="transfers" element={<DraftTransfersTab />} />
               <Route path="matches" element={<DraftMatchesTab />} />
+              <Route path="cup" element={<DraftCupTab />} />
             </Route>
           </Route>
-        </Routes>
-      </AuthWrapper>
+      </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

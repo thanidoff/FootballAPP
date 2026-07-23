@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --font-heading: "Barlow Condensed", sans-serif;
-  --font-body: "Barlow", sans-serif;
+  --font-heading: "Inter", "Noto Sans Thai", system-ui, sans-serif;
+  --font-body: "Inter", "Noto Sans Thai", system-ui, sans-serif;
+
+  /* Product typography ramp: Fluent 2 / Carbon productive UI inspired. */
+  --text-caption: 0.625rem;
+  --text-label: 0.75rem;
+  --text-body-sm: 0.75rem;
+  --text-body: 0.875rem;
+  --text-body-lg: 1rem;
+  --text-title-sm: 1rem;
+  --text-title: 1.25rem;
+  --text-heading: 1.5rem;
+  --text-page-title: 1.75rem;
 
   --color-brand: #FD5461;
   --color-brand-dark: #e03d4a;
@@ -21,33 +32,169 @@
   --color-stat-low: #ef4444;
   --color-stat-mid: #f59e0b;
   --color-stat-high: #22c55e;
+
+  /* Shared product geometry and motion. */
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+  --radius-overlay: 1.5rem;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.06);
+  --shadow-overlay: 0 24px 64px rgb(10 19 24 / 0.24);
+  --motion-fast: 120ms;
+  --motion-normal: 200ms;
+  --motion-slow: 320ms;
+  --motion-loop: 750ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
 }
 
 * {
   box-sizing: border-box;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 body {
   font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background-color: #FEFEFE;
   color: #111827;
+  overflow-x: hidden;
 }
 
-* {
+.hide-scrollbar,
+.scrollbar-hide,
+.no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-*::-webkit-scrollbar {
+.hide-scrollbar::-webkit-scrollbar,
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Inputs contained by a focus-within field use the parent border as the
+   single focus indicator instead of drawing a second box inside it. */
+.ui-inner-input:focus-visible {
+  outline: none;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
+  text-wrap: balance;
+}
+
+/* Typography system
+   Keep headings distinct through scale and weight—not a separate condensed
+   face. This keeps Thai and Latin text visually consistent across cards. */
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.type-caption { font-size: 0.625rem; line-height: 0.875rem; font-weight: 400; letter-spacing: 0.02em; }
+.type-label { font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0.01em; }
+.type-body-sm { font-size: 0.75rem; line-height: 1rem; font-weight: 400; letter-spacing: 0; }
+.type-body { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0; }
+.type-body-lg { font-size: 1rem; line-height: 1.5rem; font-weight: 400; letter-spacing: 0; }
+.type-title-sm { font-size: 1rem; line-height: 1.375rem; font-weight: 600; letter-spacing: 0; }
+.type-title { font-size: 1.25rem; line-height: 1.625rem; font-weight: 600; letter-spacing: 0; }
+.type-heading { font-size: 1.5rem; line-height: 2rem; font-weight: 600; letter-spacing: -0.01em; }
+.type-page-title { font-size: 1.75rem; line-height: 2.25rem; font-weight: 600; letter-spacing: -0.015em; }
+
+/* Legacy utility migration layer.
+   Existing screens previously combined arbitrary condensed, black, uppercase,
+   and extra-small utilities. These mappings bring every screen onto the type
+   ramp above while components are gradually moved to semantic type classes. */
+.font-black { font-weight: 600; }
+.font-bold { font-weight: 500; }
+.font-semibold { font-weight: 500; }
+
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\] { font-size: 0.625rem; line-height: 0.875rem; }
+.text-xs { font-size: 0.75rem; line-height: 1rem; }
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-base { font-size: 1rem; line-height: 1.5rem; }
+.text-lg { font-size: 1.25rem; line-height: 1.625rem; }
+.text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+.text-2xl { font-size: 1.5rem; line-height: 2rem; }
+.text-3xl { font-size: 1.75rem; line-height: 2.25rem; }
+.text-4xl { font-size: 2rem; line-height: 2.5rem; }
+.text-5xl { font-size: 2.5rem; line-height: 3.25rem; }
+
+.text-\[8px\].font-black,
+.text-\[9px\].font-black,
+.text-\[10px\].font-black,
+.text-xs.font-black,
+.text-xs.font-bold { font-weight: 500; }
+.text-sm.font-black,
+.text-base.font-black { font-weight: 500; }
+
+.uppercase { text-transform: none; }
+.tracking-wide,
+.tracking-wider { letter-spacing: 0.01em; }
+.tracking-widest { letter-spacing: 0.02em; }
+
+/* Interactive affordance: every actionable control uses a consistent hand
+   cursor across browsers. Disabled controls remain visibly non-interactive. */
+:where(
+  a[href],
+  button:not(:disabled),
+  summary,
+  select:not(:disabled),
+  input[type="button"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="reset"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  label[for],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"])
+) {
+  cursor: pointer;
+}
+
+/* Shared tactile baseline for every interactive surface. Component-level
+   transition utilities can still override these zero-specificity defaults. */
+:where(button, a, [role="button"], [role="tab"], [role="option"]) {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(button:not(:disabled), a, [role="button"]:not([aria-disabled="true"]), [role="tab"]:not([aria-disabled="true"]), [role="option"]:not([aria-disabled="true"])):active {
+  transform: scale(0.975);
+}
+
+:where(
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled="true"]
+) {
+  cursor: not-allowed;
 }
 
 @keyframes modalSlideUp {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from { opacity: 0; transform: translateY(0.75rem) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes fadeSlideUp {
@@ -66,4 +213,111 @@ h1, h2, h3, h4, h5, h6 {
 
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out both;
+}
+
+@keyframes overlayOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes modalOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(0.5rem) scale(0.985); }
+}
+
+@keyframes drawerIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes drawerOut {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes tabContentIn {
+  from { opacity: 0.88; transform: translateY(0.25rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-0.375rem) scaleY(0.94); clip-path: inset(0 0 100% 0 round 0.75rem); }
+  to { opacity: 1; transform: translateY(0) scaleY(1); clip-path: inset(0 0 0 0 round 0.75rem); }
+}
+
+@keyframes dropdownOut {
+  from { opacity: 1; transform: translateY(0) scaleY(1); clip-path: inset(0 0 0 0 round 0.75rem); }
+  to { opacity: 0; transform: translateY(-0.25rem) scaleY(0.96); clip-path: inset(0 0 100% 0 round 0.75rem); }
+}
+
+@keyframes contentRefreshIn {
+  from { opacity: 0.72; transform: translateY(0.375rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modalContentForward {
+  from { opacity: 0; transform: translateX(1.25rem) scale(0.99); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes modalContentBack {
+  from { opacity: 0; transform: translateX(-1.25rem) scale(0.99); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.ui-transition-fast {
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--ease-standard);
+}
+
+.ui-transition-normal {
+  transition-duration: var(--motion-normal);
+  transition-timing-function: var(--ease-standard);
+}
+
+/* Legacy motion migration: existing utilities now resolve to the shared ramp. */
+.duration-75,
+.duration-100,
+.duration-150 { transition-duration: var(--motion-fast) !important; }
+.duration-200,
+.duration-300 { transition-duration: var(--motion-normal) !important; }
+.duration-500,
+.duration-700 { transition-duration: var(--motion-slow) !important; }
+
+.ui-overlay-enter { animation: fadeIn var(--motion-normal) var(--ease-enter) both; }
+.ui-overlay-exit { animation: overlayOut var(--motion-fast) var(--ease-exit) both; }
+.ui-modal-enter { animation: modalSlideUp var(--motion-slow) var(--ease-enter) both; }
+.ui-modal-exit { animation: modalOut var(--motion-fast) var(--ease-exit) both; }
+.ui-drawer-enter { animation: drawerIn var(--motion-slow) var(--ease-enter) both; }
+.ui-drawer-exit { animation: drawerOut var(--motion-fast) var(--ease-exit) both; }
+.ui-tab-content-enter { animation: tabContentIn var(--motion-normal) var(--ease-enter) both; }
+.ui-modal-content-forward { animation: modalContentForward var(--motion-slow) var(--ease-enter) both; }
+.ui-modal-content-back { animation: modalContentBack var(--motion-slow) var(--ease-enter) both; }
+.ui-dropdown-enter {
+  transform-origin: top right;
+  animation: dropdownIn 240ms var(--ease-enter) both;
+}
+.ui-dropdown-exit {
+  pointer-events: none;
+  transform-origin: top right;
+  animation: dropdownOut 180ms var(--ease-exit) both;
+}
+.ui-content-refresh { animation: contentRefreshIn var(--motion-normal) var(--ease-enter) both; }
+
+/* Player cards keep a readable minimum width; columns are based on the real
+   container width instead of viewport breakpoints (important beside sidebars). */
+.player-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  align-items: stretch;
+  gap: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: var(--motion-fast) !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: var(--motion-fast) !important;
+  }
 }

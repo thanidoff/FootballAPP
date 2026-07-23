@@ -8,9 +8,9 @@ const VARIANTS = {
 }
 
 const SIZES = {
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
+  sm: 'min-h-9 px-3 py-1.5 type-label',
+  md: 'min-h-10 px-4 py-2 type-body',
+  lg: 'min-h-11 px-6 py-2.5 type-body-lg',
 }
 
 export default function Button({
@@ -24,8 +24,9 @@ export default function Button({
   return (
     <button
       className={`
-        inline-flex items-center gap-2 font-heading font-bold tracking-wide uppercase rounded-lg
-        transition-all duration-100 cursor-pointer
+        inline-flex items-center justify-center gap-2 rounded-xl font-medium
+        ui-transition-fast cursor-pointer transition-[background-color,border-color,color,box-shadow,transform]
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FD5461]/35 focus-visible:ring-offset-2
         active:scale-[0.96]
         disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none
         ${VARIANTS[variant]} ${SIZES[size]} ${className}

@@ -5,6 +5,7 @@ import { InsufficientBudgetError } from '../services/transfers'
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
   },
 }))
 
@@ -43,12 +44,9 @@ describe('buyPlayer — budget guard', () => {
   it('throws InsufficientBudgetError when club budget < fee', async () => {
     const { buyPlayer } = await import('../services/transfers')
 
-    supabase.from.mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: { budget: 500_000 }, error: null }),
-      update: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
+    supabase.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'INSUFFICIENT_BUDGET:1000000:500000' },
     })
 
     await expect(
@@ -60,57 +58,21 @@ describe('buyPlayer — budget guard', () => {
 describe('releasePlayer — to_club = null (BUG FIX)', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('records transfer with from_club set and to_club = null', async () => {
+  it('calls the atomic release transaction with the source club', async () => {
     const { releasePlayer } = await import('../services/transfers')
-    const insertMock = vi.fn().mockResolvedValue({ error: null })
-
-    supabase.from.mockImplementation((table) => {
-      if (table === 'clubs') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          update: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: { budget: 10_000_000 }, error: null }),
-        }
-      }
-      if (table === 'players') {
-        return {
-          update: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockResolvedValue({ error: null }),
-        }
-      }
-      if (table === 'transfers') {
-        return { insert: insertMock }
-      }
-    })
+    supabase.rpc.mockResolvedValue({ data: null, error: null })
 
     await releasePlayer({ playerId: 'p1', fromClubId: 'c1', marketValue: 2_000_000 })
 
     // ตรวจว่า insert เรียก to_club: null (ไม่ใช่ NOT NULL อีกต่อไป)
-    expect(insertMock).toHaveBeenCalledWith(
-      expect.objectContaining({ from_club: 'c1', to_club: null })
-    )
+    expect(supabase.rpc).toHaveBeenCalledWith('release_player_atomic', {
+      p_player_id: 'p1', p_from_club_id: 'c1', p_cost: 1_000_000,
+    })
   })
 
   it('calculates release cost = 50% of market value', async () => {
     const { releasePlayer } = await import('../services/transfers')
-    let capturedInsert = null
-
-    supabase.from.mockImplementation((table) => {
-      if (table === 'clubs') return {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        update: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: { budget: 10_000_000 }, error: null }),
-      }
-      if (table === 'players') return {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }
-      if (table === 'transfers') return {
-        insert: (data) => { capturedInsert = data; return Promise.resolve({ error: null }) },
-      }
-    })
+    supabase.rpc.mockResolvedValue({ data: null, error: null })
 
     const { cost } = await releasePlayer({ playerId: 'p1', fromClubId: 'c1', marketValue: 4_000_000 })
     expect(cost).toBe(2_000_000) // 50% ของ 4M
