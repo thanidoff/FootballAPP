@@ -210,11 +210,17 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                             <button type="button" onClick={() => adjustBudget(club.id, 1_000_000)} aria-label={`Increase ${club.name} budget by 1M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+1</button>
                             <button type="button" onClick={() => adjustBudget(club.id, 10_000_000)} aria-label={`Increase ${club.name} budget by 10M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+10</button>
                           </div>
-                          <button onClick={() => setExpandedId(open ? null : club.id)} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} ${club.name} players`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-gray-100 hover:text-[#FD5461]">
-                            <ChevronDown size={18} strokeWidth={2.25} className={`transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] ${open ? 'rotate-180' : ''}`} />
+                          <button
+                            disabled={roster.length === 0}
+                            onClick={() => setExpandedId(open ? null : club.id)}
+                            aria-expanded={open && roster.length > 0}
+                            aria-label={`${open ? 'Collapse' : 'Expand'} ${club.name} players`}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-gray-100 hover:text-[#FD5461] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                          >
+                            <ChevronDown size={18} strokeWidth={2.25} className={`transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] ${open && roster.length > 0 ? 'rotate-180' : ''}`} />
                           </button>
                         </div>
-                        <div className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(.22,1,.36,1)] ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                        <div className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(.22,1,.36,1)] ${open && roster.length > 0 ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                           <div className="overflow-hidden">
                           <div className={`grid gap-2 border-t bg-[#FAFBFD] px-4 transition-[padding,border-color] duration-500 sm:grid-cols-2 ${open ? 'border-gray-100 py-4' : 'border-transparent py-0'}`}>
                             {slots.map((player, index) => player ? (
