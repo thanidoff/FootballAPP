@@ -261,4 +261,3 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
     document.body
   )
 }
-}
