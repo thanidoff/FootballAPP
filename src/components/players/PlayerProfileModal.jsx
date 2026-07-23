@@ -65,20 +65,20 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
       {editing ? <div key="edit" className="ui-modal-content-forward">{editContent}</div> : <div key="profile" className="ui-modal-content-back">
       <div className="flex flex-col sm:flex-row gap-6 mb-8">
         {/* Photo and Basic Info */}
-        <div className="flex flex-col items-center gap-4 flex-shrink-0">
-          <div className="w-32 h-32 rounded-3xl overflow-hidden bg-gray-100 ring-4 ring-gray-50 shadow-inner">
+        <div className="flex flex-col items-center gap-2 flex-shrink-0">
+          <div className="w-28 h-28 rounded-2xl overflow-hidden">
             {player.photo_url ? (
               <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl font-heading font-black text-gray-300">
+              <div className="w-full h-full flex items-center justify-center text-4xl font-heading font-black text-gray-300 bg-gray-100 rounded-2xl">
                 {player.name.charAt(0)}
               </div>
             )}
           </div>
-          <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center -mt-10 z-10 shadow-lg border-2 border-white
+          <div className={`w-12 h-10 rounded-xl flex flex-col items-center justify-center -mt-6 z-10 shadow-md border-2 border-white
             ${player.ovr >= 85 ? 'bg-[#FD5461] text-white' : player.ovr >= 75 ? 'bg-[#0A1318] text-white' : 'bg-gray-400 text-white'}`}>
-            <span className="text-xl font-bold leading-none">{player.ovr}</span>
-            <span className="text-[8px] font-black uppercase tracking-tighter opacity-80 mt-0.5">{player.position}</span>
+            <span className="text-sm font-bold leading-none">{player.ovr}</span>
+            <span className="text-[7px] font-black uppercase tracking-tighter opacity-80 mt-0.5">{player.position}</span>
           </div>
         </div>
 
