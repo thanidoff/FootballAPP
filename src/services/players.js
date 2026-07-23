@@ -5,6 +5,7 @@ import { calculateOVR, normalizeStats } from '../utils/stats'
 
 function mapStatsToRow(position, stats) {
   const current = normalizeStats(stats)
+  const safe = stats || {}
   return {
     stat_pac: current.PAC, stat_sho: current.SHO,
     stat_pas: current.PAS, stat_dri: current.DRI,
@@ -12,12 +13,12 @@ function mapStatsToRow(position, stats) {
     stat_sav: current.SAV, stat_gka: current.GKA,
     // Mirror the current model into the legacy GK fields so restored clients and
     // exports remain useful without discarding their historical column layout.
-    stat_div: stats.DIV ?? current.SAV,
-    stat_han: stats.HAN ?? current.SAV,
-    stat_kic: stats.KIC ?? current.PAS,
-    stat_ref: stats.REF ?? current.SAV,
-    stat_spd: stats.SPD ?? current.PAC,
-    stat_pos: stats.POS ?? current.GKA,
+    stat_div: safe.DIV ?? current.SAV,
+    stat_han: safe.HAN ?? current.SAV,
+    stat_kic: safe.KIC ?? current.PAS,
+    stat_ref: safe.REF ?? current.SAV,
+    stat_spd: safe.SPD ?? current.PAC,
+    stat_pos: safe.POS ?? current.GKA,
   }
 }
 
