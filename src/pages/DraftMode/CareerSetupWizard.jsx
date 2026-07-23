@@ -18,7 +18,7 @@ function ClubBadge({ club }) {
 }
 
 export default function CareerSetupWizard({ initialName = '', onClose, onComplete }) {
-  useOverlayBehavior(true, onClose)
+  const { shouldRender, closing } = useOverlayBehavior(true, onClose)
   const [step, setStep] = useState(0)
   const [saveName, setSaveName] = useState(initialName)
   const [clubs, setClubs] = useState([])
@@ -105,14 +105,16 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
 
   const canContinue = step === 0 ? Boolean(saveName.trim()) : step === 1 ? selectedIds.length >= 2 : true
 
+  if (!shouldRender) return null
+
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <button aria-label="Close career setup" onClick={onClose} className="absolute inset-0 bg-[#0A1318]/55 backdrop-blur-sm" />
-      <section className="relative flex h-[min(700px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}>
+      <button aria-label="Close career setup" onClick={onClose} disabled={closing} className="absolute inset-0 bg-[#0A1318]/55 backdrop-blur-sm" />
+      <section className={`relative flex h-[min(700px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}>
         <header className="border-b border-gray-100 px-6 py-5 sm:px-8">
           <div className="flex items-center justify-between gap-4">
             <h2 className="font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Create your game</h2>
-            <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100"><X size={18} strokeWidth={2} /></button>
+            <button onClick={onClose} aria-label="Close" disabled={closing} className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100"><X size={18} strokeWidth={2} /></button>
           </div>
           <ol className="mx-auto mt-5 flex max-w-xl items-center justify-center">
             {STEPS.map((label, index) => (
@@ -216,7 +218,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                         </div>
                         <div className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(.22,1,.36,1)] ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                           <div className="overflow-hidden">
-                          <div className={`grid gap-2 border-t bg-gray-50 px-4 transition-[padding,border-color] duration-500 sm:grid-cols-2 ${open ? 'border-gray-100 py-4' : 'border-transparent py-0'}`}>
+                          <div className={`grid gap-2 border-t bg-[#FAFBFD] px-4 transition-[padding,border-color] duration-500 sm:grid-cols-2 ${open ? 'border-gray-100 py-4' : 'border-transparent py-0'}`}>
                             {slots.map((player, index) => player ? (
                               <div key={player.id} className="flex min-h-16 items-center gap-3 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm">
                                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#455268] font-heading text-sm font-black text-white">{player.ovr}</span>
