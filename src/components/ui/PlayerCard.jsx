@@ -39,24 +39,20 @@ function ClubBadge({ club }) {
   if (club.is_national) {
     const code = FIFA_NATIONS.find(n => n.name === club.name)?.code || club.short_name?.toLowerCase()
     return (
-      <div className="w-8 h-5.5 rounded overflow-hidden bg-gray-100 ring-1 ring-black/5 shadow-sm">
-        <img src={`https://flagcdn.com/${code}.svg`} alt={club.name} className="w-full h-full object-cover" />
-      </div>
+      <img src={`https://flagcdn.com/${code}.svg`} alt={club.name} className="h-5 w-7 flex-shrink-0 rounded-sm object-cover" />
     )
   }
 
   if (club.badge_url) {
     return (
-      <div className="w-6 h-6 rounded flex-shrink-0 overflow-hidden bg-white ring-1 ring-gray-100">
-        <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain" />
-      </div>
+      <img src={club.badge_url} alt={club.name} className="h-6 w-6 flex-shrink-0 object-contain" />
     )
   }
   return (
-    <div className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-white text-[8px] font-bold shadow-sm"
+    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
       style={{ backgroundColor: club.badge_color ?? "#6b7280" }}>
       {club.short_name?.slice(0, 1)}
-    </div>
+    </span>
   )
 }
 
@@ -79,7 +75,7 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
             <div className="flex items-center gap-1.5 mt-0.5">
               {flagCode && (
                 <img src={`https://flagcdn.com/${flagCode}.svg`} alt={player.nationality}
-                  className="h-3 w-[18px] flex-shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-black/10" />
+                  className="h-3 w-[18px] flex-shrink-0 rounded-sm object-cover" />
               )}
               {player.club && <ClubBadge club={player.club} />}
             </div>
@@ -103,57 +99,53 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
       onKeyDown={onClick ? (event) => {
         if (event.key === 'Enter' || event.key === ' ') onClick(event)
       } : undefined}
-      className="relative h-full w-full text-left bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 shadow-sm"
+      className="relative flex h-full w-full flex-col justify-between rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-gray-200 hover:shadow-lg"
     >
-      <div className="flex h-full flex-col p-5">
-        {/* Header */}
-        <div className="flex items-start gap-4">
-          <PlayerAvatar photoUrl={player.photo_url} name={player.name} size="lg" />
+      {/* Header */}
+      <div className="flex items-start gap-3.5">
+        <PlayerAvatar photoUrl={player.photo_url} name={player.name} size="lg" />
 
-          <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
-            {/* name + flag + club */}
-            <div className="min-w-0 pt-0.5">
-              <div className="text-base font-semibold text-gray-900 leading-tight truncate">{player.name}</div>
-              <div className="flex items-center gap-1.5 mt-3">
-                {flagCode && (
-                  <img src={`https://flagcdn.com/${flagCode}.svg`} alt={player.nationality}
-                    className="h-4 w-6 flex-shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-black/10" />
-                )}
-                {player.club
-                  ? <ClubBadge club={player.club} />
-                  : <FreeAgentIcon size={24} />
-                }
-                <span className="text-xs text-gray-400">{player.age} yrs</span>
-              </div>
-            </div>
-            {/* OVR + position */}
-            <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
-              <OvrBadge value={player.ovr} size="md" />
-              <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: posColor }}>
-                {player.position === 'GK' ? 'GK' : player.position === 'DEF' ? 'DF' : player.position === 'MF' ? 'MF' : 'FW'}
-              </span>
+        <div className="flex flex-1 items-start justify-between gap-2 min-w-0">
+          {/* name + flag + club */}
+          <div className="min-w-0 pt-0.5">
+            <div className="text-base font-semibold text-gray-900 leading-tight truncate">{player.name}</div>
+            <div className="mt-2 flex items-center gap-2">
+              {flagCode && (
+                <img src={`https://flagcdn.com/${flagCode}.svg`} alt={player.nationality}
+                  className="h-4 w-6 flex-shrink-0 rounded-sm object-cover" />
+              )}
+              {player.club
+                ? <ClubBadge club={player.club} />
+                : <FreeAgentIcon size={24} />
+              }
+              <span className="text-xs text-gray-400">{player.age} yrs</span>
             </div>
           </div>
-        </div>
-
-        <div className="border-t border-gray-100 my-4" />
-
-        {/* Stats */}
-        <div className="space-y-2">
-          {statKeys.map((key) => (
-            <StatBar key={key} label={key} value={normalizedStats[key]} dense />
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between">
-          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            {onEdit && <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>}
-            {onDelete && <Button variant="ghost" size="sm" onClick={onDelete}>{deleteLabel}</Button>}
-            {onSign && <Button size="sm" onClick={onSign}>Sign</Button>}
+          {/* OVR + position */}
+          <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
+            <OvrBadge value={player.ovr} size="md" />
+            <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: posColor }}>
+              {player.position === 'GK' ? 'GK' : player.position === 'DEF' ? 'DF' : player.position === 'MF' ? 'MF' : 'FW'}
+            </span>
           </div>
-          <span className="text-sm font-semibold text-gray-700">${formatCurrency(player.market_value)}</span>
         </div>
+      </div>
+
+      {/* Stats */}
+      <div className="my-4 space-y-2">
+        {statKeys.map((key) => (
+          <StatBar key={key} label={key} value={normalizedStats[key]} dense />
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="mt-auto flex items-center justify-between pt-1">
+        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          {onEdit && <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>}
+          {onDelete && <Button variant="ghost" size="sm" onClick={onDelete}>{deleteLabel}</Button>}
+          {onSign && <Button size="sm" onClick={onSign}>Sign</Button>}
+        </div>
+        <span className="text-sm font-semibold text-gray-700">${formatCurrency(player.market_value)}</span>
       </div>
     </article>
   )
