@@ -262,23 +262,16 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
         </div>
 
         <footer className="flex items-center justify-between border-t border-gray-100 px-6 py-4 sm:px-8">
-          <button
-            type="button"
-            onClick={() => (step === 0 ? onClose() : changeStep(step - 1))}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-gray-500 transition-all hover:bg-gray-100 active:scale-95"
-          >
-            {step === 0 ? (
-              <>
-                <X size={15} strokeWidth={2.5} className="text-gray-400" />
-                <span>Cancel</span>
-              </>
-            ) : (
-              <>
-                <ChevronLeft size={16} strokeWidth={2.5} className="text-gray-400" />
-                <span>Back</span>
-              </>
-            )}
-          </button>
+          {step > 0 ? (
+            <button
+              type="button"
+              onClick={() => changeStep(step - 1)}
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-gray-500 transition-all hover:bg-gray-100 active:scale-95"
+            >
+              <ChevronLeft size={16} strokeWidth={2.5} className="text-gray-400" />
+              <span>Back</span>
+            </button>
+          ) : <div />}
 
           <button
             type="button"
