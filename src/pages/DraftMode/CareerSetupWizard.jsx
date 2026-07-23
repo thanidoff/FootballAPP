@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, Minus, Plus, UserRound, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Minus, Plus, Trash2, UserRound, X } from 'lucide-react'
 import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
@@ -262,8 +262,33 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
         </div>
 
         <footer className="flex items-center justify-between border-t border-gray-100 px-6 py-4 sm:px-8">
-          <button onClick={() => step === 0 ? onClose() : changeStep(step - 1)} className="rounded-xl px-4 py-3 font-heading text-xs font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100">{step === 0 ? 'Cancel' : 'Back'}</button>
-          <button disabled={!canContinue || loading} onClick={() => step === STEPS.length - 1 ? finish() : changeStep(step + 1)} className="rounded-xl bg-[#FD5461] px-6 py-3 font-heading text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-500/20 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">{step === STEPS.length - 1 ? 'Create Career' : 'Continue'}</button>
+          <button
+            type="button"
+            onClick={() => (step === 0 ? onClose() : changeStep(step - 1))}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-gray-600 transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-95"
+          >
+            {step === 0 ? (
+              <>
+                <X size={15} strokeWidth={2.5} className="text-gray-400" />
+                <span>Cancel</span>
+              </>
+            ) : (
+              <>
+                <ArrowLeft size={15} strokeWidth={2.5} className="text-gray-400" />
+                <span>Back</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            disabled={!canContinue || loading}
+            onClick={() => (step === STEPS.length - 1 ? finish() : changeStep(step + 1))}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#FD5461] px-6 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+          >
+            <span>{step === STEPS.length - 1 ? 'Create Career' : 'Continue'}</span>
+            <ArrowRight size={15} strokeWidth={2.5} />
+          </button>
         </footer>
       </section>
     </div>,
