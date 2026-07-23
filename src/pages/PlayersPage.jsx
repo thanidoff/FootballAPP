@@ -369,7 +369,7 @@ export default function PlayersPage() {
         {signing && (
           <div className="space-y-5">
             {/* Player info */}
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 p-3.5">
+            <div className="flex items-center justify-between gap-3 px-1 py-1">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 {signing.photo_url ? (
                   <img src={signing.photo_url} alt={signing.name} className="h-11 w-11 flex-shrink-0 rounded-full object-cover bg-white ring-1 ring-black/5" />
