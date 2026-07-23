@@ -39,7 +39,7 @@ function ClubBadge({ club }) {
   if (club.is_national) {
     const code = FIFA_NATIONS.find(n => n.name === club.name)?.code || club.short_name?.toLowerCase()
     return (
-      <img src={`https://flagcdn.com/${code}.svg`} alt={club.name} className="h-5 w-7 flex-shrink-0 rounded-sm object-cover" />
+      <img src={`https://flagcdn.com/${code}.svg`} alt={club.name} className="h-5 w-7 flex-shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-black/10" />
     )
   }
 
@@ -112,7 +112,7 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
             <div className="mt-2 flex items-center gap-2">
               {flagCode && (
                 <img src={`https://flagcdn.com/${flagCode}.svg`} alt={player.nationality}
-                  className="h-4 w-6 flex-shrink-0 rounded-sm object-cover" />
+                  className="h-4 w-6 flex-shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-black/10" />
               )}
               {player.club
                 ? <ClubBadge club={player.club} />
