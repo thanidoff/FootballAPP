@@ -22,7 +22,7 @@ export default function Modal({ open, onClose, title, children, width = 'max-w-l
     const timer = window.setTimeout(() => {
       setRendered(false)
       setClosing(false)
-      previousFocus.current?.focus?.()
+      try { previousFocus.current?.focus?.() } catch (e) {}
     }, 140)
     return () => window.clearTimeout(timer)
   }, [open, rendered])

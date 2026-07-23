@@ -20,7 +20,7 @@ export default function useOverlayBehavior(open, onClose) {
     const timer = window.setTimeout(() => {
       setRendered(false)
       setClosing(false)
-      previousFocus.current?.focus?.()
+      try { previousFocus.current?.focus?.() } catch (e) {}
     }, 140)
     return () => window.clearTimeout(timer)
   }, [open, rendered])
