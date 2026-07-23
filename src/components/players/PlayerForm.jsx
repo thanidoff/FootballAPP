@@ -67,7 +67,7 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-3.5">
       {/* Photo */}
       <ImageUploadCrop
         label="Player Photo"
@@ -79,7 +79,7 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
       />
 
       {/* Basic info */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <Input
           label="First Name"
           value={form.first_name}
@@ -115,34 +115,30 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
             <option key={key} value={key}>{POSITION_LABELS[key]}</option>
           ))}
         </Select>
-        <div className="flex flex-col gap-1.5">
-          <label className="type-label text-gray-600">
-            Market Value
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={mvDisplay}
-              onChange={(e) => {
-                const raw = e.target.value
-                if (!/^[0-9]*\.?[0-9]*$/.test(raw)) return
-                setMvDisplay(raw)
-                const num = parseFloat(raw) || 0
-                setForm((f) => ({ ...f, market_value: Math.round(num * 1_000_000) }))
-              }}
-              onBlur={() => {
-                const num = parseFloat(mvDisplay) || 0
-                setMvDisplay(num.toFixed(1))
-                setForm((f) => ({ ...f, market_value: Math.round(num * 1_000_000) }))
-              }}
-              className="min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 type-body focus:outline-none focus:ring-2 focus:ring-[#FD5461]/15 focus:border-[#FD5461] transition-colors pr-10"
-              placeholder="0.00"
-            />
-            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-heading font-bold text-gray-400">
-              M
-            </span>
-          </div>
+        <div className="relative">
+          <Input
+            label="Market Value"
+            type="text"
+            inputMode="decimal"
+            value={mvDisplay}
+            onChange={(e) => {
+              const raw = e.target.value
+              if (!/^[0-9]*\.?[0-9]*$/.test(raw)) return
+              setMvDisplay(raw)
+              const num = parseFloat(raw) || 0
+              setForm((f) => ({ ...f, market_value: Math.round(num * 1_000_000) }))
+            }}
+            onBlur={() => {
+              const num = parseFloat(mvDisplay) || 0
+              setMvDisplay(num.toFixed(1))
+              setForm((f) => ({ ...f, market_value: Math.round(num * 1_000_000) }))
+            }}
+            className="pr-10"
+            placeholder="0.00"
+          />
+          <span className="pointer-events-none absolute right-3 top-[38px] flex items-center text-sm font-heading font-bold text-gray-400">
+            M
+          </span>
         </div>
         <div className="col-span-2">
           <ClubSelect
