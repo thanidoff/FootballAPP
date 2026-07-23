@@ -130,7 +130,7 @@ export default function DraftSavesPage() {
         </div>
       )}
 
-      <CareerSetupWizard open={createOpen} initialName={searchParams.get('name') || ''} onClose={() => setCreateOpen(false)} onComplete={handleSetupComplete} />
+      {createOpen && <CareerSetupWizard open={createOpen} initialName={searchParams.get('name') || ''} onClose={() => setCreateOpen(false)} onComplete={handleSetupComplete} />}
     </div>
   )
 }
