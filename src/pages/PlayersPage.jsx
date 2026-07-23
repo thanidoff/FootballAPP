@@ -384,12 +384,11 @@ export default function PlayersPage() {
                     <PositionBadge position={signing.position} />
                     {(() => {
                       const code = FIFA_NATIONS.find(n => n.name === signing.nationality)?.code
-                      return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3 w-4.5 flex-shrink-0 rounded-sm object-cover ring-1 ring-black/10" alt="" /> : null
+                      return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3.5 w-5 flex-shrink-0 rounded-sm object-cover ring-1 ring-black/10" alt={signing.nationality} title={signing.nationality} /> : null
                     })()}
-                    <span className="truncate text-[11px] text-gray-500">{signing.nationality}</span>
                     {signing.club && (
                       signing.club.badge_url
-                        ? <img src={signing.club.badge_url} className="h-4 w-4 flex-shrink-0 object-contain" alt={signing.club.name} />
+                        ? <img src={signing.club.badge_url} className="h-4 w-4 flex-shrink-0 object-contain" alt={signing.club.name} title={signing.club.name} />
                         : <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-[7px] font-bold text-white" style={{ backgroundColor: signing.club.badge_color ?? "#6b7280" }}>{signing.club.short_name?.slice(0,1)}</span>
                     )}
                   </div>
