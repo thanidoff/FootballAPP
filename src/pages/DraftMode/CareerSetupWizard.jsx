@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Minus, Plus, Trash2, UserRound, X } from 'lucide-react'
+import { Check, ChevronDown, Minus, Plus, UserRound, X } from 'lucide-react'
 import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
-import Modal from '../../components/ui/Modal'
 
 const STEPS = ['Save', 'Clubs', 'Team setup']
 const DEFAULT_BUDGET = 100_000_000
@@ -18,37 +17,16 @@ function ClubBadge({ club }) {
   )
 }
 
-export default function CareerSetupWizard({ open = true, initialName = '', onClose, onComplete }) {
-  const { shouldRender, closing } = useOverlayBehavior(open, onClose)
+export default function CareerSetupWizard({ initialName = '', onClose, onComplete }) {
+  useOverlayBehavior(true, onClose)
   const [step, setStep] = useState(0)
   const [saveName, setSaveName] = useState(initialName)
   const [clubs, setClubs] = useState([])
   const [players, setPlayers] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
   const [teamSettings, setTeamSettings] = useState({})
-  const [pickingForClubId, setPickingForClubId] = useState(null)
-  const [playerSearch, setPlayerSearch] = useState('')
-
-  const availablePlayers = useMemo(() => {
-    const attachedIds = new Set(Object.values(teamSettings).flatMap(s => (s.roster || []).map(p => p.id)))
-    return players.filter(p => !attachedIds.has(p.id) && (
-      !playerSearch || p.name.toLowerCase().includes(playerSearch.toLowerCase()) || p.nationality?.toLowerCase().includes(playerSearch.toLowerCase())
-    ))
-  }, [players, teamSettings, playerSearch])
-
-  function addPlayerToClub(clubId, player) {
-    setTeamSettings(settings => ({
-      ...settings,
-      [clubId]: {
-        ...settings[clubId],
-        roster: [...(settings[clubId]?.roster || []), player],
-      },
-    }))
-    setPickingForClubId(null)
-    setPlayerSearch('')
-  }
-
-
+  const [expandedId, setExpandedId] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([fetchClubs(), fetchPlayers()])
@@ -58,8 +36,6 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
       })
       .finally(() => setLoading(false))
   }, [])
-
-
 
   const selectedClubs = useMemo(
     () => selectedIds.map(id => clubs.find(club => club.id === id)).filter(Boolean),
@@ -129,16 +105,14 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
 
   const canContinue = step === 0 ? Boolean(saveName.trim()) : step === 1 ? selectedIds.length >= 2 : true
 
-  if (!shouldRender) return null
-
   return createPortal(
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}>
-      <button aria-label="Close career setup" onClick={onClose} disabled={closing} className="absolute inset-0 bg-[#0A1318]/55 backdrop-blur-sm" />
-      <section className={`relative flex h-[min(700px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      <button aria-label="Close career setup" onClick={onClose} className="absolute inset-0 bg-[#0A1318]/55 backdrop-blur-sm" />
+      <section className="relative flex h-[min(700px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
         <header className="border-b border-gray-100 px-6 py-5 sm:px-8">
           <div className="flex items-center justify-between gap-4">
             <h2 className="font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Create your game</h2>
-            <button onClick={onClose} aria-label="Close" disabled={closing} className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100"><X size={18} strokeWidth={2} /></button>
+            <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100"><X size={18} strokeWidth={2} /></button>
           </div>
           <ol className="mx-auto mt-5 flex max-w-xl items-center justify-center">
             {STEPS.map((label, index) => (
@@ -160,7 +134,7 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
               <div className="mx-auto flex h-full max-w-lg flex-col justify-center pb-12">
                 <h3 className="font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Name your save</h3>
                 <p className="mt-2 text-sm text-gray-500">Give this career a name you will recognize later.</p>
-                <input value={saveName} onChange={event => setSaveName(event.target.value)} placeholder="e.g. Bangkok Road to Glory" className="mt-7 w-full rounded-2xl border-2 border-gray-200 bg-white px-5 py-4 text-base text-[#0A1318] outline-none focus:outline-none transition-colors focus:border-[#FD5461] focus:ring-4 focus:ring-red-50" />
+                <input value={saveName} onChange={event => setSaveName(event.target.value)} placeholder="e.g. Bangkok Road to Glory" className="mt-7 w-full rounded-2xl border-2 border-gray-200 bg-white px-5 py-4 text-base text-[#0A1318] outline-none transition-colors focus:border-[#FD5461] focus:ring-4 focus:ring-red-50" />
               </div>
             </div>
 
@@ -259,20 +233,10 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
                                 <button onClick={() => releasePlayer(club.id, player.id)} title="Release to free agents" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461]"><X size={15} strokeWidth={2.25} /></button>
                               </div>
                             ) : (
-                              <button
-                                key={`empty-${index}`}
-                                type="button"
-                                onClick={() => { setPickingForClubId(club.id); setPlayerSearch('') }}
-                                className="flex min-h-16 items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white p-2.5 transition-all hover:border-[#FD5461] hover:bg-red-50/40 hover:shadow-sm active:scale-[0.99]"
-                              >
-                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 transition-colors group-hover:bg-[#FD5461] group-hover:text-white">
-                                  <Plus size={18} strokeWidth={2.5} />
-                                </span>
-                                <div className="text-left">
-                                  <span className="block font-heading text-xs font-bold uppercase tracking-wide text-gray-600">Add Player</span>
-                                  <span className="text-[10px] text-gray-400">Click to select player</span>
-                                </div>
-                              </button>
+                              <div key={`empty-${index}`} className="flex min-h-16 items-center gap-3 rounded-xl border border-gray-200 bg-white p-2.5">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-gray-300"><UserRound size={17} strokeWidth={1.75} /></span>
+                                <span className="text-sm font-normal text-gray-400">Empty player slot</span>
+                              </div>
                             ))}
                           </div>
                           </div>
@@ -288,69 +252,11 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
 
         <footer className="flex items-center justify-between border-t border-gray-100 px-6 py-4 sm:px-8">
           {step > 0 ? (
-            <button
-              type="button"
-              onClick={() => changeStep(step - 1)}
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-gray-500 transition-all hover:bg-gray-100 active:scale-95"
-            >
-              <ChevronLeft size={16} strokeWidth={2.5} className="text-gray-400" />
-              <span>Back</span>
-            </button>
+            <button onClick={() => changeStep(step - 1)} className="rounded-xl px-4 py-3 font-heading text-xs font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100">Back</button>
           ) : <div />}
-
-          <button
-            type="button"
-            disabled={!canContinue || loading}
-            onClick={() => (step === STEPS.length - 1 ? finish() : changeStep(step + 1))}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#FD5461] px-6 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-          >
-            <span>{step === STEPS.length - 1 ? 'Create Career' : 'Continue'}</span>
-            <ChevronRight size={16} strokeWidth={2.5} />
-          </button>
+          <button disabled={!canContinue || loading} onClick={() => step === STEPS.length - 1 ? finish() : changeStep(step + 1)} className="rounded-xl bg-[#FD5461] px-6 py-3 font-heading text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-500/20 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">{step === STEPS.length - 1 ? 'Create Career' : 'Continue'}</button>
         </footer>
       </section>
-
-      <Modal
-        open={Boolean(pickingForClubId)}
-        onClose={() => { setPickingForClubId(null); setPlayerSearch('') }}
-        title="Select Player to Add"
-        width="max-w-xl"
-      >
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Search by name or nationality..."
-            value={playerSearch}
-            onChange={e => setPlayerSearch(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#0A1318] outline-none transition-colors focus:border-[#FD5461] focus:bg-white focus:ring-2 focus:ring-red-50"
-          />
-
-          <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
-            {availablePlayers.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-400">No available players found</div>
-            ) : (
-              availablePlayers.map(player => (
-                <div
-                  key={player.id}
-                  onClick={() => addPlayerToClub(pickingForClubId, player)}
-                  className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-[#FD5461] hover:bg-red-50/30 hover:shadow-md"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#455268] font-heading text-xs font-black text-white">{player.ovr}</span>
-                    <div>
-                      <span className="block font-heading text-xs font-black uppercase text-[#0A1318]">{player.name}</span>
-                      <span className="text-[10px] text-gray-400">{player.nationality} · {player.age} yrs · <span className="font-bold text-[#FD5461]">{player.position}</span></span>
-                    </div>
-                  </div>
-                  <span className="flex h-8 items-center gap-1 rounded-lg bg-[#FD5461] px-3 font-heading text-[10px] font-black uppercase tracking-wider text-white">
-                    <Plus size={14} strokeWidth={2.5} /> Add
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </Modal>
     </div>,
     document.body
   )
