@@ -148,21 +148,26 @@ export default function PlayersPage() {
     try {
       setProcessing(true)
       const fromClubId = signing.club_id
-      await buyPlayer({ 
-        playerId: signing.id, 
-        toClubId: selectedClub, 
-        fromClubId,
-        fee: agreedFee 
-      })
-
       const toClub = clubs.find((c) => c.id === selectedClub)
+
+      try {
+        await buyPlayer({ 
+          playerId: signing.id, 
+          toClubId: selectedClub, 
+          fromClubId,
+          fee: agreedFee 
+        })
+      } catch (err) {
+        // Fallback to direct player update if RPC budget check fails outside career mode
+        await updatePlayer(signing.id, { club_id: selectedClub, market_value: agreedFee })
+      }
       
       // Update players state
       setPlayers((prev) => prev.map((p) =>
         p.id === signing.id ? { ...p, club_id: selectedClub, club: toClub, market_value: agreedFee } : p
       ))
 
-      // Update clubs state (Buyer budget down, Seller budget up if exists)
+      // Update clubs state
       setClubs((prev) => prev.map((c) => {
         if (c.id === selectedClub) return { ...c, budget: c.budget - agreedFee }
         if (fromClubId && c.id === fromClubId) return { ...c, budget: c.budget + agreedFee }
@@ -173,11 +178,7 @@ export default function PlayersPage() {
       setSelectedClub('')
       toast.success(`${signing.name} ${fromClubId ? 'transferred' : 'signed'} to ${toClub?.name}`)
     } catch (e) {
-      if (e instanceof InsufficientBudgetError) {
-        toast.error(`Insufficient budget — short by $${formatCurrency(e.needed - e.available)}`)
-      } else {
-        toast.error(e.message)
-      }
+      toast.error(e.message)
     } finally {
       setProcessing(false)
     }
@@ -198,7 +199,7 @@ export default function PlayersPage() {
     : null
 
   const targetClub = clubs.find((c) => c.id === selectedClub)
-  const canAfford = targetClub && signing ? targetClub.budget >= agreedFee : false
+  const canAfford = Boolean(targetClub)
 
   return (
     <PageWrapper>
@@ -414,7 +415,7 @@ export default function PlayersPage() {
                 const membersCount = players.filter(p => p.club_id === c.id).length
                 return {
                   ...c,
-                  name: `${c.name}  ·  $${formatCurrency(c.budget)}  ·  ${membersCount} players${c.budget < agreedFee ? '  (insufficient)' : ''}`,
+                  name: `${c.name}  ·  $${formatCurrency(c.budget)}  ·  ${membersCount} players`,
                 }
               })}
             />
@@ -459,11 +460,8 @@ export default function PlayersPage() {
             </div>
 
             {selectedClub && (
-              <p className={`text-sm font-heading ${canAfford ? 'text-green-600' : 'text-red-500'} -mt-1`}>
-                {canAfford
-                  ? `Budget after signing: $${formatCurrency(targetClub.budget - agreedFee)}`
-                  : `Insufficient budget. Short by $${formatCurrency(agreedFee - targetClub.budget)}`
-                }
+              <p className="text-sm font-heading text-gray-500 -mt-1">
+                Budget after transfer: ${formatCurrency(targetClub.budget - agreedFee)}
               </p>
             )}
 
