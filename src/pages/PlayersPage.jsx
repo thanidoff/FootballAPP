@@ -369,33 +369,36 @@ export default function PlayersPage() {
         {signing && (
           <div className="space-y-5">
             {/* Player info */}
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
-              {signing.photo_url ? (
-                <img src={signing.photo_url} alt={signing.name} className="w-12 h-12 rounded-full object-cover bg-white" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-heading font-black text-gray-400">
-                  {signing.name.charAt(0)}
-                </div>
-              )}
-              <div className="flex-1">
-                <div className="font-heading font-black text-lg">{signing.name}</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <PositionBadge position={signing.position} />
-                  {(() => {
-                    const code = FIFA_NATIONS.find(n => n.name === signing.nationality)?.code
-                    return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3.5 w-6 object-cover rounded-sm shadow-sm ring-1 ring-black/10" alt="" /> : null
-                  })()}
-                  <span className="text-sm text-gray-500">{signing.nationality}</span>
-                  {signing.club && (
-                    signing.club.badge_url
-                      ? <img src={signing.club.badge_url} className="w-5 h-5 object-contain" alt={signing.club.name} />
-                      : <div className="w-5 h-5 rounded flex items-center justify-center text-white text-[8px] font-black" style={{ backgroundColor: signing.club.badge_color ?? "#6b7280" }}>{signing.club.short_name?.slice(0,1)}</div>
-                  )}
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 p-3.5">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {signing.photo_url ? (
+                  <img src={signing.photo_url} alt={signing.name} className="h-11 w-11 flex-shrink-0 rounded-full object-cover bg-white ring-1 ring-black/5" />
+                ) : (
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 font-heading text-sm font-black text-gray-500">
+                    {signing.name.charAt(0)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-heading text-sm font-bold text-[#0A1318]">{signing.name}</div>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                    <PositionBadge position={signing.position} />
+                    {(() => {
+                      const code = FIFA_NATIONS.find(n => n.name === signing.nationality)?.code
+                      return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3 w-4.5 flex-shrink-0 rounded-sm object-cover ring-1 ring-black/10" alt="" /> : null
+                    })()}
+                    <span className="truncate text-[11px] text-gray-500">{signing.nationality}</span>
+                    {signing.club && (
+                      signing.club.badge_url
+                        ? <img src={signing.club.badge_url} className="h-4 w-4 flex-shrink-0 object-contain" alt={signing.club.name} />
+                        : <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-[7px] font-bold text-white" style={{ backgroundColor: signing.club.badge_color ?? "#6b7280" }}>{signing.club.short_name?.slice(0,1)}</span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-xs text-gray-400 mb-0.5">Market Value</div>
-                <div className="font-heading font-black text-xl">${formatCurrency(signing.market_value)}</div>
+
+              <div className="text-right flex-shrink-0 border-l border-gray-200/60 pl-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Market Value</div>
+                <div className="font-heading text-base font-bold text-[#0A1318]">${formatCurrency(signing.market_value)}</div>
               </div>
             </div>
 
