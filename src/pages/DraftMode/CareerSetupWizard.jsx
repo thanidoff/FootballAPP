@@ -128,9 +128,9 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
           <ol className="mx-auto mt-5 flex max-w-xl items-center justify-center">
             {STEPS.map((label, index) => (
               <li key={label} className="flex shrink-0 items-center">
-                <span className={`flex h-7 w-7 items-center justify-center rounded-full font-heading text-[10px] font-black ${index <= step ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-400'}`}>{index + 1}</span>
-                <span className={`ml-2 hidden text-[10px] font-black uppercase tracking-wider sm:block ${index <= step ? 'text-[#0A1318]' : 'text-gray-400'}`}>{label}</span>
-                {index < STEPS.length - 1 && <span className={`mx-3 h-px w-12 transition-colors duration-500 sm:w-20 ${index < step ? 'bg-[#FD5461]' : 'bg-gray-200'}`} />}
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full font-heading text-xs font-black ${index <= step ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-400'}`}>{index + 1}</span>
+                <span className={`ml-2.5 hidden text-sm font-black uppercase tracking-wider sm:block ${index <= step ? 'text-[#0A1318]' : 'text-gray-400'}`}>{label}</span>
+                {index < STEPS.length - 1 && <span className={`mx-3.5 h-px w-10 transition-colors duration-500 sm:w-16 ${index < step ? 'bg-[#FD5461]' : 'bg-gray-200'}`} />}
               </li>
             ))}
           </ol>
