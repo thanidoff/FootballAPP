@@ -265,7 +265,7 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
           <button
             type="button"
             onClick={() => (step === 0 ? onClose() : changeStep(step - 1))}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-gray-600 transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-95"
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 font-heading text-xs font-black uppercase tracking-wider text-gray-500 transition-all hover:bg-gray-100 active:scale-95"
           >
             {step === 0 ? (
               <>
