@@ -15,9 +15,7 @@ export default function Input({ label, error, className = '', ...props }) {
           ${error ? 'border-red-400 focus:ring-red-400/20' : ''}
           ${className}
         `}
-        {...props}
-      />
-      <div className="min-h-4">{error && <p className="animate-fadeIn type-body-sm text-red-500">{error}</p>}</div>
+      {error && <p className="mt-1 animate-fadeIn type-body-sm text-red-500">{error}</p>}
     </div>
   )
 }

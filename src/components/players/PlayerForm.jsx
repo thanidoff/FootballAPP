@@ -115,8 +115,8 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
             <option key={key} value={key}>{POSITION_LABELS[key]}</option>
           ))}
         </Select>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500">
+        <div className="flex flex-col gap-1.5">
+          <label className="type-label text-gray-600">
             Market Value
           </label>
           <div className="relative">
@@ -136,7 +136,7 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
                 setMvDisplay(num.toFixed(1))
                 setForm((f) => ({ ...f, market_value: Math.round(num * 1_000_000) }))
               }}
-              className="w-full pl-3 pr-10 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-400 transition-colors"
+              className="min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 type-body focus:outline-none focus:ring-2 focus:ring-[#FD5461]/15 focus:border-[#FD5461] transition-colors pr-10"
               placeholder="0.00"
             />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-heading font-bold text-gray-400">

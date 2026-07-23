@@ -46,8 +46,8 @@ export default function NationalityInput({ value, onChange }) {
   }
 
   return (
-    <div className="flex flex-col gap-1" ref={ref}>
-      <label className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500">
+    <div className="flex flex-col gap-1.5" ref={ref}>
+      <label className="type-label text-gray-600">
         Nationality
       </label>
       <div className="relative">
@@ -56,7 +56,7 @@ export default function NationalityInput({ value, onChange }) {
           <button
             type="button"
             onClick={handleOpen}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-left hover:border-gray-300 transition-colors cursor-pointer"
+            className="min-h-11 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm text-left hover:border-gray-300 transition-colors cursor-pointer"
           >
             {selected ? (
               <>
