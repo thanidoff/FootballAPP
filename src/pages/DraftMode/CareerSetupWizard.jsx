@@ -194,14 +194,14 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
                             <ClubBadge club={club} />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-heading text-sm font-black uppercase text-[#0A1318]">{club.name}</span>
-                              <span className="mt-0.5 block text-xs text-gray-400">{roster.length} attached players · {visibleSlotCount - roster.length} open slots</span>
+                              <span className="mt-0.5 block text-xs text-gray-400">{roster.length} players</span>
                             </span>
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
                             <span className="mr-1 text-sm font-medium text-gray-600">Budget</span>
                             <button type="button" onClick={() => adjustBudget(club.id, -10_000_000)} aria-label={`Decrease ${club.name} budget by 10M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-10M</button>
                             <button type="button" onClick={() => adjustBudget(club.id, -1_000_000)} aria-label={`Decrease ${club.name} budget by 1M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-1M</button>
-                            <span className="relative block w-24">
+                            <span className="relative flex h-9 w-24 items-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461] focus-within:ring-2 focus-within:ring-red-50">
                               <input
                                 type="text"
                                 inputMode="decimal"
@@ -214,9 +214,9 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
                                   const millions = Number.parseFloat(raw)
                                   if (Number.isFinite(millions)) updateBudget(club.id, Math.round(millions * 1_000_000))
                                 }}
-                                className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-2 pr-7 text-right text-sm font-bold tabular-nums outline-none focus:border-[#FD5461] focus:ring-2 focus:ring-red-50"
+                                className="w-full bg-transparent text-right text-sm font-bold tabular-nums outline-none focus:outline-none"
                               />
-                              <span className="pointer-events-none absolute right-2 top-2.5 text-[10px] font-bold text-gray-400">M</span>
+                              <span className="ml-1 text-xs font-bold text-gray-400 leading-none">M</span>
                             </span>
                             <button type="button" onClick={() => adjustBudget(club.id, 1_000_000)} aria-label={`Increase ${club.name} budget by 1M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+1M</button>
                             <button type="button" onClick={() => adjustBudget(club.id, 10_000_000)} aria-label={`Increase ${club.name} budget by 10M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+10M</button>
