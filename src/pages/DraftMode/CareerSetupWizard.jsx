@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Minus, Plus, UserRound, X } from 'lucide-react'
 import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
@@ -104,7 +105,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
 
   const canContinue = step === 0 ? Boolean(saveName.trim()) : step === 1 ? selectedIds.length >= 2 : true
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <button aria-label="Close career setup" onClick={onClose} className="absolute inset-0 bg-[#0A1318]/55 backdrop-blur-sm" />
       <section className="relative flex h-[min(700px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
@@ -254,6 +255,8 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
           <button disabled={!canContinue || loading} onClick={() => step === STEPS.length - 1 ? finish() : changeStep(step + 1)} className="rounded-xl bg-[#FD5461] px-6 py-3 font-heading text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-500/20 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">{step === STEPS.length - 1 ? 'Create Career' : 'Continue'}</button>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body
   )
+}
 }
