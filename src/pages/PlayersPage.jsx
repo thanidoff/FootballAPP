@@ -162,17 +162,10 @@ export default function PlayersPage() {
         await updatePlayer(signing.id, { club_id: selectedClub, market_value: agreedFee })
       }
       
-      // Update players state
+      // Update players state with new club & market value
       setPlayers((prev) => prev.map((p) =>
         p.id === signing.id ? { ...p, club_id: selectedClub, club: toClub, market_value: agreedFee } : p
       ))
-
-      // Update clubs state
-      setClubs((prev) => prev.map((c) => {
-        if (c.id === selectedClub) return { ...c, budget: c.budget - agreedFee }
-        if (fromClubId && c.id === fromClubId) return { ...c, budget: c.budget + agreedFee }
-        return c
-      }))
 
       setSigning(null)
       setSelectedClub('')
@@ -415,7 +408,7 @@ export default function PlayersPage() {
                 const membersCount = players.filter(p => p.club_id === c.id).length
                 return {
                   ...c,
-                  name: `${c.name}  ·  $${formatCurrency(c.budget)}  ·  ${membersCount} players`,
+                  name: `${c.name}  ·  ${membersCount} players`,
                 }
               })}
             />
@@ -423,7 +416,7 @@ export default function PlayersPage() {
             {/* Fee negotiation */}
             <div>
               <label className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500 block mb-1">
-                Transfer Fee
+                Set Player Market Value
               </label>
               <div className="flex items-center gap-1.5">
                 <button
@@ -458,12 +451,6 @@ export default function PlayersPage() {
                 >+10</button>
               </div>
             </div>
-
-            {selectedClub && (
-              <p className="text-sm font-heading text-gray-500 -mt-1">
-                Budget after transfer: ${formatCurrency(targetClub.budget - agreedFee)}
-              </p>
-            )}
 
             <Button
               className="w-full justify-center"
