@@ -59,12 +59,7 @@ export default function CareerSetupWizard({ open = true, initialName = '', onClo
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
-    if (open && step === 0) {
-      const timer = setTimeout(() => inputRef.current?.focus(), 50)
-      return () => clearTimeout(timer)
-    }
-  }, [open, step])
+
 
   const selectedClubs = useMemo(
     () => selectedIds.map(id => clubs.find(club => club.id === id)).filter(Boolean),
