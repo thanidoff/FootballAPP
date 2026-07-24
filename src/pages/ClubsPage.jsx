@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase'
 import PageWrapper from '../components/ui/PageWrapper'
 import { SkeletonClubCard } from '../components/ui/SkeletonCard'
 import AnimatedTabs from '../components/ui/AnimatedTabs'
+import OvrBadge from '../components/ui/OvrBadge'
 
 // UEFA, CONMEBOL, CONCACAF, AFC, CAF, OFC
 const ZONE_MAP = {
@@ -36,32 +37,28 @@ function getZone(code) {
 
 function ClubBadge({ club, size = 'md' }) {
   const isLg = size === 'lg'
-  const s = isLg ? 'w-16 h-16 text-xl' : 'w-10 h-10 text-sm'
-  
+  const imgSize = isLg ? 'h-12 w-12' : 'h-8 w-8'
+  const flagSize = isLg ? 'h-8 w-12' : 'h-5 w-7.5'
+
   if (club.is_national) {
     const flagCode = NATION_CODE[club.name] || club.short_name?.toLowerCase()
-    const rectSize = isLg ? 'w-16 h-11' : 'w-10 h-7'
     return (
-      <div className={`${rectSize} rounded-lg overflow-hidden shadow-md flex-shrink-0 bg-gray-100 ring-1 ring-black/5`}>
-        <img
-          src={`https://flagcdn.com/${flagCode}.svg`}
-          alt={club.name}
-          className="w-full h-full object-cover"
-        />
-      </div>
+      <img
+        src={`https://flagcdn.com/${flagCode}.svg`}
+        alt={club.name}
+        className={`${flagSize} rounded-sm object-cover flex-shrink-0 ring-1 ring-black/10`}
+      />
     )
   }
 
   if (club.badge_url) {
     return (
-      <div className={`${s} rounded-xl overflow-hidden shadow-md flex-shrink-0 bg-white ring-1 ring-black/5`}>
-        <img src={club.badge_url} alt={club.name} className="w-full h-full object-contain p-1" />
-      </div>
+      <img src={club.badge_url} alt={club.name} className={`${imgSize} flex-shrink-0 object-contain`} />
     )
   }
   return (
     <div
-      className={`${s} rounded-xl flex items-center justify-center font-heading font-black text-white shadow-md flex-shrink-0 ring-1 ring-black/5`}
+      className={`${imgSize} rounded-xl flex items-center justify-center font-heading font-black text-white flex-shrink-0`}
       style={{ backgroundColor: club.badge_color ?? "#6b7280" }}
     >
       {club.short_name}
@@ -325,7 +322,7 @@ export default function ClubsPage() {
                   {(club.is_national || clubOvr(club) != null) && (
                     <div className="flex-shrink-0 text-right">
                       {clubOvr(club) != null
-                        ? <div className="font-heading font-black text-2xl text-gray-900 leading-none">{clubOvr(club)}</div>
+                        ? <OvrBadge value={clubOvr(club)} size="md" />
                         : <div className="font-heading font-black text-2xl text-gray-200 leading-none">—</div>
                       }
                     </div>

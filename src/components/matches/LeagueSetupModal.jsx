@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { fetchNationalTeams, fetchClubTeams } from '../../services/worldCup'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
 import { supabase } from '../../lib/supabase'
-import { Check, Plus, X } from 'lucide-react'
+import { Check, ChevronLeft, Plus, RefreshCw, Search, X } from 'lucide-react'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
+import OvrBadge from '../ui/OvrBadge'
+import { generateSchedule } from '../../utils/draftLogic'
 
 const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 
@@ -30,16 +33,16 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
   const [saving, setSaving] = useState(false)
   const [step, setStep] = useState(0)
   const [search, setSearch] = useState('')
-  const [nameSort, setNameSort] = useState('asc')
-  const [ovrSort, setOvrSort] = useState(null)
+  const [nameSort, setNameSort] = useState(null)
+  const [ovrSort, setOvrSort] = useState('desc')
 
   useEffect(() => {
     if (!open) return
     setSelected(new Set(initialSelectedIds))
     setStep(0)
     setSearch('')
-    setNameSort('asc')
-    setOvrSort(null)
+    setNameSort(null)
+    setOvrSort('desc')
     if (teams) {
       setAllTeams(teams)
       const map = {}, sums = {}, counts = {}
@@ -77,6 +80,24 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
       setOvrMap({})
     }).finally(() => setLoading(false))
   }, [open, teams, players, initialSelectedIds])
+
+  const [scheduleSeed, setScheduleSeed] = useState(0)
+
+  const selectedTeamObjects = useMemo(() => [
+    ...lockedTeams.map(t => ({ id: t.club_id ?? t.id, name: t.club_name ?? t.name, short_name: t.short_name, badge_url: t.badge_url, badge_color: t.badge_color, locked: true })),
+    ...allTeams.filter(t => selected.has(t.id ?? t.club_id))
+  ], [lockedTeams, allTeams, selected])
+
+  const previewSchedule = useMemo(() => {
+    if (selectedTeamObjects.length === 0) return []
+    const teamIds = selectedTeamObjects.map(t => t.id ?? t.club_id)
+    if (scheduleSeed > 0) {
+      // Shuffle non-locked teams order to generate different schedule variations
+      const shuffledIds = [...teamIds].sort(() => Math.random() - 0.5)
+      return generateSchedule(shuffledIds)
+    }
+    return generateSchedule(teamIds)
+  }, [selectedTeamObjects, scheduleSeed])
 
   if (!shouldRender) return null
 
@@ -116,44 +137,37 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
   const totalSelected = lockedTeams.length + selected.size
   const remaining = requiredTeams - totalSelected
 
-  return (
+  return createPortal(
     <div className={`fixed inset-0 z-50 flex items-center justify-center bg-[#0A1318]/55 p-4 backdrop-blur-sm sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}
       onClick={onClose}>
       <div role="dialog" aria-modal="true" className={`flex h-[min(700px,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 sm:px-8 flex-shrink-0 border-b border-gray-100">
-          <div>
-            <div className="font-heading font-black text-2xl uppercase tracking-wide text-[#0A1318]">
-              {isNewSeason ? 'New Season' : 'เลือกสโมสร'}
-            </div>
-            <div className="text-xs text-gray-400 mt-0.5">
-              {isNewSeason
-                ? `4 ทีมล็อค · เลือกเพิ่มอีก ${slotsNeeded} ทีม`
-                : `เลือก ${requiredTeams} ทีมเพื่อเริ่มลีก`}
-            </div>
+        <div className="border-b border-gray-100 px-6 py-5 sm:px-8 flex-shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">
+              {isNewSeason ? 'New Season' : 'Select Club League'}
+            </h2>
+            <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors">
+              <X size={18} strokeWidth={2} />
+            </button>
           </div>
-          <button onClick={onClose} aria-label="Close" className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors text-gray-400 cursor-pointer">
-            <X size={18} strokeWidth={2} />
-          </button>
+          <ol className="mx-auto mt-5 flex max-w-xl items-center justify-center">
+            {['Clubs', 'Schedule'].map((label, index) => (
+              <li key={label} className="flex shrink-0 items-center">
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full font-heading text-xs font-black transition-colors duration-500 ${index <= step ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-400'}`}>{index + 1}</span>
+                <span className={`ml-2.5 text-sm font-heading font-black uppercase tracking-wider ${index <= step ? 'text-[#0A1318]' : 'text-gray-400'}`}>{label}</span>
+                {index === 0 && <span className={`mx-3.5 h-px w-10 transition-colors duration-500 sm:w-16 ${step > 0 ? 'bg-[#FD5461]' : 'bg-gray-200'}`} />}
+              </li>
+            ))}
+          </ol>
         </div>
 
-        <ol className="mx-auto flex w-full max-w-md items-center justify-center px-6 py-4">
-          {['Clubs', 'Schedule'].map((label, index) => (
-            <li key={label} className="flex shrink-0 items-center">
-              <span className={`flex h-7 w-7 items-center justify-center rounded-full font-heading text-[10px] font-black transition-colors duration-500 ${index <= step ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-400'}`}>{index + 1}</span>
-              <span className={`ml-2 text-[10px] font-black uppercase tracking-wider ${index <= step ? 'text-[#0A1318]' : 'text-gray-400'}`}>{label}</span>
-              {index === 0 && <span className={`mx-3 h-px w-24 transition-colors duration-500 ${step > 0 ? 'bg-[#FD5461]' : 'bg-gray-200'}`} />}
-            </li>
-          ))}
-        </ol>
-
         {/* Selection count — same pattern as Create Play Game */}
-        <div className={`${step === 0 ? 'flex' : 'hidden'} items-end justify-between px-6 pb-3 sm:px-8 flex-shrink-0`}>
+        <div className={`${step === 0 ? 'flex' : 'hidden'} items-end justify-between px-6 pt-4 pb-3 sm:px-8 flex-shrink-0`}>
           <div>
             <h3 className="font-heading text-sm font-black uppercase tracking-wide text-[#0A1318]">Select clubs</h3>
-            <p className="mt-0.5 text-xs text-gray-400">Choose exactly {requiredTeams} clubs for this league.</p>
           </div>
           <span className="font-heading text-xs font-black uppercase tracking-wider text-[#FD5461]">
             {totalSelected} / {requiredTeams} selected
@@ -163,7 +177,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
         {/* Locked teams (new season only) */}
         {isNewSeason && (
           <div className={`${step === 0 ? '' : 'hidden'} px-6 pb-3 flex-shrink-0`}>
-            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 mb-2">ทีมที่ล็อค (Top 4)</div>
+            <div className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 mb-2">Locked Teams (Top 4)</div>
             <div className="space-y-1">
               {lockedTeams.map(t => {
                 const club = t.club ?? t
@@ -192,13 +206,16 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
 
         {/* Search + Sort */}
         <div className={`${step === 0 ? '' : 'hidden'} px-6 pb-4 sm:px-8 flex-shrink-0 gap-2`} style={{ display: step === 0 ? 'flex' : 'none' }}>
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="ค้นหาทีม..."
-            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-400 transition-colors"
-          />
+          <div className="flex-1 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-gray-900/20 transition-all">
+            <Search size={16} className="text-gray-400 shrink-0" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search team..."
+              className="flex-1 bg-transparent text-sm focus:outline-none"
+            />
+          </div>
           <button
             onClick={() => { setNameSort(s => s === 'asc' ? 'desc' : 'asc'); setOvrSort(null) }}
             className={`px-3 py-2 rounded-xl border text-[10px] font-heading font-black uppercase tracking-widest transition-colors cursor-pointer whitespace-nowrap
@@ -220,7 +237,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
           {loading ? (
             <div className="text-center py-12 text-gray-400 font-heading font-bold uppercase tracking-widest text-xs">Loading...</div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-8 text-gray-300 font-heading font-bold uppercase tracking-widest text-xs">ไม่พบทีม</div>
+            <div className="text-center py-8 text-gray-300 font-heading font-bold uppercase tracking-widest text-xs">No teams found</div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {filtered.map((team, index) => {
@@ -256,8 +273,8 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
                       <div className={`mt-0.5 text-xs ${isSelected ? 'font-bold text-[#FD5461]' : 'text-gray-400'}`}>{isSelected ? 'Selected' : 'Add to league'}</div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {ovr && <span className="font-heading font-black text-xs text-[#0A1318] tabular-nums">{ovr}</span>}
-                      <div className={`flex h-7 w-7 items-center justify-center rounded-lg font-black transition-all ${isSelected ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      {ovr && <OvrBadge value={ovr} size="sm" />}
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-lg font-black transition-all ${isSelected ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-[#0A1318]'}`}>
                         {isSelected ? <Check size={15} strokeWidth={2.5} /> : <Plus size={15} strokeWidth={2.5} />}
                       </div>
                     </div>
@@ -269,35 +286,99 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
         </div>
 
         {step === 1 && (
-          <div className="flex-1 overflow-y-auto px-6 pb-6 sm:px-8" style={{ animation: 'fadeSlideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}>
-            <div className="mx-auto max-w-xl">
-              <h3 className="font-heading text-xl font-black uppercase tracking-wide text-[#0A1318]">Ready to create league</h3>
-              <p className="mt-1 text-sm text-gray-500">Review the five clubs. A double round-robin schedule will be generated automatically.</p>
-              <div className="mt-5 space-y-2">
-                {[...selected].map((id, index) => {
-                  const team = allTeams.find(item => item.id === id) || lockedTeams.find(item => (item.club_id || item.id) === id)
-                  if (!team) return null
-                  return <div key={id} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl font-heading text-[10px] font-black text-white" style={{ backgroundColor: team.badge_color || '#0A1318' }}>{team.short_name || team.name?.slice(0, 3).toUpperCase()}</span><span className="min-w-0 flex-1 truncate font-heading text-sm font-black uppercase text-[#0A1318]">{team.name}</span><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FD5461] text-white"><Check size={13} strokeWidth={2.5} /></span></div>
-                })}
+          <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8" style={{ animation: 'fadeSlideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}>
+            <div className="w-full space-y-6">
+              <div>
+                <h3 className="font-heading text-xl font-black uppercase tracking-wide text-[#0A1318]">Generated Fixtures Schedule</h3>
+                <p className="mt-1 text-sm text-gray-500">Double round-robin schedule ({previewSchedule.length} weeks total)</p>
               </div>
-              <div className="mt-5 rounded-2xl bg-gray-50 p-4 text-xs leading-6 text-gray-500"><strong className="text-[#0A1318]">League rules:</strong> 5 clubs · home and away fixtures · bottom club relegated after the season.</div>
+
+              <div className="space-y-6">
+                {previewSchedule.map(round => (
+                  <div key={round.week} className="space-y-2.5">
+                    {/* Week Pill Badge */}
+                    <div>
+                      <span className="inline-flex items-center rounded-full bg-red-500/10 border border-red-500/20 px-4 py-1.5 font-heading text-xs font-black text-[#FD5461]">
+                        Week {round.week}
+                      </span>
+                    </div>
+
+                    {/* Match Cards */}
+                    <div className="space-y-2.5">
+                      {round.matches.map((m, idx) => {
+                        const homeTeam = selectedTeamObjects.find(t => String(t.id ?? t.club_id) === String(m.home))
+                        const awayTeam = selectedTeamObjects.find(t => String(t.id ?? t.club_id) === String(m.away))
+                        return (
+                          <div key={idx} className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-xs">
+                            {/* Home */}
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {homeTeam?.badge_url ? (
+                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-gray-100 p-0.5">
+                                  <img src={homeTeam.badge_url} alt="" className="w-full h-full object-contain" />
+                                </div>
+                              ) : (
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0" style={{ backgroundColor: homeTeam?.badge_color || '#0A1318' }}>
+                                  {homeTeam?.short_name || homeTeam?.name?.slice(0, 3).toUpperCase()}
+                                </div>
+                              )}
+                              <span className="truncate font-heading font-black text-sm uppercase text-[#0A1318]">{homeTeam?.name || 'Home Team'}</span>
+                            </div>
+
+                            {/* VS Badge */}
+                            <span className="px-4 text-xs font-heading font-black text-gray-400 shrink-0">VS</span>
+
+                            {/* Away */}
+                            <div className="flex items-center gap-3 justify-end min-w-0 flex-1 text-right">
+                              <span className="truncate font-heading font-black text-sm uppercase text-[#0A1318]">{awayTeam?.name || 'Away Team'}</span>
+                              {awayTeam?.badge_url ? (
+                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-gray-100 p-0.5">
+                                  <img src={awayTeam.badge_url} alt="" className="w-full h-full object-contain" />
+                                </div>
+                              ) : (
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-heading font-black text-white text-xs flex-shrink-0" style={{ backgroundColor: awayTeam?.badge_color || '#0A1318' }}>
+                                  {awayTeam?.short_name || awayTeam?.name?.slice(0, 3).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-6 py-4 sm:px-8 flex-shrink-0 border-t border-gray-100 bg-white">
-          {step === 1 && <button onClick={() => setStep(0)} className="rounded-xl px-5 py-4 font-heading text-xs font-black uppercase tracking-wider text-gray-500 transition-colors hover:bg-gray-100">Back</button>}
-          <button
-            onClick={() => step === 0 ? setStep(1) : handleCreate()}
-            disabled={selected.size !== slotsNeeded || saving}
-            className="flex-1 py-4 rounded-2xl font-heading font-black text-sm uppercase tracking-widest transition-all cursor-pointer
-              disabled:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed
-              bg-[#FD5461] text-white hover:bg-red-500 disabled:hover:bg-gray-100">
-            {saving ? 'กำลังสร้าง...' : remaining > 0 ? `เลือกอีก ${remaining} ทีม` : step === 0 ? 'Continue' : 'Create League'}
-          </button>
-        </div>
+        <footer className="flex items-center justify-between border-t border-gray-100 px-6 py-4 sm:px-8 flex-shrink-0 bg-white">
+          {step === 1 ? (
+            <button onClick={() => setStep(0)} className="flex items-center gap-1 rounded-xl px-4 py-3 font-heading text-xs font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer">
+              <ChevronLeft size={16} strokeWidth={2.5} />
+              <span>Back</span>
+            </button>
+          ) : <div />}
+          <div className="flex items-center gap-3">
+            {step === 1 && (
+              <button
+                onClick={() => setScheduleSeed(s => s + 1)}
+                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 font-heading text-xs font-black uppercase tracking-widest text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                <RefreshCw size={14} strokeWidth={2.5} />
+                <span>Reshuffle</span>
+              </button>
+            )}
+            <button
+              onClick={() => step === 0 ? setStep(1) : handleCreate()}
+              disabled={selected.size !== slotsNeeded || saving}
+              className="rounded-xl bg-[#FD5461] px-6 py-3 font-heading text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-500/20 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none cursor-pointer">
+              {saving ? 'Creating...' : remaining > 0 ? `Select ${remaining} more ${remaining === 1 ? 'team' : 'teams'}` : step === 0 ? 'Continue' : 'Create League'}
+            </button>
+          </div>
+        </footer>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

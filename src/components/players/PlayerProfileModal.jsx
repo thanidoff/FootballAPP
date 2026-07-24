@@ -164,7 +164,7 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
         ))}
       </div>
 
-      <div className="min-h-[300px]">
+      <div>
         {tab === 'stats' && (
           <div className="grid grid-cols-1 gap-y-3">
             {statKeys.map(key => (

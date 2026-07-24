@@ -100,9 +100,9 @@ export default function ClubSelect({ label, value, onChange, clubs = [], error }
   }
 
   return (
-    <div className="flex flex-col gap-1" ref={ref}>
+    <div className="flex flex-col gap-1.5" ref={ref}>
       {label && (
-        <label className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500">
+        <label className="type-label text-gray-600">
           {label}
         </label>
       )}

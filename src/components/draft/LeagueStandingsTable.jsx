@@ -15,8 +15,8 @@ export default function LeagueStandingsTable({ standings = [], championId, onFul
         {onFullTable && <CardHeaderAction onClick={onFullTable}>Full table</CardHeaderAction>}
       </header>
       {standings.length ? <>
-        <div className="type-body-sm grid grid-cols-[24px_minmax(135px,1fr)_repeat(4,30px)_38px_38px] items-center gap-1 bg-gray-50 px-5 py-3 font-medium text-gray-500">
-          <span className="text-center">#</span><span>Team</span><span className="text-center">P</span><span className="text-center">W</span><span className="text-center">D</span><span className="text-center">L</span><span className="text-center">GD</span><span className="text-right text-[#0A1318]">PTS</span>
+        <div className="type-body-sm grid grid-cols-[16px_minmax(64px,1.5fr)_repeat(6,minmax(20px,26px))] items-center gap-1 sm:gap-2.5 bg-white border-b border-gray-100 px-2.5 sm:px-5 py-3 font-medium text-gray-500 text-xs">
+          <span className="text-center">#</span><span>Team</span><span className="text-center">P</span><span className="text-center">W</span><span className="text-center">D</span><span className="text-center">L</span><span className="text-center">GD</span><span className="text-center text-[#0A1318]">PTS</span>
         </div>
         <div className="divide-y divide-gray-50">
           {standings.map((row, index) => {
@@ -24,12 +24,22 @@ export default function LeagueStandingsTable({ standings = [], championId, onFul
             const gd = stats.GD || 0
             const isChampion = Boolean(championId && row.club_id === championId)
             const Wrapper = onTeamClick ? 'button' : 'div'
-            return <Wrapper key={row.club_id} {...(onTeamClick ? { type: 'button', onClick: () => onTeamClick(row), title: `View ${row.club_name} squad` } : {})} className={`grid w-full grid-cols-[24px_minmax(135px,1fr)_repeat(4,30px)_38px_38px] items-center gap-1 px-5 py-3 text-left transition-[background-color,box-shadow] duration-200 ${isChampion ? 'bg-[#FD5461]/[0.07]' : ''} ${onTeamClick ? 'cursor-pointer hover:bg-[#FD5461]/[0.06] focus-visible:z-10 focus-visible:bg-[#FD5461]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FD5461]/40' : ''}`}>
+            const shortName = (row.short_name && row.short_name !== row.club_name) 
+              ? row.short_name 
+              : (row.club_name || '').slice(0, 3).toUpperCase()
+            return <Wrapper key={row.club_id} {...(onTeamClick ? { type: 'button', onClick: () => onTeamClick(row), title: `View ${row.club_name} squad` } : {})} className={`grid w-full grid-cols-[16px_minmax(64px,1.5fr)_repeat(6,minmax(20px,26px))] items-center gap-1 sm:gap-2.5 px-2.5 sm:px-5 py-3 text-left transition-[background-color,box-shadow] duration-200 ${isChampion ? 'bg-[#FD5461]/[0.07]' : ''} ${onTeamClick ? 'cursor-pointer hover:bg-[#FD5461]/[0.06] focus-visible:z-10 focus-visible:bg-[#FD5461]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FD5461]/40' : ''}`}>
               <span className={`text-center text-xs font-bold ${index === 0 || index === standings.length - 1 ? 'text-[#FD5461]' : 'text-gray-400'}`}>{index + 1}</span>
-              <span className="flex min-w-0 items-center gap-2.5"><ClubBadge team={row} /><span className="truncate text-sm font-semibold text-[#0A1318]">{row.club_name}</span>{isChampion && <Trophy size={14} className="shrink-0 text-[#FD5461]" strokeWidth={2.25} />}</span>
-              <span className="text-center text-sm font-semibold tabular-nums text-gray-500">{(stats.W || 0) + (stats.D || 0) + (stats.L || 0)}</span>
-              <span className="text-center text-sm font-semibold tabular-nums text-gray-500">{stats.W || 0}</span><span className="text-center text-sm font-semibold tabular-nums text-gray-500">{stats.D || 0}</span><span className="text-center text-sm font-semibold tabular-nums text-gray-500">{stats.L || 0}</span>
-              <span className={`text-center text-sm font-semibold tabular-nums ${gd > 0 ? 'text-green-600' : gd < 0 ? 'text-[#FD5461]' : 'text-gray-400'}`}>{gd > 0 ? `+${gd}` : gd}</span><span className="text-right text-sm font-black tabular-nums text-[#0A1318]">{stats.PTS || 0}</span>
+              <span className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+                <ClubBadge team={row} />
+                <span className="truncate text-xs sm:text-sm font-semibold text-[#0A1318]">
+                  <span className="sm:hidden">{shortName}</span>
+                  <span className="hidden sm:inline">{row.club_name}</span>
+                </span>
+                {isChampion && <Trophy size={14} className="shrink-0 text-[#FD5461]" strokeWidth={2.25} />}
+              </span>
+              <span className="text-center text-xs sm:text-sm font-semibold tabular-nums text-gray-500">{(stats.W || 0) + (stats.D || 0) + (stats.L || 0)}</span>
+              <span className="text-center text-xs sm:text-sm font-semibold tabular-nums text-gray-500">{stats.W || 0}</span><span className="text-center text-xs sm:text-sm font-semibold tabular-nums text-gray-500">{stats.D || 0}</span><span className="text-center text-xs sm:text-sm font-semibold tabular-nums text-gray-500">{stats.L || 0}</span>
+              <span className={`text-center text-xs sm:text-sm font-semibold tabular-nums ${gd > 0 ? 'text-green-600' : gd < 0 ? 'text-[#FD5461]' : 'text-gray-400'}`}>{gd > 0 ? `+${gd}` : gd}</span><span className="text-center text-xs sm:text-sm font-black tabular-nums text-[#0A1318]">{stats.PTS || 0}</span>
             </Wrapper>
           })}
         </div>

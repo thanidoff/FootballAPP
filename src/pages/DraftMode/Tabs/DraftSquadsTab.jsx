@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { updateDraftState } from '../../../services/draftSave'
 import { fetchClubs } from '../../../services/clubs'
@@ -9,9 +9,16 @@ import PlayerForm from '../../../components/players/PlayerForm'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
 import Button from '../../../components/ui/Button'
 import SegmentedControl from '../../../components/ui/SegmentedControl'
+import PositionBadge from '../../../components/ui/PositionBadge'
 import OvrBadge from '../../../components/ui/OvrBadge'
-import { calculateOVR } from '../../../utils/stats'
-import { ArrowDown, ArrowUp, Check, ChevronsLeft, ChevronsRight, GripVertical, History, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { FIFA_NATIONS } from '../../../utils/fifaNations'
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, GripVertical, History, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
+
+import ClubSelect from '../../../components/ui/ClubSelect'
+import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
+import { formatCurrency } from '../../../utils/currency'
+import { transferDraftPlayer } from '../../../services/draftSave'
+import { useToast } from '../../../components/ui/Toast'
 
 function MatchRecordClub({ club, align = 'left' }) {
   return <span className={`flex min-w-0 flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>{club?.badge_url ? <img src={club.badge_url} alt="" className="h-8 w-8 shrink-0 object-contain" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[8px] font-semibold text-white" style={{ backgroundColor: club?.badge_color || '#34414A' }}>{(club?.short_name || club?.club_name || 'CLB').slice(0, 3).toUpperCase()}</span>}<span className="truncate text-xs font-medium">{club?.club_name || 'Unknown club'}</span></span>
@@ -24,6 +31,8 @@ function MatchRecordSummary({ record, emptyLabel }) {
 
 export default function DraftSquadsTab() {
   const { saveData, setSaveData, saveId } = useOutletContext()
+  const toast = useToast()
+  const longPressTimer = useRef(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const [processing, setProcessing] = useState(false)
   const [editTeam, setEditTeam] = useState(null)
@@ -39,6 +48,42 @@ export default function DraftSquadsTab() {
   const [editDirty, setEditDirty] = useState(false)
   const [discardAction, setDiscardAction] = useState(null)
   const [draggedPlayerIndex, setDraggedPlayerIndex] = useState(null)
+  const [localDraftRoster, setLocalDraftRoster] = useState(null)
+  const [savingLineup, setSavingLineup] = useState(false)
+
+  const [signingPlayer, setSigningPlayer] = useState(null)
+  const [signingClubId, setSigningClubId] = useState('')
+  const [agreedFee, setAgreedFee] = useState(0)
+  const [feeDisplay, setFeeDisplay] = useState('0.0')
+
+  function openSigningModal(player) {
+    setSigningPlayer(player)
+    setSigningClubId('')
+    setAgreedFee(player.market_value || 0)
+    setFeeDisplay(((player.market_value || 0) / 1_000_000).toFixed(1))
+  }
+
+  async function handleSign() {
+    if (!signingPlayer || !signingClubId) return
+    setProcessing(true)
+    try {
+      const nextSaveData = transferDraftPlayer(saveData, {
+        playerId: signingPlayer.id,
+        toClubId: signingClubId,
+        fee: agreedFee,
+      })
+      await updateDraftState(saveId, nextSaveData)
+      setSaveData(nextSaveData)
+      setSigningPlayer(null)
+      setSigningClubId('')
+      toast.success(`${signingPlayer.name} transferred successfully`)
+    } catch (error) {
+      console.error('Failed to transfer player', error)
+      toast.error('Failed to transfer player')
+    } finally {
+      setProcessing(false)
+    }
+  }
 
   // Default to first team if none selected
   const selectedClubId = searchParams.get('team') || saveData.teams[0]?.club_id
@@ -52,8 +97,17 @@ export default function DraftSquadsTab() {
   const teamIndex = saveData.teams.findIndex(t => t.club_id === selectedClubId)
   const team = saveData.teams[teamIndex]
 
+  // Keep local draft roster in sync with selected team roster
+  useEffect(() => {
+    if (team) {
+      setLocalDraftRoster([...(team.roster || [])])
+    }
+  }, [team?.club_id, team?.roster])
+
   if (!team) return null
-  const averageOvr = team.roster.length ? Math.round(team.roster.reduce((sum, player) => sum + player.ovr, 0) / team.roster.length) : 0
+  const displayRoster = localDraftRoster || team.roster || []
+  const isLineupDirty = JSON.stringify(displayRoster.map(p => p.id)) !== JSON.stringify((team.roster || []).map(p => p.id))
+  const averageOvr = displayRoster.length ? Math.round(displayRoster.reduce((sum, player) => sum + player.ovr, 0) / displayRoster.length) : 0
 
   async function handleRelease(player) {
     if (!window.confirm(`Release ${player.name} to Free Agents? You will get back $${(player.market_value / 1000000).toFixed(1)}M.`)) return
@@ -196,6 +250,16 @@ export default function DraftSquadsTab() {
   function openPlayerEditor(player) {
     setEditDirty(false)
     setEditPlayer(player)
+    setProfilePlayer({
+      ...player,
+      club: {
+        id: team.club_id,
+        name: team.club_name,
+        short_name: team.short_name,
+        badge_url: team.badge_url,
+        badge_color: team.badge_color,
+      },
+    })
   }
 
   function requestLeavePlayerEditor(action = 'back') {
@@ -215,10 +279,11 @@ export default function DraftSquadsTab() {
     if (action === 'close') setProfilePlayer(null)
   }
 
-  async function saveRosterOrder(roster) {
-    setProcessing(true)
+  async function handleSaveLineup() {
+    if (!localDraftRoster) return
+    setSavingLineup(true)
     try {
-      const newTeams = saveData.teams.map(item => item.club_id === team.club_id ? { ...item, roster } : item)
+      const newTeams = saveData.teams.map(item => item.club_id === team.club_id ? { ...item, roster: localDraftRoster } : item)
       const newSaveData = { ...saveData, teams: newTeams }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
@@ -226,16 +291,39 @@ export default function DraftSquadsTab() {
       console.error('Failed to save lineup', error)
       alert('Failed to save lineup')
     } finally {
-      setProcessing(false)
+      setSavingLineup(false)
     }
   }
 
+  const [animOffsets, setAnimOffsets] = useState({})
+
   function movePlayer(fromIndex, toIndex) {
-    if (toIndex < 0 || toIndex >= team.roster.length || fromIndex === toIndex) return
-    const roster = [...team.roster]
-    const [player] = roster.splice(fromIndex, 1)
-    roster.splice(toIndex, 0, player)
-    saveRosterOrder(roster)
+    const currentRoster = localDraftRoster || team.roster || []
+    if (toIndex < 0 || toIndex >= currentRoster.length || fromIndex === toIndex) return
+
+    const playerMoving = currentRoster[fromIndex]
+    const playerDisplaced = currentRoster[toIndex]
+
+    // Card height + gap ~ 72px
+    const distance = (toIndex - fromIndex) * 72
+
+    // Set immediate physical offset before React DOM re-render (FLIP First step)
+    setAnimOffsets({
+      [playerMoving.id]: -distance,
+      [playerDisplaced.id]: distance,
+    })
+
+    const nextRoster = [...currentRoster]
+    const [player] = nextRoster.splice(fromIndex, 1)
+    nextRoster.splice(toIndex, 0, player)
+    setLocalDraftRoster(nextRoster)
+
+    // Trigger smooth transition back to 0 (FLIP Play step)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setAnimOffsets({})
+      })
+    })
   }
 
   function openRosterPlayer(player) {
@@ -395,6 +483,19 @@ export default function DraftSquadsTab() {
     return { history: [...historyByClub.values()], awards }
   }, [saveData.teams, seasons])
 
+  const teamItemRefs = useRef(new Map())
+
+  useEffect(() => {
+    if (window.innerWidth >= 768) return
+    const activeEl = teamItemRefs.current.get(selectedClubId)
+    if (!activeEl) return
+    const container = activeEl.closest('.overflow-x-auto')
+    if (container) {
+      const targetScrollLeft = activeEl.offsetLeft - (container.clientWidth - activeEl.offsetWidth) / 2
+      container.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
+    }
+  }, [selectedClubId])
+
   return (
     <div className="flex flex-col items-start gap-6 md:flex-row">
       {/* Team Selector Sidebar */}
@@ -405,15 +506,31 @@ export default function DraftSquadsTab() {
             {teamSelectorCollapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
           </button>
         </div>
-        <div className="relative flex gap-2 overflow-x-auto pb-2 hide-scrollbar md:flex-col md:overflow-visible md:pb-0">
+        <div className="relative flex gap-2 overflow-x-auto pb-2 hide-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:flex-col md:overflow-visible md:pb-0">
           <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 hidden h-14 w-full rounded-xl border-2 border-[#FD5461] bg-[#FD5461]/5 shadow-sm shadow-[#FD5461]/10 transition-transform duration-300 ease-out md:block" style={{ transform: `translateY(${Math.max(0, teamIndex) * 64}px)` }} />
           {saveData.teams.map(t => (
-            <div key={t.club_id} className={`group relative z-10 flex h-14 flex-shrink-0 items-center rounded-xl border-2 transition-[background-color,border-color,color] duration-200 hover:z-50 md:w-full md:flex-shrink ${
+            <div key={t.club_id} ref={node => node ? teamItemRefs.current.set(t.club_id, node) : teamItemRefs.current.delete(t.club_id)} className={`group relative z-10 flex h-14 flex-shrink-0 items-center rounded-xl border-2 transition-[background-color,border-color,color] duration-200 hover:z-50 md:w-full md:flex-shrink ${
                 selectedClubId === t.club_id 
                   ? 'border-[#FD5461] bg-[#FD5461]/5 md:border-transparent md:bg-transparent'
-                  : 'border-transparent hover:border-slate-200 hover:bg-slate-100/80'
+                  : 'border-transparent hover:bg-slate-100/80'
               }`}>
-            <button onClick={() => setSearchParams({ team: t.club_id })} title={teamSelectorCollapsed ? t.club_name : undefined} className={`flex h-full min-w-0 flex-1 cursor-pointer items-center text-left transition-[padding,gap] duration-300 ${teamSelectorCollapsed ? 'justify-center gap-0 px-2' : 'gap-3 px-3'}`}>
+            <button
+              onClick={(e) => {
+                if (selectedClubId === t.club_id) {
+                  setEditTeam(t)
+                } else {
+                  setSearchParams({ team: t.club_id })
+                }
+                const btn = e.currentTarget
+                const container = btn.closest('.overflow-x-auto')
+                if (container && window.innerWidth < 768) {
+                  const targetScrollLeft = btn.offsetLeft - (container.clientWidth - btn.offsetWidth) / 2
+                  container.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
+                }
+              }}
+              title={teamSelectorCollapsed ? t.club_name : undefined}
+              className={`flex h-full min-w-0 flex-1 cursor-pointer items-center text-left transition-[padding,gap] duration-300 ${teamSelectorCollapsed ? 'justify-center gap-0 px-2' : 'gap-3 px-3'}`}
+            >
               {t.badge_url ? (
                 <img src={t.badge_url} alt={t.club_name} className="h-8 w-8 shrink-0 object-contain" />
               ) : (
@@ -424,46 +541,58 @@ export default function DraftSquadsTab() {
                 <div className="text-xs font-normal text-gray-500">{t.roster.length} players</div>
               </div>
             </button>
-            <button onClick={() => setEditTeam(t)} aria-label={`Edit ${t.club_name} career budget`} tabIndex={teamSelectorCollapsed ? -1 : 0} className={`flex h-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg text-gray-400 transition-[width,opacity,background-color,color,margin] duration-200 hover:bg-slate-100 hover:text-slate-800 ${teamSelectorCollapsed ? 'pointer-events-none m-0 w-0 opacity-0' : 'mr-2 w-9 opacity-100'}`}><Pencil size={16} strokeWidth={2.25} /></button>
+            <button onClick={() => setEditTeam(t)} aria-label={`Edit ${t.club_name} career budget`} tabIndex={teamSelectorCollapsed ? -1 : 0} className={`hidden md:flex h-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg text-gray-400 transition-[width,opacity,background-color,color,margin] duration-200 hover:bg-slate-100 hover:text-slate-800 ${teamSelectorCollapsed ? 'pointer-events-none m-0 w-0 opacity-0' : 'mr-2 w-9 opacity-100'}`}><Pencil size={16} strokeWidth={2.25} /></button>
             {teamSelectorCollapsed && <span role="tooltip" className="pointer-events-none absolute left-[calc(100%+0.5rem)] top-1/2 z-50 hidden w-max min-w-40 -translate-x-2 -translate-y-1/2 overflow-hidden whitespace-nowrap rounded-xl bg-[#34414A] px-4 py-2.5 text-sm font-medium text-white opacity-0 shadow-xl ring-1 ring-white/10 transition-[opacity,transform] duration-200 ease-out group-hover:translate-x-0 group-hover:opacity-100 md:block">{t.club_name}</span>}
             </div>
           ))}
-          <button type="button" onClick={openClubManager} title="Manage clubs in this save" className={`relative z-10 flex h-12 cursor-pointer items-center rounded-xl border border-dashed border-gray-300 text-sm font-medium text-gray-500 transition-[background-color,border-color,color,transform] duration-200 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98] ${teamSelectorCollapsed ? 'justify-center px-0' : 'gap-3 px-3'}`}>
+          <button type="button" onClick={openClubManager} title="Manage clubs in this save" className={`relative z-10 flex h-12 cursor-pointer items-center rounded-xl border border-transparent text-sm font-medium text-gray-500 transition-[background-color,border-color,color,transform] duration-200 hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98] ${teamSelectorCollapsed ? 'justify-center px-0' : 'gap-3 px-3'}`}>
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100"><Plus size={17} /></span>
-            <span className={`overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200 ${teamSelectorCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>Manage clubs</span>
+            <span className={`hidden md:block overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200 ${teamSelectorCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>Manage clubs</span>
           </button>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 w-full">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 mb-6 pb-4 border-b border-gray-100">
+          <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
             {team.badge_url ? (
-              <img src={team.badge_url} alt={team.club_name} className="w-12 h-12 object-contain" />
+              <img src={team.badge_url} alt={team.club_name} className="w-9 h-9 sm:w-12 sm:h-12 shrink-0 object-contain" />
             ) : (
-              <div className="w-12 h-12 rounded-xl bg-gray-200" />
+              <div className="w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-xl bg-gray-200" />
             )}
-            <div>
-              <h1 className="text-2xl font-heading font-black text-[#0A1318] uppercase tracking-wider leading-none mb-1">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-2xl font-heading font-black text-[#0A1318] uppercase tracking-wider leading-none mb-0.5 sm:mb-1 truncate">
                 {team.club_name}
               </h1>
-              <div className="text-sm font-semibold text-[#FD5461]">
+              <div className="text-xs sm:text-sm font-semibold text-[#FD5461]">
                 Budget: ${(team.budget / 1000000).toFixed(1)}M
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 flex-col items-center gap-1">
+          <div className="shrink-0">
             <OvrBadge value={averageOvr} size="lg" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Avg OVR</span>
           </div>
         </div>
 
-        <SegmentedControl className="mb-6 w-full sm:w-fit" ariaLabel="Team details" value={activeSection} onChange={setActiveSection} items={[
-            { id: 'roster', label: 'Roster', icon: Users },
-            { id: 'lineup', label: 'Lineup', icon: ShieldCheck },
-            { id: 'history', label: 'History', icon: History },
-          ]} />
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <SegmentedControl className="w-full sm:w-fit" ariaLabel="Team details" value={activeSection} onChange={setActiveSection} items={[
+              { id: 'roster', label: 'Roster', icon: Users },
+              { id: 'lineup', label: 'Lineup', icon: ShieldCheck },
+              { id: 'history', label: 'History', icon: History },
+            ]} />
+
+          {activeSection === 'lineup' && (
+            <Button
+              size="sm"
+              disabled={!isLineupDirty || savingLineup}
+              onClick={handleSaveLineup}
+              className="rounded-xl px-5 py-2.5 font-heading text-xs font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-40"
+            >
+              {savingLineup ? 'Saving...' : isLineupDirty ? 'Save Lineup' : 'Saved'}
+            </Button>
+          )}
+        </div>
 
         {activeSection === 'roster' && <div className={`player-card-grid transition-opacity ${processing ? 'opacity-50' : 'opacity-100'}`}>
           {[...team.roster].sort((a,b) => b.ovr - a.ovr).map(p => {
@@ -485,6 +614,7 @@ export default function DraftSquadsTab() {
                 onEdit={() => openPlayerEditor(player)}
                 onDelete={() => handleRelease(player)} 
                 deleteLabel="Release"
+                onSign={() => openSigningModal(player)}
               />
             )
           })}
@@ -498,32 +628,92 @@ export default function DraftSquadsTab() {
 
         {activeSection === 'lineup' && (
           <div className={`transition-opacity ${processing ? 'pointer-events-none opacity-50' : ''}`}>
-            {[{ title: 'Starting 5', start: 0, count: 5 }, { title: `Substitutes · ${Math.max(0, team.roster.length - 5)}`, start: 5, count: Math.max(7, team.roster.length - 5) }].map((section, sectionIndex) => (
+            {[{ title: 'Starting 5', start: 0, count: 5 }, { title: `Substitutes · ${Math.max(0, displayRoster.length - 5)}`, start: 5, count: Math.max(7, displayRoster.length - 5) }].map((section, sectionIndex) => (
               <div key={section.title} className={sectionIndex ? 'mt-6' : ''}>
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-500">{section.title}</span>
-                  {!sectionIndex && <span className="text-sm text-gray-400">{Math.min(team.roster.length, 5)} / 5</span>}
+                  {!sectionIndex && <span className="text-sm text-gray-400">{Math.min(displayRoster.length, 5)} / 5</span>}
                 </div>
                 <div className="space-y-2">
                   {Array.from({ length: section.count }, (_, localIndex) => {
                     const playerIndex = section.start + localIndex
-                    const player = team.roster[playerIndex]
+                    const player = displayRoster[playerIndex]
                     if (!player) return <div key={`empty-${section.start}-${localIndex}`} onDragOver={event => event.preventDefault()} onDrop={() => playerIndex < team.roster.length && dropPlayerAt(playerIndex)} className="flex min-h-16 items-center rounded-2xl border border-dashed border-gray-200 px-4 text-sm text-gray-300">Empty</div>
-                    return <div key={player.id} onDragOver={event => event.preventDefault()} onDrop={() => dropPlayerAt(playerIndex)} className={`flex min-h-16 items-center rounded-2xl border bg-white pr-3 transition-[border-color,background-color,opacity,transform] duration-200 hover:border-slate-300 hover:bg-slate-50 ${draggedPlayerIndex === playerIndex ? 'scale-[0.99] border-[#FD5461] opacity-50' : 'border-gray-200'}`}>
-                      <span draggable onDragStart={() => setDraggedPlayerIndex(playerIndex)} onDragEnd={() => setDraggedPlayerIndex(null)} title="Drag to reorder" className="flex h-16 w-11 shrink-0 cursor-grab touch-none items-center justify-center text-slate-400 transition-colors hover:text-slate-700 active:cursor-grabbing"><GripVertical size={19} /></span>
-                      <button type="button" onClick={() => openRosterPlayer(player)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-3 text-left">
-                        {player.photo_url ? <img src={player.photo_url} alt="" className="h-10 w-10 rounded-full object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-sm text-gray-400">{player.name?.charAt(0)}</span>}
-                        <span className="min-w-0"><span className="block truncate text-sm font-semibold text-[#0A1318]">{player.name}</span><span className="mt-0.5 block text-xs text-gray-500">{player.position} · OVR {player.ovr}</span></span>
+                    const offset = animOffsets[player.id] || 0
+                    return (
+                      <div
+                        key={player.id}
+                        onDragOver={event => event.preventDefault()}
+                        onDrop={() => dropPlayerAt(playerIndex)}
+                        style={{
+                          transform: `translate3d(0, ${offset}px, 0)`,
+                          transition: offset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms',
+                        }}
+                        className={`flex min-h-16 items-center rounded-2xl border bg-white pr-3 hover:border-slate-300 hover:bg-slate-50 ${draggedPlayerIndex === playerIndex ? 'scale-[0.99] border-[#FD5461] opacity-50' : 'border-gray-200'}`}
+                      >
+                      {/* Stacked Up/Down Reorder Control */}
+                      <div className="flex h-16 w-10 shrink-0 flex-col items-center justify-center gap-0.5 pl-2 pr-1">
+                        <button
+                          type="button"
+                          disabled={playerIndex === 0}
+                          onClick={(e) => { e.stopPropagation(); movePlayer(playerIndex, playerIndex - 1) }}
+                          aria-label={`Move ${player.name} up`}
+                          className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+                        >
+                          <ChevronUp size={15} strokeWidth={2.5} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={playerIndex >= team.roster.length - 1}
+                          onClick={(e) => { e.stopPropagation(); movePlayer(playerIndex, playerIndex + 1) }}
+                          aria-label={`Move ${player.name} down`}
+                          className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+                        >
+                          <ChevronDown size={15} strokeWidth={2.5} />
+                        </button>
+                      </div>
+
+                      {/* OVR Badge (Placed on the left before Photo Avatar) */}
+                      <div className="flex-shrink-0 ml-1 mr-0.5">
+                        <OvrBadge value={player.ovr} size="sm" />
+                      </div>
+
+                      <button type="button" onClick={() => openRosterPlayer(player)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-3 pl-2 text-left">
+                        {/* Avatar */}
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
+                          {player.photo_url
+                            ? <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center font-medium text-gray-400 text-sm">{player.name?.charAt(0)}</div>
+                          }
+                        </div>
+
+                        {/* Name + Flag + Position */}
+                        <div className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5 truncate text-sm font-bold text-[#0A1318]">
+                            {player.name}
+                            {sectionIndex === 0 && localIndex === 0 && (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#FD5461] text-[10px] font-black text-white flex-shrink-0 shadow-xs" title="Captain">C</span>
+                            )}
+                          </span>
+                          <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                            <PositionBadge position={player.position} />
+                            {(() => {
+                              const code = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
+                              return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3.5 w-6 shrink-0 rounded-[2px] object-cover ring-1 ring-black/10" alt={player.nationality} title={player.nationality} /> : null
+                            })()}
+                            {player.age && <span className="text-xs text-gray-400">{player.age} yrs</span>}
+                          </span>
+                        </div>
                       </button>
-                      <div className="ml-3 flex shrink-0 items-center gap-1.5">
+                      <div className="hidden sm:flex ml-3 shrink-0 items-center gap-1.5">
                         {sectionIndex === 0
                           ? <Button variant="outline" size="sm" disabled={team.roster.length <= 5} onClick={() => movePlayer(playerIndex, 5)}>To bench</Button>
                           : <Button variant="outline" size="sm" onClick={() => movePlayer(playerIndex, 4)}>Make starter</Button>}
                         <Button variant="ghost" size="sm" aria-label={`Edit ${player.name}`} title="Edit player" onClick={() => openPlayerEditor(player)}><Pencil size={16} /></Button>
-                        <Button variant="ghost" size="sm" aria-label={`Release ${player.name}`} title="Release player" onClick={() => handleRelease(player)}><Trash2 size={16} /></Button>
                       </div>
                     </div>
-                  })}
+                  )
+                })}
                 </div>
               </div>
             ))}
@@ -564,7 +754,7 @@ export default function DraftSquadsTab() {
           <div className="grid gap-6 lg:grid-cols-2">
             <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
               <div className="border-b border-gray-100 px-5 py-4"><h2 className="text-base font-semibold">Competition history</h2></div>
-              <div className="grid grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)] border-b border-gray-100 bg-slate-50 px-5 py-3 text-xs font-medium text-gray-500"><span>Season</span><span>League</span><span>Cup</span></div>
+              <div className="grid grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)] border-b border-gray-100 bg-white px-5 py-3 text-xs font-medium text-gray-500"><span>Season</span><span>League</span><span>Cup</span></div>
               <div className="divide-y divide-gray-100">
                 {competitionHistory.map(entry => <div key={entry.number} className="grid min-h-20 grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 px-5 py-4"><span className="text-sm font-semibold">Season {entry.number}</span>{entry.league ? <span className="min-w-0"><span className="block truncate text-xs text-gray-500">{entry.league.name}</span><span className="mt-1 block text-sm font-semibold text-[#0A1318]">{entry.league.result}</span></span> : <span className="text-sm text-gray-300">—</span>}{entry.cup ? <span className="min-w-0"><span className="block truncate text-xs text-gray-500">{entry.cup.name}</span><span className={`mt-1 block text-sm font-semibold ${entry.cup.result === 'Champion' ? 'text-[#FD5461]' : 'text-[#0A1318]'}`}>{entry.cup.result}</span></span> : <span className="text-sm text-gray-300">—</span>}</div>)}
                 {!competitionHistory.length && <div className="px-5 py-10 text-center text-sm text-gray-400">No competition history yet.</div>}
@@ -580,7 +770,7 @@ export default function DraftSquadsTab() {
               </section>
               <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                 <div className="border-b border-gray-100 px-5 py-4"><h2 className="text-base font-semibold">Club player records</h2><div className="mt-3 flex gap-1.5">{[{ id: 'goals', label: 'Goals' }, { id: 'assists', label: 'Assists' }, { id: 'mvps', label: 'MVP Awards' }].map(option => <button key={option.id} onClick={() => setClubRecordMetric(option.id)} className={`min-h-9 cursor-pointer rounded-full px-4 text-xs font-medium transition-colors ${clubRecordMetric === option.id ? 'bg-[#FD5461] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{option.label}</button>)}</div></div>
-                <div className="divide-y divide-gray-100">{clubPlayerRecords.map((record, index) => <div key={record.player.id} className="flex min-h-16 items-center gap-3 px-5 py-3"><span className="w-5 text-center text-xs font-medium text-gray-400">{index + 1}</span>{record.player.photo_url ? <img src={record.player.photo_url} alt="" className="h-9 w-9 rounded-full object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs text-gray-400">{record.player.name?.charAt(0)}</span>}<span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{record.player.name}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">{record.currentClub ? <><span className="flex h-4 w-4 items-center justify-center rounded text-[6px] font-semibold text-white" style={{ backgroundColor: record.currentClub.badge_color || '#34414A' }}>{(record.currentClub.short_name || record.currentClub.club_name).slice(0, 2).toUpperCase()}</span><span className="truncate">{record.currentClub.club_name}</span></> : <span>Free Agent</span>}</span></span><span className="text-base font-semibold tabular-nums text-[#FD5461]">{record.value}</span></div>)}</div>
+                <div className="divide-y divide-gray-100">{clubPlayerRecords.map((record, index) => <div key={record.player.id} className="flex min-h-16 items-center gap-3 px-5 py-3"><span className="w-5 text-center text-xs font-medium text-gray-400">{index + 1}</span>{record.player.photo_url ? <img src={record.player.photo_url} alt="" className="h-9 w-9 rounded-full object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs text-gray-400">{record.player.name?.charAt(0)}</span>}<span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{record.player.name}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">{record.currentClub ? <>{record.currentClub.badge_url ? <img src={record.currentClub.badge_url} alt="" className="h-4 w-4 shrink-0 object-contain" /> : <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[6px] font-semibold text-white" style={{ backgroundColor: record.currentClub.badge_color || '#34414A' }}>{(record.currentClub.short_name || record.currentClub.club_name).slice(0, 2).toUpperCase()}</span>}<span className="truncate">{record.currentClub.club_name}</span></> : <span>Free Agent</span>}</span></span><span className="text-base font-semibold tabular-nums text-[#FD5461]">{record.value}</span></div>)}</div>
               </section>
             </div>
           </div>
@@ -610,6 +800,94 @@ export default function DraftSquadsTab() {
       <Modal open={Boolean(discardAction)} onClose={() => setDiscardAction(null)} title="Discard unsaved changes?">
         <p className="text-sm text-gray-500">Your edits have not been saved. If you go back now, these changes will be lost.</p>
         <div className="mt-6 flex justify-end gap-3"><Button variant="outline" onClick={() => setDiscardAction(null)}>Keep editing</Button><Button onClick={confirmDiscardPlayerChanges}>Discard changes</Button></div>
+      </Modal>
+
+      {/* Sign Player Modal */}
+      <Modal open={!!signingPlayer} onClose={() => { setSigningPlayer(null); setSigningClubId('') }} title="Sign Player" width="max-w-md">
+        {signingPlayer && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-4 flex items-center justify-between gap-3 border border-gray-100">
+              <div className="flex items-center gap-3.5 min-w-0">
+                {/* Photo avatar */}
+                <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
+                  {signingPlayer.photo_url ? (
+                    <img src={signingPlayer.photo_url} alt={signingPlayer.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-bold text-gray-400 text-base">
+                      {signingPlayer.name?.charAt(0)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Name + flag + club + age */}
+                <div className="min-w-0">
+                  <div className="text-base font-bold text-[#0A1318] truncate">{signingPlayer.name}</div>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    {(() => {
+                      const code = FIFA_NATIONS.find(n => n.name === signingPlayer.nationality)?.code
+                      return code ? <img src={`https://flagcdn.com/${code}.svg`} alt={signingPlayer.nationality} className="h-4 w-6 shrink-0 rounded-sm object-cover ring-1 ring-black/10" /> : null
+                    })()}
+                    {signingPlayer.club ? (
+                      <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                        {signingPlayer.club.badge_url ? (
+                          <img src={signingPlayer.club.badge_url} alt="" className="h-4 w-4 object-contain shrink-0" />
+                        ) : null}
+                        <span>{signingPlayer.club.name}</span>
+                      </span>
+                    ) : <FreeAgentIcon size={20} />}
+                    {signingPlayer.age && <span className="text-xs text-gray-400">{signingPlayer.age} yrs</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* OVR & Position Badge */}
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <OvrBadge value={signingPlayer.ovr} size="md" />
+                <PositionBadge position={signingPlayer.position} />
+              </div>
+            </div>
+
+            <ClubSelect
+              label="Select Club"
+              value={signingClubId}
+              onChange={setSigningClubId}
+              clubs={saveData.teams.filter(t => (t.budget > 0 || t.club_id === signingClubId) && t.club_id !== signingPlayer.club?.id).map(t => ({
+                ...t,
+                id: t.club_id,
+                name: `${t.club_name}  ·  $${formatCurrency(t.budget)}  ·  ${t.roster?.length || 0} players`,
+                short_name: t.short_name || t.club_name.slice(0, 3).toUpperCase(),
+              }))}
+            />
+
+            <div>
+              <label className="mb-1 block text-xs font-heading font-bold uppercase tracking-wider text-gray-500">Transfer Fee</label>
+              <div className="flex items-center gap-1.5">
+                {[-10, -5].map(amount => <button key={amount} type="button" onClick={() => { const value = Math.max(0, agreedFee + amount * 1_000_000); setAgreedFee(value); setFeeDisplay((value / 1_000_000).toFixed(1)) }} className="h-9 rounded-lg border border-gray-200 px-2 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">{amount}</button>)}
+                <div className="relative min-w-[90px] flex-1"><input type="number" min="0" step="0.1" value={feeDisplay} onChange={event => { setFeeDisplay(event.target.value); setAgreedFee(Math.max(0, Math.round(Number(event.target.value || 0) * 1_000_000))) }} onBlur={() => setFeeDisplay((agreedFee / 1_000_000).toFixed(1))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-8 text-center font-heading font-bold focus:border-[#FD5461] focus:outline-none" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">M</span></div>
+                {[5, 10].map(amount => <button key={amount} type="button" onClick={() => { const value = agreedFee + amount * 1_000_000; setAgreedFee(value); setFeeDisplay((value / 1_000_000).toFixed(1)) }} className="h-9 rounded-lg border border-gray-200 px-2 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+{amount}</button>)}
+              </div>
+            </div>
+
+            {(() => {
+              const selectedTeam = saveData.teams.find(t => t.club_id === signingClubId)
+              if (!selectedTeam) return null
+              const budgetAfter = selectedTeam.budget - agreedFee
+              return (
+                <p className={`text-sm font-medium ${budgetAfter < 0 ? 'text-red-500 font-bold' : 'text-[#FD5461]'}`}>
+                  Budget after signing: {budgetAfter < 0 ? `-$${formatCurrency(Math.abs(budgetAfter))}` : `$${formatCurrency(budgetAfter)}`}
+                </p>
+              )
+            })()}
+
+            <Button
+              className="w-full justify-center py-4 text-base"
+              onClick={handleSign}
+              disabled={!signingClubId || processing}
+            >
+              {processing ? 'Processing...' : `Confirm Signing`}
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   )

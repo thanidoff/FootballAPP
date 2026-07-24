@@ -24,15 +24,15 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
   const [saving, setSaving]     = useState(false)
   const [seeding, setSeeding]   = useState(false)
   const [search, setSearch]   = useState('')
-  const [nameSort, setNameSort] = useState('asc') // 'asc' | 'desc'
-  const [ovrSort, setOvrSort]   = useState(null)  // null | 'desc' | 'asc'
+  const [nameSort, setNameSort] = useState(null) // 'asc' | 'desc'
+  const [ovrSort, setOvrSort]   = useState('desc') // 'desc' | 'asc'
 
   useEffect(() => {
     if (!open) return
     setSelected(new Set())
     setSearch('')
-    setNameSort('asc')
-    setOvrSort(null)
+    setNameSort(null)
+    setOvrSort('desc')
     setLoading(true)
     Promise.all([
       isClub ? fetchClubTeams() : fetchNationalTeams(),
@@ -147,13 +147,16 @@ export default function WorldCupSetupModal({ open, onClose, onCreate, mode = 'na
 
         {/* Search + Sort */}
         <div className="px-6 pb-3 flex-shrink-0 flex gap-2">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="ค้นหาทีม..."
-            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-400 transition-colors"
-          />
+          <div className="flex-1 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-gray-900/20 transition-all">
+            <Search size={16} className="text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="ค้นหาทีม..."
+              className="w-full bg-transparent text-sm focus:outline-none"
+            />
+          </div>
           <button
             onClick={() => { setNameSort(s => s === 'asc' ? 'desc' : 'asc'); setOvrSort(null) }}
             className={`px-3 py-2 rounded-xl border text-[10px] font-heading font-black uppercase tracking-widest transition-colors cursor-pointer whitespace-nowrap

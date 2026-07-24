@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { Plus, Minus } from 'lucide-react'
 import {
   POSITIONS, POSITION_LABELS, STATS_BY_POSITION, STAT_LABELS,
   ALL_STATS, calculateOVR, getDefaultStats, normalizeStats, STAT_MAX,
@@ -11,8 +11,11 @@ import ImageUploadCrop from '../ui/ImageUploadCrop'
 import ClubSelect from '../ui/ClubSelect'
 import NationalityInput from '../ui/NationalityInput'
 
+import OvrBadge from '../ui/OvrBadge'
+
+const POS_COLORS = { GK: '#f59e0b', DEF: '#3b82f6', MF: '#22c55e', FWD: '#FD5461' }
+
 export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [], onDirtyChange }) {
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [form, setForm] = useState(() => {
     if (initialValues) return { ...initialValues, stats: normalizeStats(initialValues.stats) }
     const pos = 'FWD'
@@ -38,8 +41,7 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
     onDirtyChange?.(JSON.stringify(form) !== initialSnapshot.current)
   }, [form, onDirtyChange])
 
-  const statKeys = STATS_BY_POSITION[form.position]
-  const hiddenStatKeys = ALL_STATS.filter(key => !statKeys.includes(key))
+  const statKeys = STATS_BY_POSITION[form.position] || ALL_STATS
   const ovr = calculateOVR(form.position, form.stats)
 
   function handlePositionChange(e) {
@@ -98,14 +100,35 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
           value={form.nationality}
           onChange={(val) => setForm((f) => ({ ...f, nationality: val }))}
         />
-        <Input
-          label="Age"
-          type="number"
-          min={15}
-          max={45}
-          value={form.age}
-          onChange={(e) => setForm((f) => ({ ...f, age: parseInt(e.target.value) || 22 }))}
-        />
+        {/* Age with +/- buttons */}
+        <div className="relative">
+          <Input
+            label="Age"
+            type="number"
+            min={15}
+            max={45}
+            value={form.age}
+            onChange={(e) => setForm((f) => ({ ...f, age: parseInt(e.target.value) || 22 }))}
+            className="text-center px-9"
+          />
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, age: Math.max(15, (f.age || 22) - 1) }))}
+            className="absolute left-1.5 top-[31px] flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+            title="Decrease Age"
+          >
+            <Minus size={14} strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, age: Math.min(45, (f.age || 22) + 1) }))}
+            className="absolute right-1.5 top-[31px] flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+            title="Increase Age"
+          >
+            <Plus size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+
         <Select
           label="Position"
           value={form.position}
@@ -115,6 +138,8 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
             <option key={key} value={key}>{POSITION_LABELS[key]}</option>
           ))}
         </Select>
+
+        {/* Market Value with +/- 5M buttons */}
         <div className="relative">
           <Input
             label="Market Value"
@@ -133,12 +158,38 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
               setMvDisplay(num.toFixed(1))
               setForm((f) => ({ ...f, market_value: Math.round(num * 1_000_000) }))
             }}
-            className="pr-10"
+            className="text-center px-16"
             placeholder="0.00"
           />
-          <span className="pointer-events-none absolute right-3 top-[38px] flex items-center text-sm font-heading font-bold text-gray-400">
-            M
-          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const curr = parseFloat(mvDisplay) || 0
+              const next = Math.max(0, curr - 5)
+              setMvDisplay(next.toFixed(1))
+              setForm((f) => ({ ...f, market_value: Math.round(next * 1_000_000) }))
+            }}
+            className="absolute left-1.5 top-[31px] flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+            title="Decrease by 5M"
+          >
+            <Minus size={14} strokeWidth={2.5} />
+          </button>
+          <div className="absolute right-1.5 top-[31px] flex items-center gap-1">
+            <span className="text-xs font-heading font-bold text-gray-400 mr-0.5">M</span>
+            <button
+              type="button"
+              onClick={() => {
+                const curr = parseFloat(mvDisplay) || 0
+                const next = curr + 5
+                setMvDisplay(next.toFixed(1))
+                setForm((f) => ({ ...f, market_value: Math.round(next * 1_000_000) }))
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+              title="Increase by 5M"
+            >
+              <Plus size={14} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
         <div className="col-span-2">
           <ClubSelect
@@ -156,9 +207,10 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
           <p className="text-xs font-heading font-bold tracking-wider uppercase text-gray-500">
             Attributes
           </p>
-          <span className="text-lg font-semibold tabular-nums text-gray-900">
-            OVR {ovr}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="font-heading text-xs font-bold uppercase tracking-wider text-gray-400 mr-1">OVR</span>
+            <OvrBadge value={ovr} size="md" />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {statKeys.map((key) => (
@@ -179,40 +231,6 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
               </div>
             </div>
           ))}
-        </div>
-        <button
-          type="button"
-          aria-expanded={advancedOpen}
-          onClick={() => setAdvancedOpen(value => !value)}
-          className="mt-4 flex min-h-10 w-full cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-600 transition-[background-color,border-color,color,transform] duration-200 hover:border-gray-300 hover:bg-slate-50 active:scale-[0.99]"
-        >
-          <span>Advanced attributes</span>
-          <ChevronDown size={17} className={`transition-transform duration-200 ${advancedOpen ? 'rotate-180' : ''}`} />
-        </button>
-        <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${advancedOpen ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-          <div className="overflow-hidden" aria-hidden={!advancedOpen} inert={!advancedOpen}>
-            <p className="mb-3 text-xs leading-5 text-gray-500">
-              Hidden attributes are used when this player takes a different position during a match.
-            </p>
-            <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4">
-              {hiddenStatKeys.map(key => (
-                <div key={key}>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                    {key} <span className="font-normal normal-case text-gray-400">· {STAT_LABELS[key]}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min={1}
-                    max={STAT_MAX}
-                    value={form.stats[key] ?? 50}
-                    onChange={event => handleStatChange(key, event.target.value)}
-                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-[#FD5461]"
-                  />
-                  <div className="mt-0.5 text-right text-xs font-medium text-gray-600">{form.stats[key] ?? 50}</div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 

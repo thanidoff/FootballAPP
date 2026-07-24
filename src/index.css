@@ -193,7 +193,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes modalSlideUp {
-  from { opacity: 0; transform: translateY(0.75rem) scale(0.985); }
+  from { opacity: 0; transform: translateY(1rem) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -222,7 +222,7 @@ h1, h2, h3, h4, h5, h6 {
 
 @keyframes modalOut {
   from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(0.5rem) scale(0.985); }
+  to { opacity: 0; transform: translateY(0.75rem) scale(0.97); }
 }
 
 @keyframes drawerIn {
@@ -284,10 +284,10 @@ h1, h2, h3, h4, h5, h6 {
 .duration-500,
 .duration-700 { transition-duration: var(--motion-slow) !important; }
 
-.ui-overlay-enter { animation: fadeIn var(--motion-normal) var(--ease-enter) both; }
-.ui-overlay-exit { animation: overlayOut var(--motion-fast) var(--ease-exit) both; }
-.ui-modal-enter { animation: modalSlideUp var(--motion-slow) var(--ease-enter) both; }
-.ui-modal-exit { animation: modalOut var(--motion-fast) var(--ease-exit) both; }
+.ui-overlay-enter { animation: fadeIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ui-overlay-exit { animation: overlayOut 220ms var(--ease-exit) both; }
+.ui-modal-enter { animation: modalSlideUp 360ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ui-modal-exit { animation: modalOut 220ms var(--ease-exit) both; }
 .ui-drawer-enter { animation: drawerIn var(--motion-slow) var(--ease-enter) both; }
 .ui-drawer-exit { animation: drawerOut var(--motion-fast) var(--ease-exit) both; }
 .ui-tab-content-enter { animation: tabContentIn var(--motion-normal) var(--ease-enter) both; }
@@ -308,7 +308,7 @@ h1, h2, h3, h4, h5, h6 {
    container width instead of viewport breakpoints (important beside sidebars). */
 .player-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
   align-items: stretch;
   gap: 1rem;
 }

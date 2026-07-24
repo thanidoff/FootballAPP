@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { loadDraftState } from '../../services/draftSave'
 import { resetFriendlyData, resetWorldCupData, resetLeagueData, resetAllMatchData, releaseAllPlayers } from '../../services/admin'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 import { LogOut } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
+import ScrollToTop from './ScrollToTop'
 
 const NAV_ITEMS = [
   { to: '/players', label: 'Players' },
@@ -146,11 +148,38 @@ export default function Layout() {
   const [adminOpen, setAdminOpen] = useState(false)
   const menuRef = useRef(null)
   const location = useLocation()
+  const navigate = useNavigate()
 
-  // Close menu on route change
-  useEffect(() => { setMenuOpen(false) }, [location.pathname])
+  // Detect if inside an active career save mode: /draft/:saveId/... or via location.state.saveId
+  const pathSaveMatch = location.pathname.match(/^\/draft\/([^\/]+)/)
+  const saveId = (pathSaveMatch && pathSaveMatch[1] !== 'setup' && pathSaveMatch[1] !== 'roll') 
+    ? pathSaveMatch[1] 
+    : (location.state?.saveId || null)
+  const isSaveMode = Boolean(saveId)
+  const [saveData, setSaveData] = useState(null)
 
-  // Close menu on outside click
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!saveId || saveId === 'new') {
+      setSaveData(null)
+      return
+    }
+    let mounted = true
+    async function fetchSaveHeader() {
+      try {
+        const data = await loadDraftState(saveId)
+        if (mounted && data) setSaveData(data)
+      } catch {
+        // silent fallback
+      }
+    }
+    fetchSaveHeader()
+    return () => { mounted = false }
+  }, [saveId, location.pathname])
+
   useEffect(() => {
     if (!menuOpen) return
     function handleClick(e) {
@@ -160,96 +189,145 @@ export default function Layout() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [menuOpen])
 
+  const seasons = saveData?.settings?.seasons || []
+  const activeSeasonIndex = seasons.findIndex(season => season.status === 'active')
+  const displayedSeasonIndex = activeSeasonIndex >= 0 ? activeSeasonIndex : Math.max(0, seasons.length - 1)
+  const displayedSeasonNumber = seasons[displayedSeasonIndex]?.id || displayedSeasonIndex + 1
+
   return (
     <div className="min-h-screen bg-[#FEFEFE]">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 bg-[#FD5461] rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" stroke="white" strokeWidth="1.5"/>
-                <path d="M8 1.5c0 0 1.5 2.5 0 6.5s0 6.5 0 6.5M1.5 8h13M3 3.5c0 0 2.5 1.5 5 1.5s5-1.5 5-1.5M3 12.5c0 0 2.5-1.5 5-1.5s5 1.5 5 1.5" stroke="white" strokeWidth="1"/>
-              </svg>
-            </div>
-            <span className="font-heading font-black text-lg uppercase tracking-wide text-[#0A1318] leading-tight">
-              Football<br className="sm:hidden" /> Manager
-            </span>
-          </div>
+        <div className="w-full px-4 sm:px-8 h-14 flex items-center justify-between">
+          {isSaveMode && saveData ? (
+            /* Save Mode Header: Replaces standard header inside career saves */
+            <>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 bg-[#FD5461] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="7" stroke="white" strokeWidth="1.5"/>
+                    <path d="M8 1.5c0 0 1.5 2.5 0 6.5s0 6.5 0 6.5M1.5 8h13M3 3.5c0 0 2.5 1.5 5 1.5s5-1.5 5-1.5M3 12.5c0 0 2.5-1.5 5-1.5s5 1.5 5 1.5" stroke="white" strokeWidth="1"/>
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="font-heading font-black text-base uppercase tracking-wide text-[#0A1318] truncate leading-tight">
+                    {saveData.name}
+                  </div>
+                  <div className="text-[11px] font-semibold text-gray-400">
+                    Season {displayedSeasonNumber} <span className="mx-1 text-[#FD5461]">·</span> Week {saveData.currentWeek || 1}
+                  </div>
+                </div>
+              </div>
 
-          {/* Desktop nav */}
-          <nav className="hidden sm:flex items-center gap-1">
-            {NAV_ITEMS.map(({ to, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `px-4 py-1.5 rounded-lg text-sm font-heading font-bold uppercase tracking-wide transition-colors
-                  ${isActive ? 'bg-[#FD5461] text-white' : 'text-gray-500 hover:text-[#0A1318] hover:bg-gray-100'}`
-                }
-              >
-                {label}
-              </NavLink>
-            ))}
-            <button onClick={() => setAdminOpen(true)}
-              className="w-8 h-8 ml-1 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
-              title="Admin">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
-            </button>
-            <NavLink
-              to="/draft"
-              className="ml-2 inline-flex items-center rounded-lg bg-[#FD5461] px-4 py-2 text-sm font-heading font-black uppercase tracking-wide text-white shadow-sm shadow-red-500/25 transition-colors hover:bg-red-500"
-            >
-              Play Game
-            </NavLink>
-          </nav>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => navigate('/draft')}
+                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-gray-100 px-3.5 py-1.5 text-xs font-semibold text-[#0A1318] transition-colors hover:bg-slate-200 shrink-0"
+                >
+                  <LogOut size={14} strokeWidth={2} />
+                  Exit Save
+                </button>
+              </div>
+            </>
+          ) : (
+            /* Main Global App Header (Outside Save) */
+            <>
+              {/* Logo */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 bg-[#FD5461] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="7" stroke="white" strokeWidth="1.5"/>
+                    <path d="M8 1.5c0 0 1.5 2.5 0 6.5s0 6.5 0 6.5M1.5 8h13M3 3.5c0 0 2.5 1.5 5 1.5s5-1.5 5-1.5M3 12.5c0 0 2.5-1.5 5-1.5s5 1.5 5 1.5" stroke="white" strokeWidth="1"/>
+                  </svg>
+                </div>
+                <span className="font-heading font-black text-sm sm:text-lg uppercase tracking-wide text-[#0A1318] leading-tight whitespace-nowrap">
+                  Football Manager
+                </span>
+              </div>
 
-          {/* Mobile hamburger */}
-          <div className="sm:hidden relative" ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen(o => !o)}
-              className="w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
-              <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? 'opacity-0' : ''}`} />
-              <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
-            </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 top-11 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
-                style={{ animation: 'dropDown 0.2s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}>
+              {/* Desktop nav */}
+              <nav className="hidden sm:flex items-center gap-1">
                 {NAV_ITEMS.map(({ to, label }) => (
                   <NavLink
                     key={to}
                     to={to}
                     className={({ isActive }) =>
-                      `block px-4 py-3 text-sm font-heading font-bold uppercase tracking-wide transition-colors
-                      ${isActive ? 'text-[#FD5461] bg-red-50' : 'text-[#0A1318] hover:bg-gray-50'}`
+                      `px-4 py-1.5 rounded-lg text-sm font-heading font-bold uppercase tracking-wide transition-colors
+                      ${isActive ? 'bg-[#FD5461] text-white' : 'text-gray-500 hover:text-[#0A1318] hover:bg-gray-100'}`
                     }
                   >
                     {label}
                   </NavLink>
                 ))}
-                <button onClick={() => { setMenuOpen(false); setAdminOpen(true) }}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm font-heading font-bold uppercase tracking-wide text-gray-400 hover:bg-gray-50 transition-colors cursor-pointer border-t border-gray-100">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <button onClick={() => setAdminOpen(true)}
+                  className="w-8 h-8 ml-1 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  title="Admin">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="3"/>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                   </svg>
-                  Admin
                 </button>
+                <NavLink
+                  to="/draft"
+                  className="ml-2 inline-flex items-center rounded-lg bg-[#FD5461] px-4 py-2 text-sm font-heading font-black uppercase tracking-wide text-white shadow-sm shadow-red-500/25 transition-colors hover:bg-red-500"
+                >
+                  Play Game
+                </NavLink>
+              </nav>
+
+              {/* Mobile hamburger */}
+              <div className="sm:hidden relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen(o => !o)}
+                  className="w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
+                  <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? 'opacity-0' : ''}`} />
+                  <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+                </button>
+
+                {menuOpen && (
+                  <div className="absolute right-0 top-11 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+                    style={{ animation: 'dropDown 0.2s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}>
+                    {NAV_ITEMS.map(({ to, label }) => (
+                      <NavLink
+                        key={to}
+                        to={to}
+                        className={({ isActive }) =>
+                          `block px-4 py-3 text-sm font-heading font-bold uppercase tracking-wide transition-colors
+                          ${isActive ? 'text-[#FD5461] bg-red-50' : 'text-[#0A1318] hover:bg-gray-50'}`
+                        }
+                      >
+                        {label}
+                      </NavLink>
+                    ))}
+                    <button onClick={() => { setMenuOpen(false); setAdminOpen(true) }}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm font-heading font-bold uppercase tracking-wide text-gray-400 hover:bg-gray-50 transition-colors cursor-pointer border-t border-gray-100">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                      </svg>
+                      Admin
+                    </button>
+                    <div className="p-2 border-t border-gray-100">
+                      <NavLink
+                        to="/draft"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex w-full items-center justify-center rounded-xl bg-[#FD5461] px-4 py-2.5 text-center text-sm font-heading font-black uppercase tracking-wide text-white shadow-sm shadow-red-500/25 transition-colors hover:bg-red-500"
+                      >
+                        Play Game
+                      </NavLink>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </header>
 
       <AdminDrawer open={adminOpen} onClose={() => setAdminOpen(false)} />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8">
+      <main className="w-full p-4 sm:px-8 sm:py-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div
           key={location.pathname.startsWith('/draft/') ? 'draft-career' : location.pathname}
           className={location.pathname.startsWith('/draft/') ? undefined : 'ui-tab-content-enter'}
@@ -257,6 +335,8 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      <ScrollToTop />
 
       <style>{`
         @keyframes dropDown {

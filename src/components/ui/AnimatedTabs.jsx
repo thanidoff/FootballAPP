@@ -10,12 +10,29 @@ export default function AnimatedTabs({ items, value, onChange, ariaLabel = 'Sect
     const container = containerRef.current
     const active = itemRefs.current.get(value)
     if (!container || !active) return undefined
-    const update = () => setIndicator({ left: active.offsetLeft, width: active.offsetWidth, ready: true })
+
+    const update = () => {
+      setIndicator({
+        left: active.offsetLeft,
+        width: active.offsetWidth,
+        ready: true,
+      })
+    }
+
     update()
+
+    // Auto scroll active tab into view smoothly so surrounding tabs remain visible
+    const targetScrollLeft = active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2
+    container.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
+
     const observer = new ResizeObserver(update)
     observer.observe(container)
     observer.observe(active)
-    return () => observer.disconnect()
+    container.addEventListener('scroll', update, { passive: true })
+    return () => {
+      observer.disconnect()
+      container.removeEventListener('scroll', update)
+    }
   }, [value, items])
 
   return (
@@ -27,7 +44,7 @@ export default function AnimatedTabs({ items, value, onChange, ariaLabel = 'Sect
           role: 'tab',
           'aria-selected': active,
           className: `relative z-10 flex min-h-11 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap px-4 pb-2 pt-1 text-sm ui-transition-normal transition-colors ${active ? 'font-semibold text-[#0A1318]' : 'font-normal text-gray-400 hover:text-gray-700'} ${itemClassName}`,
-          children: item.label,
+          children: <span>{item.label}</span>,
         }
         return item.to
           ? <Link key={item.id} to={item.to} {...shared} />

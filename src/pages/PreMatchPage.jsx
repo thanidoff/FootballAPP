@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchPlayers } from '../services/players'
 import { completeMatch as completeMatchFriendly } from '../services/friendlyMatches'
@@ -9,8 +10,7 @@ import { getOVRTier } from '../utils/stats'
 import { simulateMatchSequences } from '../utils/matchEngine'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 import PlayerCard from '../components/ui/PlayerCard'
-import ScrollToTop from '../components/ui/ScrollToTop'
-import { CircleDot, ShieldCheck, Trophy } from 'lucide-react'
+import { ChevronDown, ChevronUp, CircleDot, Footprints, RefreshCw, ShieldCheck, Star, Trophy } from 'lucide-react'
 import useOverlayBehavior from '../hooks/useOverlayBehavior'
 
 const TIER_STYLES = {
@@ -108,10 +108,13 @@ function GoalConfetti({ active, onDone }) {
 
 // ─── Live Event Ticker ────────────────────────────────────────────────────────
 function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeClub, awayClub }) {
+  // Key events filter: goals, cards, shots, saves, fouls, substitutions, mvp
+  const ALLOWED_ACTION_TYPES = new Set(['blocked_shot', 'shot_wide', 'shot_over', 'hit_post', 'save', 'foul', 'substitution'])
+  
   const events = [
     ...goals.map((goal, index) => ({ ...goal, id: `goal-${goal.minute}-${goal.scorer?.id ?? index}`, type: 'goal', player: goal.scorer })),
-    ...fouls.map((foul, index) => ({ ...foul, id: `${foul.card}-${foul.minute}-${foul.player?.id ?? index}`, type: foul.card })),
-    ...actions.filter(event => event.type !== 'goal').map((event, index) => ({ ...event, id: `action-${event.type}-${event.minute}-${event.player?.id ?? index}` })),
+    ...fouls.map((foul, index) => ({ ...foul, id: `${foul.card}-${foul.minute}-${foul.player?.id ?? index}`, type: foul.card, card: foul.card })),
+    ...actions.filter(event => event.type !== 'goal' && ALLOWED_ACTION_TYPES.has(event.type)).map((event, index) => ({ ...event, id: `action-${event.type}-${event.minute}-${event.player?.id ?? index}` })),
     ...(phase === 'full_time' && mvp ? [{ id: `mvp-${mvp.id}`, type: 'mvp', minute: Infinity, team: mvpTeam, player: mvp }] : []),
   ].sort((a, b) => a.minute - b.minute)
 
@@ -120,14 +123,22 @@ function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeC
     yellow: { label: 'Yellow card', icon: <span className="h-4 w-3 rounded-[2px] bg-amber-400" />, tone: 'bg-amber-50 text-amber-700' },
     red: { label: 'Red card', icon: <span className="h-4 w-3 rounded-[2px] bg-red-500" />, tone: 'bg-red-50 text-red-600' },
     mvp: { label: 'Player of the Match', icon: <Trophy size={17} strokeWidth={2.5} />, tone: 'bg-[#0A1318] text-white' },
-    bad_pass: { label: 'Bad pass', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
-    dispossessed: { label: 'Dispossessed', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
-    blocked_shot: { label: 'Blocked shot', icon: <ShieldCheck size={15} />, tone: 'bg-slate-100 text-slate-700' },
+    foul: { label: 'Foul', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-700' },
+    blocked_shot: { label: 'Shot blocked', icon: <ShieldCheck size={15} />, tone: 'bg-slate-100 text-slate-700' },
     shot_wide: { label: 'Shot wide', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
     shot_over: { label: 'Shot over', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
     hit_post: { label: 'Hit the post', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-700' },
     save: { label: 'Saved', icon: <ShieldCheck size={15} />, tone: 'bg-slate-100 text-slate-700' },
+    substitution: { label: 'Substituted', icon: <RefreshCw size={15} />, tone: 'bg-emerald-50 text-emerald-600' },
   }
+
+  const feedRef = useRef(null)
+
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' })
+    }
+  }, [events.length])
 
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -138,13 +149,15 @@ function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeC
       {events.length === 0 ? (
         <div className="flex min-h-24 items-center justify-center px-4 py-6 text-sm text-gray-400">Events will appear here as the match unfolds.</div>
       ) : (
-        <div className="divide-y divide-gray-100">
+        <div ref={feedRef} className="max-h-[320px] overflow-y-auto divide-y divide-gray-100">
           {events.map((event, index) => {
             const club = event.team === 'home' ? homeClub : awayClub
-            const meta = eventMeta[event.type]
+            const meta = eventMeta[event.type] || { label: event.type, icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' }
+            const tier = event.player?.ovr ? getOVRTier(event.player.ovr) : null
             return (
               <div key={event.id} className="flex items-center gap-3 px-4 py-3"
                 style={{ animation: index === events.length - 1 ? 'tickerSlideIn 0.35s ease-out both' : undefined }}>
+                {/* Player Photo */}
                 <div className="relative h-10 w-10 flex-shrink-0 overflow-visible rounded-full bg-gray-100 ring-1 ring-black/5">
                   {event.player?.photo_url
                     ? <img src={event.player.photo_url} alt={event.player.name} className="h-full w-full rounded-full object-cover" />
@@ -152,19 +165,28 @@ function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeC
                   <span className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-white ${meta.tone}`}>{meta.icon}</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-base font-semibold text-[#0A1318]">{event.player?.name ?? 'Own goal'}</span>
-                    <span className="text-sm text-gray-500">{meta.label}</span>
+                  <div className="truncate text-base font-semibold text-[#0A1318]">
+                    {event.player?.name ?? 'Own goal'}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500">
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
                     {club?.badge_url
-                      ? <img src={club.badge_url} alt="" className="h-5 w-5 shrink-0 object-contain" />
-                      : <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[7px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>{(club?.short_name || club?.name || 'CLB').slice(0, 3)}</span>}
-                    <span>{club?.name}</span>
-                    {event.type === 'goal' && event.assist && <><span>·</span><span>Assist: {event.assist.name}</span></>}
+                      ? <img src={club.badge_url} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      : <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-md text-[6px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>{(club?.short_name || club?.name || 'CLB').slice(0, 3)}</span>}
+                    {event.player?.position && (
+                      <span className="font-semibold uppercase text-[11px]" style={{ color: POS_COLORS[event.player.position] ?? '#6b7280' }}>
+                        {POS_LABEL[event.player.position] ?? event.player.position}
+                      </span>
+                    )}
+                    <span className="font-medium text-gray-600">{meta.label}</span>
+                    {event.type === 'substitution' && event.subIn && (
+                      <span className="text-emerald-600 font-medium ml-0.5">
+                        (IN: {event.subIn.name} <span className="text-gray-400">[{POS_LABEL[event.subIn.position] || event.subIn.position}]</span>)
+                      </span>
+                    )}
+                    {event.type === 'goal' && event.assist && <><span className="text-gray-300">·</span><span>Assist: {event.assist.name}</span></>}
                   </div>
                 </div>
-                <span className="flex-shrink-0 rounded-lg bg-gray-100 px-2.5 py-1 text-sm font-semibold tabular-nums text-gray-700">
+                <span className="flex-shrink-0 rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-semibold tabular-nums text-gray-700">
                   {event.type === 'mvp' ? 'FT' : `${event.minute}'`}
                 </span>
               </div>
@@ -205,7 +227,7 @@ function CaptainBadge() {
   )
 }
 
-function PlayerRow({ player, isDragging, isOver, canDrop, onPointerDown, isCaptain, stats, isSuspended }) {
+function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMoveDown, isFirst, isLast, isCaptain, stats, isSuspended }) {
   const tier = getOVRTier(player.ovr)
   const flagCode = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
   const { goals = 0, assists = 0, yellows = 0, reds = 0 } = stats ?? {}
@@ -213,22 +235,38 @@ function PlayerRow({ player, isDragging, isOver, canDrop, onPointerDown, isCapta
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-100 min-h-[52px]
-        ${isDragging ? 'opacity-20' : ''}
+      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-300 ease-in-out min-h-[52px]
+        ${isDragging ? 'opacity-20 scale-[0.98]' : 'scale-100'}
         ${isSuspended ? 'opacity-50' : ''}
-        ${isOver && canDrop ? 'border-[#FD5461] bg-red-50' : 'border-gray-100 bg-white hover:border-gray-200'}
+        ${isOver && canDrop ? 'border-[#FD5461] bg-red-50 shadow-md shadow-red-500/10' : 'border-gray-100 bg-white hover:border-gray-200'}
         ${isOver && !canDrop ? 'border-red-300 bg-red-50' : ''}`}
     >
-      {/* Drag Handle */}
-      <div 
-        onPointerDown={onPointerDown}
-        className="flex-shrink-0 text-gray-300 cursor-grab active:cursor-grabbing p-1 -ml-1 hover:text-gray-400 transition-colors touch-none"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="4" y1="9" x2="20" y2="9" />
-          <line x1="4" y1="15" x2="20" y2="15" />
-        </svg>
+      {/* Stacked Up/Down Reorder Buttons */}
+      <div className="flex flex-col items-center justify-center gap-0.5 shrink-0 -ml-1 pr-0.5">
+        <button
+          type="button"
+          disabled={isFirst}
+          onClick={(e) => { e.stopPropagation(); onMoveUp?.() }}
+          aria-label={`Move ${player.name} up`}
+          className="flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+        >
+          <ChevronUp size={14} strokeWidth={2.5} />
+        </button>
+        <button
+          type="button"
+          disabled={isLast}
+          onClick={(e) => { e.stopPropagation(); onMoveDown?.() }}
+          aria-label={`Move ${player.name} down`}
+          className="flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+        >
+          <ChevronDown size={14} strokeWidth={2.5} />
+        </button>
       </div>
+      {/* OVR Badge — Leading */}
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base flex-shrink-0 ${TIER_STYLES[tier]}`}>
+        {player.ovr}
+      </div>
+
       {/* Photo */}
       <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
         {player.photo_url
@@ -237,32 +275,59 @@ function PlayerRow({ player, isDragging, isOver, canDrop, onPointerDown, isCapta
         }
       </div>
 
-      {/* Name + flag */}
+      {/* Name + Subtitle (Club Badge -> Position -> Flag) */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-base font-semibold text-[#0A1318] truncate">{player.name}</span>
           {isCaptain && <CaptainBadge />}
         </div>
-        <div className="flex items-center gap-1 mt-0.5">
-          {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10" alt="" />}
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {/* Club Badge Leading */}
+          {club?.badge_url ? (
+            <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+          ) : (
+            <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>
+              {(club?.short_name || club?.name || 'CLB').slice(0, 3)}
+            </span>
+          )}
+          {/* Position Text without dot */}
           <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: POS_COLORS[player.position] ?? '#6b7280' }}>
             {POS_LABEL[player.position] ?? player.position}
           </span>
+          {/* Flag Trailing */}
+          {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10 ml-0.5" alt="" />}
         </div>
       </div>
 
-      {/* Stats + OVR */}
+      {/* Live Match Stats */}
       {hasStats && (
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {goals > 0 && <span className="text-xs font-medium text-gray-600">⚽{goals}</span>}
-          {assists > 0 && <span className="text-xs font-medium text-gray-600">👟{assists}</span>}
-          {yellows > 0 && <span className="text-xs">🟨{yellows}</span>}
-          {reds > 0 && <span className="text-xs">🟥{reds}</span>}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {goals > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-gray-600">
+              <CircleDot size={13} className="text-[#0A1318] shrink-0" strokeWidth={2.5} />
+              <span>{goals}</span>
+            </span>
+          )}
+          {assists > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-gray-600">
+              <Footprints size={13} className="text-gray-500 shrink-0" strokeWidth={2.25} />
+              <span>{assists}</span>
+            </span>
+          )}
+          {yellows > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-700">
+              <span className="h-3 w-2 rounded-[2px] bg-amber-400 shrink-0" />
+              <span>{yellows}</span>
+            </span>
+          )}
+          {reds > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600">
+              <span className="h-3 w-2 rounded-[2px] bg-red-500 shrink-0" />
+              <span>{reds}</span>
+            </span>
+          )}
         </div>
       )}
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base flex-shrink-0 ${TIER_STYLES[tier]}`}>
-        {player.ovr}
-      </div>
     </div>
   )
 }
@@ -406,7 +471,7 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
   return { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate }
 }
 
-function SlotCell({ player, idx, activeDragIdx, dragOver, slotRefs, handlePointerDown, handleActivate, goals, fouls, suspendedIds }) {
+function SlotCell({ player, club, idx, totalCount = 12, onMovePlayer, activeDragIdx, dragOver, slotRefs, handlePointerDown, handleActivate, goals, fouls, suspendedIds }) {
   const isDragging = activeDragIdx === idx
   const isOver = dragOver === idx && activeDragIdx !== null
   const canDrop = dragOver === idx && activeDragIdx !== idx
@@ -433,8 +498,13 @@ function SlotCell({ player, idx, activeDragIdx, dragOver, slotRefs, handlePointe
       className={player ? 'rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FD5461] focus-visible:ring-offset-2' : undefined}
     >
       {player
-        ? <PlayerRow player={player} isDragging={isDragging} isOver={isOver} canDrop={canDrop}
-            onPointerDown={e => handlePointerDown(idx, e)} isCaptain={idx === 0} stats={stats} isSuspended={isSuspended} />
+        ? <PlayerRow player={player} club={club} isDragging={isDragging} isOver={isOver} canDrop={canDrop}
+            onPointerDown={e => handlePointerDown(idx, e)}
+            onMoveUp={() => onMovePlayer?.(idx, idx - 1)}
+            onMoveDown={() => onMovePlayer?.(idx, idx + 1)}
+            isFirst={idx === 0}
+            isLast={idx >= totalCount - 1}
+            isCaptain={idx === 0} stats={stats} isSuspended={isSuspended} />
         : <EmptyRow isOver={isOver} canDrop={canDrop} />
       }
     </div>
@@ -445,6 +515,24 @@ function SlotCell({ player, idx, activeDragIdx, dragOver, slotRefs, handlePointe
 function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, awaySlots, setAwaySlots, goals, fouls, suspendedIds, onPlayerClick }) {
   const home = useDrag(setHomeSlots, suspendedIds, (idx) => { const p = homeSlots[idx]; if (p) onPlayerClick(p) })
   const away = useDrag(setAwaySlots, suspendedIds, (idx) => { const p = awaySlots[idx]; if (p) onPlayerClick(p) })
+
+  const moveHomePlayer = (from, to) => {
+    if (to < 0 || to >= homeSlots.length) return
+    setHomeSlots(prev => {
+      const next = [...prev]
+      const tmp = next[from]; next[from] = next[to]; next[to] = tmp
+      return next
+    })
+  }
+
+  const moveAwayPlayer = (from, to) => {
+    if (to < 0 || to >= awaySlots.length) return
+    setAwaySlots(prev => {
+      const next = [...prev]
+      const tmp = next[from]; next[from] = next[to]; next[to] = tmp
+      return next
+    })
+  }
 
   const homeStarters = homeSlots.slice(0, 5).filter(Boolean).length
   const awayStarters = awaySlots.slice(0, 5).filter(Boolean).length
@@ -466,9 +554,9 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
       {/* Starter rows */}
       <div className="space-y-1.5">
         {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="grid grid-cols-2 gap-4">
-            <SlotCell player={homeSlots[i]} idx={i} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
-            <SlotCell player={awaySlots[i]} idx={i} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+          <div key={`starter-row-${homeSlots[i]?.id || 'h'+i}-${awaySlots[i]?.id || 'a'+i}`} className="grid grid-cols-2 gap-4 transition-all duration-300 ease-out">
+            <SlotCell player={homeSlots[i]} club={homeClub} idx={i} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            <SlotCell player={awaySlots[i]} club={awayClub} idx={i} onMovePlayer={moveAwayPlayer} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
           </div>
         ))}
       </div>
@@ -492,9 +580,9 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
         {Array.from({ length: 7 }, (_, i) => {
           const idx = i + 5
           return (
-            <div key={idx} className="grid grid-cols-2 gap-4">
-              <SlotCell player={homeSlots[idx]} idx={idx} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
-              <SlotCell player={awaySlots[idx]} idx={idx} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            <div key={`sub-row-${homeSlots[idx]?.id || 'h'+idx}-${awaySlots[idx]?.id || 'a'+idx}`} className="grid grid-cols-2 gap-4 transition-all duration-300 ease-out">
+              <SlotCell player={homeSlots[idx]} club={homeClub} idx={idx} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+              <SlotCell player={awaySlots[idx]} club={awayClub} idx={idx} onMovePlayer={moveAwayPlayer} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
             </div>
           )
         })}
@@ -505,9 +593,18 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
 
 // Mobile: tab + slide
 function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlayerClick }) {
-  const { slotRefs, activeDragIdx, dragOver, handlePointerDown } = useDrag(setSlots, suspendedIds, (idx) => { const p = slots[idx]; if (p) onPlayerClick(p) })
+  const { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate } = useDrag(setSlots, suspendedIds, (idx) => { const p = slots[idx]; if (p) onPlayerClick(p) })
   const starters = slots.slice(0, 5)
   const subs = slots.slice(5)
+
+  const movePlayer = (from, to) => {
+    if (to < 0 || to >= slots.length) return
+    setSlots(prev => {
+      const next = [...prev]
+      const tmp = next[from]; next[from] = next[to]; next[to] = tmp
+      return next
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -518,7 +615,9 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
         </div>
         <div className="space-y-1.5">
           {starters.map((player, i) => (
-            <SlotCell key={i} player={player} idx={i} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            <div key={player?.id || `starter-${i}`} className="transition-all duration-300 ease-out">
+              <SlotCell player={player} club={club} idx={i} onMovePlayer={movePlayer} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} handleActivate={handleActivate} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            </div>
           ))}
         </div>
       </div>
@@ -528,9 +627,14 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
         <div className="flex-1 h-px bg-gray-100" />
       </div>
       <div className="space-y-1.5">
-        {subs.map((player, i) => (
-          <SlotCell key={i + 5} player={player} idx={i + 5} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
-        ))}
+        {subs.map((player, i) => {
+          const idx = i + 5
+          return (
+            <div key={player?.id || `sub-${idx}`} className="transition-all duration-300 ease-out">
+              <SlotCell player={player} club={club} idx={idx} onMovePlayer={movePlayer} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} handleActivate={handleActivate} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -539,8 +643,8 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
 function PlayerDetailModal({ player, onClose }) {
   useOverlayBehavior(Boolean(player), onClose)
   if (!player) return null
-  return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+  return createPortal(
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
       onClick={onClose}
       style={{ animation: 'fadeIn 0.2s ease forwards' }}>
       <div className="w-full max-w-sm" onClick={e => e.stopPropagation()}
@@ -551,7 +655,8 @@ function PlayerDetailModal({ player, onClose }) {
           Close
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -632,6 +737,61 @@ export default function PreMatchPage() {
       startMinute,
       endMinute,
     })
+
+    // ─── Tactical & Realistic Substitutions Generator (Minute 55' - 85') ───
+    if (endMinute >= 55) {
+      ;['home', 'away'].forEach(team => {
+        const slots = team === 'home' ? homeSlots : awaySlots
+        const setSlots = team === 'home' ? setHomeSlots : setAwaySlots
+        const hScore = currentHomeScore + sequence.filter(e => e.type === 'goal' && e.team === 'home').length
+        const aScore = currentAwayScore + sequence.filter(e => e.type === 'goal' && e.team === 'away').length
+        const scoreDiff = team === 'home' ? (hScore - aScore) : (aScore - hScore)
+        
+        // Non-GK starters on pitch & subs on bench
+        const startersOnPitch = slots.slice(0, 5).map((p, idx) => ({ player: p, idx })).filter(item => item.player && item.player.position !== 'GK')
+        const subsBench = slots.slice(5).map((p, idx) => ({ player: p, idx: idx + 5 })).filter(item => item.player)
+
+        if (startersOnPitch.length > 0 && subsBench.length > 0 && Math.random() < 0.65) {
+          const subMinute = Math.floor(Math.random() * (Math.min(85, endMinute) - Math.max(55, startMinute) + 1)) + Math.max(55, startMinute)
+          let candidateOut = null
+          let candidateIn = null
+
+          if (scoreDiff < 0) {
+            // Losing: Tactical offensive sub (FWD/MF in, DEF/MF out)
+            candidateIn = subsBench.find(s => s.player.position === 'FWD' || s.player.position === 'MF') || subsBench[0]
+            candidateOut = startersOnPitch.find(s => s.player.position === candidateIn.player.position) || startersOnPitch.find(s => s.player.position === 'DEF' || s.player.position === 'MF') || startersOnPitch[0]
+          } else if (scoreDiff > 0) {
+            // Winning: Tactical defensive sub (DEF/MF in to hold lead)
+            candidateIn = subsBench.find(s => s.player.position === 'DEF' || s.player.position === 'MF') || subsBench[0]
+            candidateOut = startersOnPitch.find(s => s.player.position === candidateIn.player.position) || startersOnPitch.find(s => s.player.position === 'FWD' || s.player.position === 'MF') || startersOnPitch[0]
+          } else {
+            // Drawing: Position-matched swap (FWD->FWD, MF->MF, DEF->DEF)
+            candidateOut = startersOnPitch[Math.floor(Math.random() * startersOnPitch.length)]
+            candidateIn = subsBench.find(s => s.player.position === candidateOut.player.position) || subsBench[0]
+          }
+
+          if (candidateOut && candidateIn) {
+            // Apply live slot swap
+            setSlots(prev => {
+              const next = [...prev]
+              next[candidateOut.idx] = candidateIn.player
+              next[candidateIn.idx] = candidateOut.player
+              return next
+            })
+            // Add substitution event to match timeline
+            sequence.push({
+              type: 'substitution',
+              team,
+              minute: subMinute,
+              player: candidateOut.player,
+              subIn: candidateIn.player,
+            })
+          }
+        }
+      })
+    }
+
+    sequence.sort((a, b) => a.minute - b.minute)
     const generatedGoals = sequence.filter(event => event.type === 'goal').map(event => ({
       team: event.team,
       scorer: event.scorer,
@@ -650,117 +810,6 @@ export default function PreMatchPage() {
 
   function simulateSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
     return simulateStatSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls)
-    let hScore = currentHomeScore
-    let aScore = currentAwayScore
-    const newGoals = [...currentGoals]
-    const newFouls = [...currentFouls]
-
-    const totalSecs = (duration ?? 10) * 60
-    // Scale factors to normalize goals based on match duration (target ~2.8 total goals per match)
-    const totalMatchSteps = totalSecs / 30
-    // Base probability of a team generating a shot event per 30-sec interval (normalized by duration)
-    const baseShotProb = (2.2 / totalMatchSteps)
-
-    for (let s = startSec; s < endSec; s += 30) {
-      const matchMin = toMatchMinute(s)
-      const currentPhase = s < halfSeconds
-        ? 'first_half'
-        : s < totalSeconds
-          ? 'second_half'
-          : s < extraHalfSeconds
-            ? 'extra_time_first'
-            : 'extra_time_second'
-
-      // 1. Identify active players on pitch (filter out suspended/red carded)
-      const homeRedCount = newFouls.filter(f => f.team === 'home' && f.card === 'red').length
-      const awayRedCount = newFouls.filter(f => f.team === 'away' && f.card === 'red').length
-
-      // Red card penalty: reduce performance by 20% per red card
-      const homeRedPenalty = Math.max(0.2, 1 - homeRedCount * 0.2)
-      const awayRedPenalty = Math.max(0.2, 1 - awayRedCount * 0.2)
-
-      const homeStarters = homeSlots.slice(0, 5).filter(Boolean)
-      const awayStarters = awaySlots.slice(0, 5).filter(Boolean)
-
-      // Calculate team OVR dynamically based on active players (excluding red-carded ones)
-      const activeHomeStarters = homeStarters.filter(p => !newFouls.some(f => f.player?.id === p.id && f.card === 'red'))
-      const activeAwayStarters = awayStarters.filter(p => !newFouls.some(f => f.player?.id === p.id && f.card === 'red'))
-
-      const homeOvr = (activeHomeStarters.reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5) * homeRedPenalty
-      const awayOvr = (activeAwayStarters.reduce((sum, p) => sum + (p?.ovr || 0), 0) / 5) * awayRedPenalty
-      
-      // Home team advantage (+3%)
-      const homeOvrEff = homeOvr * 1.03
-      const awayOvrEff = awayOvr
-
-      // Shot generation chance based on OVR difference
-      const homeShotChance = baseShotProb * (homeOvrEff / Math.max(1, awayOvrEff))
-      const awayShotChance = baseShotProb * (awayOvrEff / Math.max(1, homeOvrEff))
-
-      // ─── Home Attack ───
-      if (Math.random() < homeShotChance) {
-        // Choose shooter (weighted heavily by forward position & high SHO stat)
-        const shooter = pickWeightedPlayer(activeHomeStarters, { FWD: 10, MF: 4, DEF: 1, GK: 0.01 }, 'SHO')
-        if (shooter) {
-          // Goalkeeper attempt to save (based on GK's REF/DIV and DEF team defense)
-          const gk = activeAwayStarters.find(p => p.position === 'GK')
-          const gkRef = gk?.stats?.REF || gk?.stats?.DIV || 50
-          
-          // Probability of scoring: higher shooter SHO vs opponent GK Reflexes
-          const scoreProb = 0.35 * ((shooter.stats?.SHO || 50) / Math.max(1, gkRef))
-          if (Math.random() < scoreProb) {
-            hScore++
-            const assist = Math.random() > 0.45 ? pickWeightedPlayer(activeHomeStarters.filter(p => p?.id !== shooter?.id), { MF: 10, FWD: 5, DEF: 4, GK: 0.5 }, 'PAS') : null
-            newGoals.push({ team: 'home', scorer: shooter, assist, minute: matchMin })
-          }
-        }
-      }
-
-      // ─── Away Attack ───
-      if (Math.random() < awayShotChance) {
-        const shooter = pickWeightedPlayer(activeAwayStarters, { FWD: 10, MF: 4, DEF: 1, GK: 0.01 }, 'SHO')
-        if (shooter) {
-          const gk = activeHomeStarters.find(p => p.position === 'GK')
-          const gkRef = gk?.stats?.REF || gk?.stats?.DIV || 50
-          
-          const scoreProb = 0.35 * ((shooter.stats?.SHO || 50) / Math.max(1, gkRef))
-          if (Math.random() < scoreProb) {
-            aScore++
-            const assist = Math.random() > 0.45 ? pickWeightedPlayer(activeAwayStarters.filter(p => p?.id !== shooter?.id), { MF: 10, FWD: 5, DEF: 4, GK: 0.5 }, 'PAS') : null
-            newGoals.push({ team: 'away', scorer: shooter, assist, minute: matchMin })
-          }
-        }
-      }
-
-      // ─── Fouls and Cards ───
-      // Base probability of foul event (4% per interval)
-      if (Math.random() < 0.04) {
-        const team = Math.random() > 0.5 ? 'home' : 'away'
-        const activeLineup = team === 'home' ? activeHomeStarters : activeAwayStarters
-        if (activeLineup.length > 0) {
-          // Choose player prone to foul (weighted by low DEF defending but high PHY physicality/aggression)
-          const player = activeLineup.reduce((prev, curr) => {
-            const prevRisk = (prev.stats?.PHY || 50) / Math.max(1, prev.stats?.DEF || 50)
-            const currRisk = (curr.stats?.PHY || 50) / Math.max(1, curr.stats?.DEF || 50)
-            return currRisk > prevRisk ? curr : prev
-          })
-
-          if (player) {
-            // Check if player already has a yellow card to determine second yellow -> red
-            const hasYellow = newFouls.some(f => f.player?.id === player.id && f.card === 'yellow')
-            let card = 'yellow'
-            if (hasYellow) {
-              card = 'red' // Second yellow card equals red
-            } else {
-              // Direct red card probability (15% chance, 85% yellow)
-              card = Math.random() > 0.85 ? 'red' : 'yellow'
-            }
-            newFouls.push({ player, team, card, minute: matchMin, phase: currentPhase })
-          }
-        }
-      }
-    }
-    return { hScore, aScore, newGoals, newFouls }
   }
 
   // Weighted player picker supporting statistical attributes
@@ -853,14 +902,7 @@ export default function PreMatchPage() {
         setGoals(result.newGoals)
         setFouls(result.newFouls)
         setMatchActions([...startActions, ...generatedActions])
-        const needsExtraTime = targetElapsed === totalSeconds && isKnockoutMatch && result.hScore === result.aScore
-        const needsPenalties = targetElapsed === extraTimeSeconds && isKnockoutMatch && result.hScore === result.aScore
-        if (needsPenalties) {
-          const homeWins = Math.random() >= 0.5
-          setPenaltyShootout(homeWins
-            ? { home: 5, away: 4, winner: homeClub.id }
-            : { home: 4, away: 5, winner: awayClub.id })
-        }
+        const needsExtraTime = (targetElapsed === totalSeconds || targetElapsed === extraTimeSeconds) && isKnockoutMatch && result.hScore === result.aScore
         setPhase(needsExtraTime ? 'extra_time_ready' : targetPhase)
         setFastSimulating(false)
         if (targetPhase === 'full_time' && !needsExtraTime) {
@@ -869,7 +911,7 @@ export default function PreMatchPage() {
         }
         playWhistlePattern(targetPhase === 'full_time' || needsExtraTime ? 3 : 2)
         showNotification(
-          needsPenalties ? 'PENALTIES' : needsExtraTime ? 'FULL TIME' : targetPhase === 'full_time' ? 'FULL TIME' : targetPhase === 'extra_time_half' ? 'EXTRA TIME HALF' : 'HALF TIME',
+          needsExtraTime ? 'CONTINUE EXTRA TIME' : targetPhase === 'full_time' ? 'FULL TIME' : targetPhase === 'extra_time_half' ? 'EXTRA TIME HALF' : 'HALF TIME',
           targetPhase === 'full_time' && !needsExtraTime ? () => setPostMatchReady(true) : undefined,
         )
       }
@@ -887,7 +929,7 @@ export default function PreMatchPage() {
   // Runtime duration can be short (for example five real minutes), while the
   // football clock and every recorded event always use a standard 90-minute match.
   function toMatchMinute(runtimeSeconds) {
-    return Math.min(120, Math.max(1, Math.floor((runtimeSeconds / totalSeconds) * 90)))
+    return Math.max(1, Math.floor((runtimeSeconds / totalSeconds) * 90))
   }
 
   function matchMinuteToRuntimeSeconds(matchMinute) {
@@ -924,21 +966,21 @@ export default function PreMatchPage() {
     setTimeout(() => {
       setNotification(null)
       onDone?.()
-    }, text === 'FULL TIME' ? 2600 : 2200)
+    }, ['FULL TIME', 'GOLDEN GOAL!'].includes(text) ? 2600 : 2200)
   }
 
   function runTimer(stopAt, onEnd) {
     clearInterval(timerRef.current)
     timerRef.current = setInterval(() => {
       setElapsed(prev => {
-        if (prev + 1 >= stopAt) {
+        if (prev + 0.1 >= stopAt) {
           clearInterval(timerRef.current)
           onEnd?.()
           return stopAt
         }
-        return prev + 1
+        return prev + 0.1
       })
-    }, 1000)
+    }, 100)
   }
 
   function startWithCountdown(nextPhase, timerStopAt, onTimerEnd) {
@@ -971,18 +1013,19 @@ export default function PreMatchPage() {
 
   function finishMatchAfterExtraTime() {
     clearInterval(timerRef.current)
-    setElapsed(extraTimeSeconds)
-    let shootout = null
+    // ⚽ Continuous Golden Goal Extra Time: If still tied after 120 mins, start another Extra Time period instead of Penalty Shootout!
     if (isKnockoutMatch && homeScore === awayScore) {
-      const homeWins = Math.random() >= 0.5
-      shootout = homeWins ? { home: 5, away: 4, winner: homeClub.id } : { home: 4, away: 5, winner: awayClub.id }
-      setPenaltyShootout(shootout)
+      setPostMatchReady(false)
+      setPhase('extra_time_ready')
+      playWhistlePattern(2)
+      showNotification('CONTINUE EXTRA TIME')
+      return
     }
     setPostMatchReady(false)
     setPhase('full_time')
     setMvp(null)
     playWhistlePattern(3)
-    showNotification(shootout ? 'PENALTIES' : 'FULL TIME', () => setPostMatchReady(true))
+    showNotification('FULL TIME', () => setPostMatchReady(true))
   }
 
   function endExtraFirstHalf() {
@@ -1026,11 +1069,13 @@ export default function PreMatchPage() {
     } else if (phase === 'second_half') {
       endMatch()
     } else if (phase === 'extra_time_ready') {
-      startWithCountdown('extra_time_first', extraHalfSeconds, endExtraFirstHalf)
+      const nextHalfTarget = elapsed + totalSeconds / 6
+      startWithCountdown('extra_time_first', nextHalfTarget, endExtraFirstHalf)
     } else if (phase === 'extra_time_first') {
       endExtraFirstHalf()
     } else if (phase === 'extra_time_half') {
-      startWithCountdown('extra_time_second', extraTimeSeconds, finishMatchAfterExtraTime)
+      const nextFullTarget = elapsed + totalSeconds / 6
+      startWithCountdown('extra_time_second', nextFullTarget, finishMatchAfterExtraTime)
     } else if (phase === 'extra_time_second') {
       finishMatchAfterExtraTime()
     }
@@ -1046,10 +1091,14 @@ export default function PreMatchPage() {
   function handleResume() {
     if (redCardWarning) return
     setPaused(false)
+    const extraPeriodIndex = Math.max(0, Math.floor((elapsed - totalSeconds) / (totalSeconds / 3)))
+    const currentExtraHalfTarget = totalSeconds + (extraPeriodIndex * (totalSeconds / 3)) + (totalSeconds / 6)
+    const currentExtraFullTarget = totalSeconds + ((extraPeriodIndex + 1) * (totalSeconds / 3))
+
     const stopAt = phase === 'first_half' ? halfSeconds
       : phase === 'second_half' ? totalSeconds
-        : phase === 'extra_time_first' ? extraHalfSeconds
-          : extraTimeSeconds
+        : phase === 'extra_time_first' ? currentExtraHalfTarget
+          : currentExtraFullTarget
     const onEnd = phase === 'first_half' ? endFirstHalf
       : phase === 'second_half' ? endMatch
         : phase === 'extra_time_first' ? endExtraFirstHalf
@@ -1071,11 +1120,28 @@ export default function PreMatchPage() {
     const minute = goalMinute
     const newGoal = { team: goalTeam, scorer: goalScorer, assist, minute }
     setGoals(prev => [...prev, newGoal])
-    if (goalTeam === 'home') setHomeScore(s => s + 1)
-    else setAwayScore(s => s + 1)
+
+    const updatedHomeScore = goalTeam === 'home' ? homeScore + 1 : homeScore
+    const updatedAwayScore = goalTeam === 'away' ? awayScore + 1 : awayScore
+
+    if (goalTeam === 'home') setHomeScore(updatedHomeScore)
+    else setAwayScore(updatedAwayScore)
+
     setGoalStep(null)
     // 🎉 trigger confetti
     setShowConfetti(true)
+
+    // ⚽ Golden Goal Rule for Knockout matches during Extra Time
+    if (isKnockoutMatch && ['extra_time_first', 'extra_time_second'].includes(phase)) {
+      if (updatedHomeScore !== updatedAwayScore) {
+        clearInterval(timerRef.current)
+        setPostMatchReady(false)
+        setPhase('full_time')
+        setMvp(null)
+        playWhistlePattern(3)
+        showNotification('GOLDEN GOAL!', () => setPostMatchReady(true))
+      }
+    }
   }
 
   const anyModalOpen = goalStep !== null || foulStep !== null || playerDetail !== null
@@ -1327,50 +1393,55 @@ export default function PreMatchPage() {
             <button
               onClick={() => setSimModal(true)}
               disabled={fastSimulating}
-              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 font-semibold text-sm hover:bg-amber-100 transition-colors cursor-pointer mr-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className={`px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors cursor-pointer mr-2 disabled:cursor-not-allowed disabled:opacity-80
+                ${fastSimulating ? 'bg-[#FD5461] text-white font-black animate-pulse' : 'bg-red-50 text-[#FD5461] hover:bg-red-100 font-bold'}`}
             >
-              {fastSimulating ? 'Simulating ×60' : 'Sim'}
+              {fastSimulating ? 'Simulating' : 'Sim'}
             </button>
           )}
-          {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
-            <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">
-              Foul
-            </button>
+          {!fastSimulating && (
+            <>
+              {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
+                <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">
+                  Foul
+                </button>
+              )}
+              {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
+                <button onClick={openGoalModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">
+                  Goal
+                </button>
+              )}
+              {matchRunning && (
+                <button onClick={handlePause} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-heading font-black text-sm hover:bg-gray-200 transition-colors">
+                  ⏸
+                </button>
+              )}
+              {paused && (
+                <button onClick={handleResume} disabled={!!redCardWarning}
+                  className={`px-4 py-2.5 rounded-xl font-heading font-black text-sm transition-colors
+                    ${redCardWarning ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  ▶
+                </button>
+              )}
+              <button
+                onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
+                disabled={(phase === 'full_time' && !mvp) || isSaving}
+                className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors
+                  ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                    : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
+              >
+                {phase === 'idle' && 'Start Match'}
+                {phase === 'first_half' && 'End 1st Half'}
+                {phase === 'half_time' && 'Start 2nd Half'}
+                {phase === 'second_half' && 'End Match'}
+                {phase === 'extra_time_ready' && 'Play Extra Time'}
+                {phase === 'extra_time_first' && 'End ET 1st Half'}
+                {phase === 'extra_time_half' && 'Start ET 2nd Half'}
+                {phase === 'extra_time_second' && 'End Extra Time'}
+                {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
+              </button>
+            </>
           )}
-          {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
-            <button onClick={openGoalModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">
-              Goal
-            </button>
-          )}
-          {matchRunning && (
-            <button onClick={handlePause} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-heading font-black text-sm hover:bg-gray-200 transition-colors">
-              ⏸
-            </button>
-          )}
-          {paused && (
-            <button onClick={handleResume} disabled={!!redCardWarning}
-              className={`px-4 py-2.5 rounded-xl font-heading font-black text-sm transition-colors
-                ${redCardWarning ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              ▶
-            </button>
-          )}
-          <button
-            onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
-            disabled={(phase === 'full_time' && !mvp) || isSaving || fastSimulating}
-            className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors
-              ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
-          >
-            {phase === 'idle' && 'Start Match'}
-            {phase === 'first_half' && 'End 1st Half'}
-            {phase === 'half_time' && 'Start 2nd Half'}
-            {phase === 'second_half' && 'End Match'}
-            {phase === 'extra_time_ready' && 'Play Extra Time'}
-            {phase === 'extra_time_first' && 'End ET 1st Half'}
-            {phase === 'extra_time_half' && 'Start ET 2nd Half'}
-            {phase === 'extra_time_second' && 'End Extra Time'}
-            {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
-          </button>
           </div>
         </div>
         {/* Mobile buttons (hidden on sm+) */}
@@ -1379,57 +1450,62 @@ export default function PreMatchPage() {
             <button
               onClick={() => setSimModal(true)}
               disabled={fastSimulating}
-              className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-600 font-heading font-black text-sm uppercase tracking-widest hover:bg-amber-100 transition-colors cursor-pointer mr-auto disabled:cursor-not-allowed disabled:opacity-60"
+              className={`px-4 py-2.5 rounded-xl font-heading font-black text-sm uppercase tracking-widest transition-colors cursor-pointer mr-auto disabled:cursor-not-allowed disabled:opacity-80
+                ${fastSimulating ? 'bg-[#FD5461] text-white animate-pulse' : 'bg-red-50 text-[#FD5461] hover:bg-red-100'}`}
             >
-              {fastSimulating ? 'Simulating ×60' : 'Sim'}
+              {fastSimulating ? 'Simulating' : 'Sim'}
             </button>
           )}
-          {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
-            <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
-              Foul
-            </button>
+          {!fastSimulating && (
+            <>
+              {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
+                <button onClick={openFoulModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
+                  Foul
+                </button>
+              )}
+              {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
+                <button onClick={openGoalModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
+                  Goal
+                </button>
+              )}
+              {matchRunning && (
+                <button onClick={handlePause} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-heading font-black text-sm hover:bg-gray-200 transition-colors">
+                  ⏸
+                </button>
+              )}
+              {paused && (
+                <button onClick={handleResume} disabled={!!redCardWarning}
+                  className={`px-4 py-2.5 rounded-xl font-heading font-black text-sm transition-colors
+                    ${redCardWarning ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  ▶
+                </button>
+              )}
+              <button
+                onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
+                disabled={(phase === 'full_time' && !mvp) || isSaving}
+                className={`px-5 py-2.5 rounded-xl font-heading font-black text-sm uppercase tracking-widest transition-colors
+                  ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                    : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
+              >
+                {phase === 'idle' && 'Start Match'}
+                {phase === 'first_half' && 'End 1st Half'}
+                {phase === 'half_time' && 'Start 2nd Half'}
+                {phase === 'second_half' && 'End Match'}
+                {phase === 'extra_time_ready' && 'Play Extra Time'}
+                {phase === 'extra_time_first' && 'End ET 1st Half'}
+                {phase === 'extra_time_half' && 'Start ET 2nd Half'}
+                {phase === 'extra_time_second' && 'End Extra Time'}
+                {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
+              </button>
+            </>
           )}
-          {(matchRunning || paused) && phase !== 'idle' && phase !== 'full_time' && (
-            <button onClick={openGoalModal} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-heading font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors">
-              Goal
-            </button>
-          )}
-          {matchRunning && (
-            <button onClick={handlePause} className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-heading font-black text-sm hover:bg-gray-200 transition-colors">
-              ⏸
-            </button>
-          )}
-          {paused && (
-            <button onClick={handleResume} disabled={!!redCardWarning}
-              className={`px-4 py-2.5 rounded-xl font-heading font-black text-sm transition-colors
-                ${redCardWarning ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              ▶
-            </button>
-          )}
-          <button
-            onClick={phase === 'full_time' ? (mvp ? handleSaveAndExit : undefined) : handleMainButton}
-            disabled={(phase === 'full_time' && !mvp) || isSaving || fastSimulating}
-            className={`px-5 py-2.5 rounded-xl font-heading font-black text-sm uppercase tracking-widest transition-colors
-              ${(phase === 'full_time' && !mvp) || isSaving ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                : 'bg-[#FD5461] text-white hover:bg-red-500 cursor-pointer'}`}
-          >
-            {phase === 'idle' && 'Start Match'}
-            {phase === 'first_half' && 'End 1st Half'}
-            {phase === 'half_time' && 'Start 2nd Half'}
-            {phase === 'second_half' && 'End Match'}
-            {phase === 'extra_time_ready' && 'Play Extra Time'}
-            {phase === 'extra_time_first' && 'End ET 1st Half'}
-            {phase === 'extra_time_half' && 'Start ET 2nd Half'}
-            {phase === 'extra_time_second' && 'End Extra Time'}
-            {phase === 'full_time' && (isSaving ? 'Saving...' : 'Save & Exit')}
-          </button>
         </div>
       </div>
 
       {/* Score Bar */}
       <div className="flex items-center bg-gray-50 rounded-2xl px-5 py-4 mb-3 gap-3">
         {/* Home badge + name */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-3 flex-1 min-w-0">
           {nationalMode ? (
             <div className="w-10 h-7 rounded overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm">
               <img 
@@ -1446,9 +1522,11 @@ export default function PreMatchPage() {
                   style={{ backgroundColor: homeClub.badge_color ?? "#6b7280" }}>{(homeClub.short_name || homeClub.name).slice(0, 3).toUpperCase()}</div>
             )
           )}
-          <div className="font-semibold text-[#0A1318] truncate text-base">
-            <span className="hidden sm:inline">{homeClub.name}</span>
-            <span className="sm:hidden">{homeClub.short_name}</span>
+          <div className="font-semibold text-[#0A1318] min-w-0 text-center sm:text-left text-xs sm:text-base">
+            <span className="hidden sm:inline truncate block">{homeClub.name}</span>
+            <span className="sm:hidden font-heading font-black text-xs uppercase tracking-wider text-[#0A1318]">
+              {(homeClub.short_name && homeClub.short_name !== homeClub.name) ? homeClub.short_name : (homeClub.name || '').slice(0, 3).toUpperCase()}
+            </span>
           </div>
         </div>
 
@@ -1481,10 +1559,12 @@ export default function PreMatchPage() {
         </div>
 
         {/* Away name + badge */}
-        <div className="flex items-center gap-3 flex-1 min-w-0 justify-end">
-          <div className="font-semibold text-[#0A1318] truncate text-base text-right">
-            <span className="hidden sm:inline">{awayClub.name}</span>
-            <span className="sm:hidden">{awayClub.short_name}</span>
+        <div className="flex flex-col-reverse sm:flex-row items-center gap-1 sm:gap-3 flex-1 min-w-0 justify-end">
+          <div className="font-semibold text-[#0A1318] min-w-0 text-center sm:text-right text-xs sm:text-base">
+            <span className="hidden sm:inline truncate block">{awayClub.name}</span>
+            <span className="sm:hidden font-heading font-black text-xs uppercase tracking-wider text-[#0A1318]">
+              {(awayClub.short_name && awayClub.short_name !== awayClub.name) ? awayClub.short_name : (awayClub.name || '').slice(0, 3).toUpperCase()}
+            </span>
           </div>
           {nationalMode ? (
             <div className="w-10 h-7 rounded overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-black/5 shadow-sm">
@@ -1573,38 +1653,79 @@ export default function PreMatchPage() {
         const mvpYellows = mvp ? fouls.filter(f => f.player?.id === mvp.id && f.card === 'yellow').length : 0
         const mvpReds    = mvp ? fouls.filter(f => f.player?.id === mvp.id && f.card === 'red').length : 0
         const tier = mvp ? getOVRTier(mvp.ovr) : null
+        const mvpClub = mvp ? (homeSlots.some(p => p?.id === mvp.id) ? homeClub : awayClub) : null
+        const flagCode = mvp ? FIFA_NATIONS.find(n => n.name === mvp.nationality)?.code : null
+
         return (
-          <div className="mb-5 bg-gray-50 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <div className="mb-5 bg-red-50/80 border border-red-100 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xs">
             {mvp ? (
               <>
-                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
+                {/* Leading OVR Badge */}
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base flex-shrink-0 ${TIER_STYLES[tier]}`}>
+                  {mvp.ovr}
+                </div>
+
+                {/* Photo */}
+                <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
                   {mvp.photo_url
                     ? <img src={mvp.photo_url} alt={mvp.name} className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center font-heading font-black text-gray-400 text-sm">{mvp.name.charAt(0)}</div>
                   }
                 </div>
+
+                {/* Name + Subtitle (Match MVP tag / Stats) */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-heading font-black text-sm text-[#0A1318] truncate">{mvp.name}</span>
-                    <span className="text-sm leading-none">⭐</span>
-                    {mvpGoals > 0   && <span className="text-[10px] font-heading font-bold text-gray-500">⚽{mvpGoals}</span>}
-                    {mvpAssists > 0 && <span className="text-[10px] font-heading font-bold text-gray-500">👟{mvpAssists}</span>}
-                    {mvpYellows > 0 && <span className="text-[10px]">🟨{mvpYellows}</span>}
-                    {mvpReds > 0    && <span className="text-[10px]">🟥{mvpReds}</span>}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base font-semibold text-[#0A1318] truncate">{mvp.name}</span>
+                    {mvpGoals > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-gray-600">
+                        <CircleDot size={13} className="text-[#0A1318] shrink-0" strokeWidth={2.5} />
+                        <span>{mvpGoals}</span>
+                      </span>
+                    )}
+                    {mvpAssists > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-gray-600">
+                        <Footprints size={13} className="text-gray-500 shrink-0" strokeWidth={2.25} />
+                        <span>{mvpAssists}</span>
+                      </span>
+                    )}
+                    {mvpYellows > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-700">
+                        <span className="h-3 w-2 rounded-[2px] bg-amber-400 shrink-0" />
+                        <span>{mvpYellows}</span>
+                      </span>
+                    )}
+                    {mvpReds > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600">
+                        <span className="h-3 w-2 rounded-[2px] bg-red-500 shrink-0" />
+                        <span>{mvpReds}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {mvpClub?.badge_url ? (
+                      <img src={mvpClub.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+                    ) : (
+                      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: mvpClub?.badge_color || '#0A1318' }}>
+                        {(mvpClub?.short_name || mvpClub?.name || 'CLB').slice(0, 3)}
+                      </span>
+                    )}
+                    <span className="text-xs font-semibold uppercase tracking-wide text-[#FD5461]">
+                      Match MVP
+                    </span>
+                    {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10 ml-0.5" alt="" />}
                   </div>
                 </div>
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-heading font-black text-sm flex-shrink-0 ${TIER_STYLES[tier]}`}>
-                  {mvp.ovr}
+
+                {/* Trailing Star Icon */}
+                <div className="flex-shrink-0 ml-auto">
+                  <Star size={20} className="fill-[#FD5461] text-[#FD5461]" strokeWidth={1.5} />
                 </div>
-                <button onClick={() => setMvp(null)}
-                  className="text-xs font-heading font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ml-1">
-                  Change
-                </button>
               </>
             ) : (
               <>
-                <span className="text-base flex-shrink-0">⭐</span>
-                <span className="text-sm text-gray-400 font-heading font-bold flex-1">Tap a player to select MVP</span>
+                <Star size={18} className="text-[#FD5461] shrink-0" strokeWidth={2} />
+                <span className="text-sm text-gray-600 font-heading font-bold flex-1">Tap a player to select MVP</span>
                 <span className="text-[10px] font-heading font-black uppercase tracking-widest text-[#FD5461] flex-shrink-0">Required</span>
               </>
             )}
@@ -1657,8 +1778,8 @@ export default function PreMatchPage() {
       )}
 
       {/* Goal Modal */}
-      {goalStep !== null && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {goalStep !== null && createPortal(
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -1714,9 +1835,19 @@ export default function PreMatchPage() {
                       }
                     </div>
                     <span className="font-heading font-bold text-sm text-[#0A1318] flex-1 truncate">{player.name}</span>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {scored > 0 && <span className="text-xs font-heading font-bold text-gray-500">⚽ {scored}</span>}
-                      {assisted > 0 && <span className="text-xs font-heading font-bold text-gray-500">👟 {assisted}</span>}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {scored > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                          <CircleDot size={12} className="text-[#0A1318] shrink-0" strokeWidth={2.5} />
+                          <span>{scored}</span>
+                        </span>
+                      )}
+                      {assisted > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                          <Footprints size={12} className="text-gray-600 shrink-0" strokeWidth={2.25} />
+                          <span>{assisted}</span>
+                        </span>
+                      )}
                     </div>
                   </button>
                 )
@@ -1738,9 +1869,19 @@ export default function PreMatchPage() {
                           }
                         </div>
                         <span className="font-heading font-bold text-sm text-[#0A1318] flex-1 truncate">{player.name}</span>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {scored > 0 && <span className="text-xs font-heading font-bold text-gray-500">⚽ {scored}</span>}
-                          {assisted > 0 && <span className="text-xs font-heading font-bold text-gray-500">👟 {assisted}</span>}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {scored > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                              <CircleDot size={12} className="text-[#0A1318] shrink-0" strokeWidth={2.5} />
+                              <span>{scored}</span>
+                            </span>
+                          )}
+                          {assisted > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                              <Footprints size={12} className="text-gray-600 shrink-0" strokeWidth={2.25} />
+                              <span>{assisted}</span>
+                            </span>
+                          )}
                         </div>
                       </button>
                     )
@@ -1762,14 +1903,15 @@ export default function PreMatchPage() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <PlayerDetailModal player={playerDetail} onClose={() => setPlayerDetail(null)} />
 
       {/* Simulation Modal */}
-      {simModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+      {simModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -1837,7 +1979,7 @@ export default function PreMatchPage() {
                       <div className="space-y-1.5">
                         {simPreview.newGoals.filter(g => g.team === 'home').map((g, i) => (
                           <div key={i} className="flex items-center gap-1.5 text-[10px]">
-                            <span className="flex-shrink-0">⚽</span>
+                            <CircleDot size={12} className="text-[#0A1318] shrink-0" strokeWidth={2.5} />
                             <div className="flex flex-col min-w-0">
                               <span className="font-heading font-bold text-[#0A1318] truncate">{g.scorer?.name}</span>
                               {g.assist && <span className="text-[8px] text-gray-400 truncate -mt-0.5">({g.assist.name})</span>}
@@ -1847,7 +1989,7 @@ export default function PreMatchPage() {
                         ))}
                         {simPreview.newFouls.filter(f => f.team === 'home').map((f, i) => (
                           <div key={i} className="flex items-center gap-1.5 text-[10px]">
-                            <span className="flex-shrink-0">{f.card === 'red' ? '🟥' : '🟨'}</span>
+                            <span className={`h-3 w-2 rounded-[2px] shrink-0 ${f.card === 'red' ? 'bg-red-500' : 'bg-amber-400'}`} />
                             <span className="font-heading font-bold text-[#0A1318] truncate">{f.player?.name}</span>
                             <span className="text-gray-400 font-bold ml-auto">{f.minute}'</span>
                           </div>
@@ -1861,14 +2003,14 @@ export default function PreMatchPage() {
                               <span className="font-heading font-bold text-[#0A1318] truncate">{g.scorer?.name}</span>
                               {g.assist && <span className="text-[8px] text-gray-400 truncate -mt-0.5">({g.assist.name})</span>}
                             </div>
-                            <span className="flex-shrink-0">⚽</span>
+                            <CircleDot size={12} className="text-[#0A1318] shrink-0" strokeWidth={2.5} />
                           </div>
                         ))}
                         {simPreview.newFouls.filter(f => f.team === 'away').map((f, i) => (
                           <div key={i} className="flex items-center gap-1.5 text-[10px] justify-end text-right">
                             <span className="text-gray-400 font-bold mr-auto">{f.minute}'</span>
                             <span className="font-heading font-bold text-[#0A1318] truncate">{f.player?.name}</span>
-                            <span className="flex-shrink-0">{f.card === 'red' ? '🟥' : '🟨'}</span>
+                            <span className={`h-3 w-2 rounded-[2px] shrink-0 ${f.card === 'red' ? 'bg-red-500' : 'bg-amber-400'}`} />
                           </div>
                         ))}
                       </div>
@@ -1895,9 +2037,6 @@ export default function PreMatchPage() {
                           setPostMatchReady(false)
                           setMvp(null)
                         }
-                        playWhistlePattern(simPreview.targetPhase === 'full_time' ? 3 : 2)
-                        setSimPreview(null)
-                        setSimModal(false)
                         showNotification(
                           simPreview.targetPhase === 'full_time' ? 'FULL TIME' : 'HALF TIME',
                           simPreview.targetPhase === 'full_time' ? () => setPostMatchReady(true) : undefined,
@@ -1912,12 +2051,13 @@ export default function PreMatchPage() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Foul Modal */}
-      {foulStep !== null && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {foulStep !== null && createPortal(
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
@@ -2026,12 +2166,13 @@ export default function PreMatchPage() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Red card warning banner */}
       {redCardWarning && (
-        <div className="fixed bottom-6 inset-x-0 z-40 flex justify-center px-4"
+        <div className="fixed bottom-6 inset-x-0 z-[90] flex justify-center px-4"
           style={{ animation: 'slideUp 0.35s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}>
           <div className="w-full max-w-sm">
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-100">
@@ -2063,19 +2204,20 @@ export default function PreMatchPage() {
       )}
 
       {/* Half/Full time notification overlay */}
-      {notification !== null && (
-        <div className="fixed inset-0 bg-[#0A1318]/80 backdrop-blur-sm z-50 flex items-center justify-center">
+      {notification !== null && createPortal(
+        <div className="fixed inset-0 bg-[#0A1318]/80 backdrop-blur-sm z-[100] flex items-center justify-center">
           <div style={{ animation: 'countdownPop 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}>
             <span className="font-heading font-black text-white text-6xl uppercase tracking-widest drop-shadow-lg">
               {notification}
             </span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Countdown overlay */}
-      {countdown !== null && (
-        <div className="fixed inset-0 bg-[#0A1318]/80 backdrop-blur-sm z-50 flex items-center justify-center">
+      {countdown !== null && createPortal(
+        <div className="fixed inset-0 bg-[#0A1318]/80 backdrop-blur-sm z-[100] flex items-center justify-center">
           <div
             key={String(countdown)}
             style={{ animation: 'countdownPop 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards' }}
@@ -2085,10 +2227,9 @@ export default function PreMatchPage() {
               {countdown}
             </span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-
-      <ScrollToTop />
 
       {/* Audio Elements */}
       <audio ref={anthemRef} src="/Inazuma11 OST 1 - Holy Ground (Anime ver.).mp3" preload="auto" loop />

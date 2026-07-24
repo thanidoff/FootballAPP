@@ -91,7 +91,6 @@ export default function ClubForm({ initialValues, onSubmit, loading, identityLoc
             <button type="button" onClick={() => changeBudget(1_000_000)} aria-label="Increase budget by 1 million" className="min-h-11 border-l border-gray-100 px-3 type-label text-gray-500 transition-colors hover:bg-gray-50 hover:text-[#FD5461]">+1M</button>
             <button type="button" onClick={() => changeBudget(10_000_000)} aria-label="Increase budget by 10 million" className="flex min-h-11 items-center gap-1 border-l border-gray-100 px-3 type-label text-gray-500 transition-colors hover:bg-gray-50 hover:text-[#FD5461]"><Plus size={14} />10M</button>
           </div>
-          <p className="type-body-sm text-gray-400">Adjust in 1M or 10M steps, or enter an exact amount.</p>
         </div>
       )}
       <Button type="submit" className="w-full justify-center" disabled={loading}>

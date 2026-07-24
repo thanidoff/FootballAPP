@@ -726,7 +726,7 @@ export default function LeaguePage() {
               <div>
                 {/* Week pills */}
                 {existingWeeks.length > 0 && (
-                  <div className="flex gap-1.5 overflow-x-auto pb-2 mb-5 scrollbar-hide">
+                  <div className="flex gap-1.5 overflow-x-auto pb-2 mb-5 scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
                     {existingWeeks.map(w => {
                       const weekMatches = matchesByWeek[w] ?? []
                       const done = weekMatches.every(m => m.status === 'completed')

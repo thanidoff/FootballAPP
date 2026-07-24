@@ -23,7 +23,7 @@ export default function Modal({ open, onClose, title, children, width = 'max-w-l
       setRendered(false)
       setClosing(false)
       try { previousFocus.current?.focus?.() } catch (e) {}
-    }, 140)
+    }, 240)
     return () => window.clearTimeout(timer)
   }, [open, rendered])
 
@@ -76,15 +76,15 @@ export default function Modal({ open, onClose, title, children, width = 'max-w-l
   if (!shouldRender) return null
 
   return createPortal(
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}>
-      <button tabIndex={-1} aria-label="Close modal" className="absolute inset-0 bg-[#0A1318]/55 backdrop-blur-sm" onClick={onClose} disabled={closing} />
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 ${closing ? 'ui-overlay-exit' : 'ui-overlay-enter'}`}>
+      <div aria-hidden="true" className="fixed inset-0 bg-[#0A1318]/60 backdrop-blur-sm" onClick={closing ? undefined : onClose} />
       <div
         ref={dialogRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative flex w-full ${width} max-h-[min(700px,calc(100dvh-2rem))] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
+        className={`relative flex w-full ${width} max-h-[min(700px,calc(100dvh-2rem))] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl outline-none focus:outline-none ${closing ? 'ui-modal-exit' : 'ui-modal-enter'}`}
       >
         <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-6 py-5 sm:px-8">
           <h2 id={titleId} className="type-heading text-[#0A1318]">{title}</h2>

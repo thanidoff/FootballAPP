@@ -15,6 +15,8 @@ export default function Input({ label, error, className = '', ...props }) {
           ${error ? 'border-red-400 focus:ring-red-400/20' : ''}
           ${className}
         `}
+        {...props}
+      />
       {error && <p className="mt-1 animate-fadeIn type-body-sm text-red-500">{error}</p>}
     </div>
   )

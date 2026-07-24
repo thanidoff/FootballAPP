@@ -7,7 +7,7 @@ import FreeAgentIcon from '../ui/FreeAgentIcon'
 import OvrBadge from '../ui/OvrBadge'
 import PositionBadge from '../ui/PositionBadge'
 
-const GRID_COLUMNS = '64px minmax(220px,1.8fr) repeat(6,minmax(52px,.55fr)) 100px 168px'
+const GRID_COLUMNS = '64px minmax(200px,1.6fr) repeat(6,minmax(46px,.5fr)) 90px 184px'
 
 function SortIcon({ active, direction }) {
   if (!active) return <ArrowUpDown size={14} strokeWidth={1.8} />
@@ -76,7 +76,7 @@ export default function DesktopPlayerTable({ players, statColumns, sortKey, sort
               <span className="flex items-center justify-end gap-1" onClick={event => event.stopPropagation()}>
                 <Button variant="ghost" size="sm" onClick={() => onEdit(player)}>Edit</Button>
                 <Button variant="ghost" size="sm" onClick={() => onDelete(player.id)}>Del</Button>
-                <Button size="sm" onClick={() => onSign(player)} disabled={signDisabled}>{player.club_id ? 'Transfer' : 'Sign'}</Button>
+                <Button size="sm" className="w-[72px] justify-center" onClick={() => onSign(player)} disabled={signDisabled}>{player.club_id ? 'Transfer' : 'Sign'}</Button>
               </span>
             </div>
           )

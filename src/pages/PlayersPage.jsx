@@ -6,6 +6,7 @@ import { formatCurrency } from '../utils/currency'
 import PlayerCard from '../components/ui/PlayerCard'
 import PlayerForm from '../components/players/PlayerForm'
 import PositionBadge from '../components/ui/PositionBadge'
+import OvrBadge from '../components/ui/OvrBadge'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import ClubSelect from '../components/ui/ClubSelect'
@@ -295,8 +296,8 @@ export default function PlayersPage() {
         <div key={`${tab}-${posFilter}-${sortKey}-${sortDirection}-${viewMode}`} className="ui-content-refresh">
         {viewMode === 'card' ? (
           <div className="player-card-grid">
-            {filtered.map((player, i) => (
-              <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 40, 400)}ms`, animationFillMode: 'both' }}>
+            {filtered.map((player) => (
+              <div key={player.id}>
                 <PlayerCard
                   player={player}
                   onClick={() => setProfilePlayer(player)}
@@ -324,8 +325,8 @@ export default function PlayersPage() {
             signDisabled={clubs.length === 0}
           />
           <div className="space-y-2 lg:hidden">
-            {filtered.map((player, i) => (
-              <div key={player.id} className="animate-fadeSlideUp" style={{ animationDelay: `${Math.min(i * 30, 300)}ms`, animationFillMode: 'both' }}>
+            {filtered.map((player) => (
+              <div key={player.id}>
               <PlayerListRow
                 player={player}
                 onClick={() => setProfilePlayer(player)}
@@ -365,39 +366,47 @@ export default function PlayersPage() {
       </Modal>
 
       {/* Sign to club modal */}
-      <Modal open={!!signing} onClose={() => { setSigning(null); setSelectedClub('') }} title="Sign Player" width="max-w-sm">
+      <Modal open={!!signing} onClose={() => { setSigning(null); setSelectedClub('') }} title="Sign Player" width="max-w-md">
         {signing && (
-          <div className="space-y-5">
-            {/* Player info */}
-            <div className="flex items-center justify-between gap-3 px-1 py-1">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                {signing.photo_url ? (
-                  <img src={signing.photo_url} alt={signing.name} className="h-11 w-11 flex-shrink-0 rounded-full object-cover bg-white ring-1 ring-black/5" />
-                ) : (
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 font-heading text-sm font-black text-gray-500">
-                    {signing.name.charAt(0)}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-heading text-sm font-bold text-[#0A1318]">{signing.name}</div>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                    <PositionBadge position={signing.position} />
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-4 flex items-center justify-between gap-3 border border-gray-100">
+              <div className="flex items-center gap-3.5 min-w-0">
+                {/* Photo avatar */}
+                <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
+                  {signing.photo_url ? (
+                    <img src={signing.photo_url} alt={signing.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-bold text-gray-400 text-base">
+                      {signing.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Name + flag + club + age */}
+                <div className="min-w-0">
+                  <div className="text-base font-bold text-[#0A1318] truncate">{signing.name}</div>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
                     {(() => {
                       const code = FIFA_NATIONS.find(n => n.name === signing.nationality)?.code
-                      return code ? <img src={`https://flagcdn.com/${code}.svg`} className="h-3.5 w-5 flex-shrink-0 rounded-sm object-cover ring-1 ring-black/10" alt={signing.nationality} title={signing.nationality} /> : null
+                      return code ? <img src={`https://flagcdn.com/${code}.svg`} alt={signing.nationality} className="h-4 w-6 shrink-0 rounded-sm object-cover ring-1 ring-black/10" /> : null
                     })()}
-                    {signing.club && (
-                      signing.club.badge_url
-                        ? <img src={signing.club.badge_url} className="h-4 w-4 flex-shrink-0 object-contain" alt={signing.club.name} title={signing.club.name} />
-                        : <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-[7px] font-bold text-white" style={{ backgroundColor: signing.club.badge_color ?? "#6b7280" }}>{signing.club.short_name?.slice(0,1)}</span>
-                    )}
+                    {signing.club ? (
+                      <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                        {signing.club.badge_url ? (
+                          <img src={signing.club.badge_url} alt="" className="h-4 w-4 object-contain shrink-0" />
+                        ) : null}
+                        <span>{signing.club.name}</span>
+                      </span>
+                    ) : null}
+                    {signing.age && <span className="text-xs text-gray-400">{signing.age} yrs</span>}
                   </div>
                 </div>
               </div>
 
-              <div className="text-right flex-shrink-0 border-l border-gray-200/60 pl-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Market Value</div>
-                <div className="font-heading text-base font-bold text-[#0A1318]">${formatCurrency(signing.market_value)}</div>
+              {/* OVR & Position Badge */}
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <OvrBadge value={signing.ovr} size="md" />
+                <PositionBadge position={signing.position} />
               </div>
             </div>
 
@@ -455,11 +464,11 @@ export default function PlayersPage() {
             </div>
 
             <Button
-              className="w-full justify-center"
+              className="w-full justify-center py-4 text-base"
               onClick={handleSign}
-              disabled={!selectedClub || !canAfford || processing}
+              disabled={!selectedClub || processing}
             >
-              {processing ? 'Processing...' : `Confirm · $${formatCurrency(agreedFee)}`}
+              {processing ? 'Processing...' : `Confirm Signing`}
             </Button>
           </div>
         )}

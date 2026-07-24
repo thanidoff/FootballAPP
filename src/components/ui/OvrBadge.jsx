@@ -15,7 +15,7 @@ const SIZE_STYLES = {
 
 export default function OvrBadge({ value, size = 'md', label }) {
   const numericValue = Number(value) || 0
-  return <span className={`inline-flex shrink-0 flex-col items-center justify-center font-semibold leading-none shadow-sm ${TIER_STYLES[getOVRTier(numericValue)]} ${SIZE_STYLES[size] || SIZE_STYLES.md}`}>
+  return <span className={`inline-flex shrink-0 flex-col items-center justify-center font-semibold leading-none ${TIER_STYLES[getOVRTier(numericValue)]} ${SIZE_STYLES[size] || SIZE_STYLES.md}`}>
     {label && <span className="mb-1 text-[10px] font-medium uppercase tracking-wide opacity-75">{label}</span>}
     <span className="tabular-nums">{numericValue || '-'}</span>
   </span>

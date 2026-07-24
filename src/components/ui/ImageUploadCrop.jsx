@@ -226,8 +226,8 @@ export default function ImageUploadCrop({
             onClick={previewUrl ? handleRecrop : () => inputRef.current?.click()}
             title={previewUrl ? 'Click to re-crop' : undefined}
             className={`
-              group relative flex-shrink-0 bg-white border-2 border-dashed border-gray-300
-              hover:border-gray-500 hover:bg-gray-50 transition-colors overflow-hidden
+              group relative flex-shrink-0 bg-gray-100 border border-gray-200
+              hover:border-gray-400 transition-colors overflow-hidden
               ${isCircle ? 'w-20 h-20 rounded-full' : 'w-24 h-20 rounded-xl'}
             `}
           >

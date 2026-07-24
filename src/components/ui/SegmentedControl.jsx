@@ -24,7 +24,7 @@ export default function SegmentedControl({ items, value, onChange, ariaLabel = '
         const Icon = item.icon
         const active = item.id === value
         return <button key={item.id} ref={node => node ? itemRefs.current.set(item.id, node) : itemRefs.current.delete(item.id)} type="button" role="tab" aria-selected={active} onClick={() => onChange?.(item.id)} disabled={item.disabled} className={`relative z-10 flex min-h-10 min-w-0 w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${active ? 'font-semibold text-white' : 'font-medium text-slate-500 hover:text-slate-900'} ${itemClassName}`}>
-          {Icon && <Icon size={16} strokeWidth={2} />}
+          {Icon && <Icon size={16} strokeWidth={2} className="shrink-0" />}
           <span>{item.label}</span>
         </button>
       })}
