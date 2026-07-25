@@ -83,7 +83,12 @@ export default function DraftTransfersTab() {
           p.nationality.toLowerCase().includes(search.toLowerCase())
         return matchPos && matchSearch
       })
-      .sort((a, b) => (ovrSort === 'desc' ? b.ovr - a.ovr : a.ovr - b.ovr))
+      .sort((a, b) => {
+        if (b.ovr !== a.ovr) {
+          return ovrSort === 'desc' ? b.ovr - a.ovr : a.ovr - b.ovr
+        }
+        return String(a.id).localeCompare(String(b.id))
+      })
   }, [allPlayers, cleanFreeAgents, ovrSort, posFilter, search, tab])
 
   const openSigning = (player) => {
