@@ -28,7 +28,7 @@ export default function SeasonalGrowthModal({
       <Modal open={open} onClose={onClose} title={`Seasonal Player Growth & Form (${seasonName})`} width="max-w-2xl">
         <div className="space-y-4">
           {/* Header Summary & Action Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-[#0A1318]">
               <span className="flex items-center gap-1 text-emerald-600">
                 <TrendingUp size={15} /> +{positiveCount} Increased
@@ -56,7 +56,7 @@ export default function SeasonalGrowthModal({
               {!isLocked && onConfirmSave && (
                 <button
                   onClick={onConfirmSave}
-                  className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-1.5 font-heading text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95"
+                  className="flex items-center gap-1.5 rounded-xl bg-[#FD5461] px-3.5 py-1.5 font-heading text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-[#e04552] active:scale-95"
                 >
                   <Sparkles size={13} /> Save Ratings
                 </button>
@@ -67,7 +67,7 @@ export default function SeasonalGrowthModal({
           {/* List of Adjusted Players */}
           {adjustments.length === 0 ? (
             <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center">
-              <Sparkles size={32} className="mb-2 text-amber-500/60" />
+              <Sparkles size={32} className="mb-2 text-[#FD5461]/60" />
               <p className="text-sm font-semibold text-gray-700">No seasonal rating adjustments generated yet</p>
               <p className="mt-1 max-w-sm text-xs text-gray-400">
                 Rating changes (-5 to +5 OVR) can be previewed and reshuffled before saving to this season.
@@ -75,7 +75,7 @@ export default function SeasonalGrowthModal({
               {onReshufflePreview && (
                 <button
                   onClick={onReshufflePreview}
-                  className="mt-4 flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95"
+                  className="mt-4 flex items-center gap-2 rounded-xl bg-[#FD5461] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-[#e04552] active:scale-95"
                 >
                   <Sparkles size={14} /> Preview Rating Changes Now
                 </button>
@@ -91,7 +91,7 @@ export default function SeasonalGrowthModal({
                   <div
                     key={item.playerId}
                     onClick={() => setSelectedPlayer({ id: item.playerId, name: item.name, position: item.position, stats: item.newStats, ovr: item.newOvr, photo_url: item.photo_url, nationality: item.nationality })}
-                    className="group flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-gray-200/80 bg-white p-3.5 shadow-sm transition-all hover:border-amber-400/60 hover:shadow-md"
+                    className="group flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-gray-200/80 bg-white p-3.5 shadow-sm transition-all hover:border-gray-400/60 hover:bg-slate-50/60 hover:shadow-md"
                   >
                     {/* Player Info */}
                     <div className="flex min-w-0 items-center gap-3">
@@ -108,7 +108,7 @@ export default function SeasonalGrowthModal({
                       )}
 
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-heading text-sm font-black text-[#0A1318] group-hover:text-amber-600">
+                        <div className="truncate font-heading text-sm font-black text-[#0A1318] group-hover:text-[#FD5461]">
                           {item.name}
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
