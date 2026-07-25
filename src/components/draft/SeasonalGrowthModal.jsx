@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Sparkles, TrendingDown, TrendingUp, UserRound, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, Sparkles, TrendingDown, TrendingUp, UserRound, X } from 'lucide-react'
 import Modal from '../ui/Modal'
 import PositionBadge from '../ui/PositionBadge'
 import OvrBadge from '../ui/OvrBadge'
@@ -110,26 +110,22 @@ export default function SeasonalGrowthModal({ open, onClose, adjustments = [], s
                     </div>
 
                     {/* Rating Shift Display */}
-                    <div className="flex shrink-0 items-center gap-3">
-                      <div className="flex items-center gap-1.5 font-heading">
-                        <span className="text-xs font-bold text-gray-400 tabular-nums">{item.oldOvr}</span>
-                        <span className={`flex items-center font-black ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {isPositive ? <ArrowUp size={14} strokeWidth={3} /> : <ArrowDown size={14} strokeWidth={3} />}
-                        </span>
-                        <span className={`text-base font-black tabular-nums ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {item.newOvr}
-                        </span>
-                      </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <OvrBadge value={item.oldOvr} size="md" />
 
-                      <span
-                        className={`inline-flex items-center rounded-xl px-2.5 py-1 font-heading text-xs font-black tabular-nums shadow-sm ${
-                          isPositive
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-rose-500 text-white'
-                        }`}
-                      >
-                        {isPositive ? `+${item.deltaOvr}` : item.deltaOvr} OVR
-                      </span>
+                      <ChevronRight
+                        size={18}
+                        strokeWidth={3}
+                        className={
+                          item.deltaOvr > 0
+                            ? 'text-emerald-500'
+                            : item.deltaOvr < 0
+                            ? 'text-rose-500'
+                            : 'text-gray-300'
+                        }
+                      />
+
+                      <OvrBadge value={item.newOvr} size="md" />
                     </div>
                   </div>
                 )
