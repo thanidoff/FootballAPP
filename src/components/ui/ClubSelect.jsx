@@ -2,7 +2,11 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import FreeAgentIcon from './FreeAgentIcon'
 
-function ClubBadge({ club }) {
+function ClubBadge({ club, isSelected }) {
+  if (club.id === 'free_agent' || club.club_id === 'free_agent' || club.short_name === 'FA') {
+    return <FreeAgentIcon light={isSelected} size={20} className="flex-shrink-0" />
+  }
+
   if (club.badge_url) {
     return (
       <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 shadow-sm bg-white">
@@ -161,28 +165,6 @@ export default function ClubSelect({ label, value, onChange, clubs = [], error }
               onWheel={e => e.stopPropagation()}
               onTouchMove={e => e.stopPropagation()}
             >
-              {/* Free Agent option */}
-              <button
-                type="button"
-                disabled={closing}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handleSelect('')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors text-left
-                  ${!value ? 'bg-gray-900' : 'hover:bg-gray-50'}`}
-              >
-                <FreeAgentIcon light={!value} />
-                <span className={`flex-1 ${!value ? 'text-white font-medium' : 'text-gray-700'}`}>
-                  Free Agent
-                </span>
-                {!value && (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
-                    <path d="M2.5 7l3 3 6-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </button>
-
-              {clubs.length > 0 && <div className="border-t border-gray-100 my-1" />}
-
               {displayed.length === 0 && query.length > 0 && (
                 <div className="px-4 py-3 text-sm text-gray-400 font-heading font-bold">No results</div>
               )}
@@ -199,7 +181,7 @@ export default function ClubSelect({ label, value, onChange, clubs = [], error }
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors text-left
                       ${isSelected ? 'bg-gray-900' : 'hover:bg-gray-50'}`}
                   >
-                    <ClubBadge club={club} />
+                    <ClubBadge club={club} isSelected={isSelected} />
                     <span className={`flex-1 truncate ${isSelected ? 'text-white font-medium' : 'text-gray-700'}`}>
                       {club.name}
                     </span>
