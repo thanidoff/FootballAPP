@@ -19,7 +19,8 @@ import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
 
 import { fetchPlayers } from '../../../services/players'
-import { Check, Plus, Search, Users, UserCheck } from 'lucide-react'
+import { Check, Plus, Search, Sparkles, Users, UserCheck } from 'lucide-react'
+import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
 
@@ -233,6 +234,11 @@ export default function DraftTransfersTab() {
   const signingTeam = saveData.teams.find(t => t.club_id === selectedClubId)
   const canAfford = signingTeam && signingPlayer ? signingTeam.budget >= agreedFee : false
 
+  const [growthModalOpen, setGrowthModalOpen] = useState(false)
+  const seasons = saveData.settings?.seasons || []
+  const activeSeason = seasons.find(season => season.status === 'active') || seasons[seasons.length - 1]
+  const seasonAdjustments = activeSeason?.seasonAdjustments || []
+
   return (
     <div className="space-y-6">
       {/* Header & Tabs */}
@@ -247,14 +253,26 @@ export default function DraftTransfersTab() {
             { id: 'free', label: `Free Agents (${freeAgents.length})` },
           ]}
         />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={openPlayerManager}
-          className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
-        >
-          <Plus size={16} /> Manage Players
-        </Button>
+        <div className="flex items-center gap-2">
+          {seasonAdjustments.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setGrowthModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100"
+            >
+              <Sparkles size={14} className="shrink-0 text-amber-600" /> Season Ratings
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openPlayerManager}
+            className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
+          >
+            <Plus size={16} /> Manage Players
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -525,6 +543,13 @@ export default function DraftTransfersTab() {
           </div>
         </div>
       </Modal>
+
+      <SeasonalGrowthModal
+        open={growthModalOpen}
+        onClose={() => setGrowthModalOpen(false)}
+        adjustments={seasonAdjustments}
+        seasonName={`Season ${activeSeason?.id || 1}`}
+      />
       <ScrollToTop />
     </div>
   )
