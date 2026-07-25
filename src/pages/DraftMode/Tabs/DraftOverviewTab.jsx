@@ -10,6 +10,7 @@ import ResultScore from '../../../components/draft/ResultScore'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
 import { updateDraftState } from '../../../services/draftSave'
 
 const STAT_FILTERS = [
@@ -35,12 +36,23 @@ function Empty({ children, className = '' }) {
 }
 
 function TransferClub({ team, name }) {
-  if (!team && !name) {
-    return <span className="flex min-w-0 items-center gap-2" title="Free Agent"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-[8px] font-bold text-gray-500">FA</span><span className="truncate text-xs font-medium text-gray-500">FREE</span></span>
+  const isFreeAgent = !team && (!name || name === 'Free Agent' || name === 'FREE')
+  if (isFreeAgent) {
+    return (
+      <span className="flex min-w-0 items-center gap-2" title="Free Agent">
+        <FreeAgentIcon size={20} className="shrink-0" />
+        <span className="truncate text-xs font-semibold text-gray-500">FA</span>
+      </span>
+    )
   }
   const fallback = { club_name: name, short_name: name?.split(/\s+/).map(word => word[0]).join('').slice(0, 3) }
   const club = team || fallback
-  return <span className="flex min-w-0 items-center gap-2" title={club.club_name || name}><Badge team={club} size="h-6 w-6" /><span className="truncate text-xs font-semibold text-gray-600">{club.short_name || club.club_name?.slice(0, 3).toUpperCase()}</span></span>
+  return (
+    <span className="flex min-w-0 items-center gap-2" title={club.club_name || name}>
+      <Badge team={club} size="h-6 w-6" />
+      <span className="truncate text-xs font-semibold text-gray-600">{club.short_name || club.club_name?.slice(0, 3).toUpperCase()}</span>
+    </span>
+  )
 }
 
 export default function DraftOverviewTab() {
