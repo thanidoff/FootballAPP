@@ -1525,7 +1525,7 @@ export default function PreMatchPage() {
           <div className="font-semibold text-[#0A1318] min-w-0 text-center sm:text-left text-xs sm:text-base">
             <span className="hidden sm:inline truncate block">{homeClub.name}</span>
             <span className="sm:hidden font-heading font-black text-xs uppercase tracking-wider text-[#0A1318]">
-              {(homeClub.short_name && homeClub.short_name !== homeClub.name) ? homeClub.short_name : (homeClub.name || '').slice(0, 3).toUpperCase()}
+              {homeClub.short_name || (homeClub.name || '').slice(0, 3).toUpperCase()}
             </span>
           </div>
         </div>
@@ -1563,7 +1563,7 @@ export default function PreMatchPage() {
           <div className="font-semibold text-[#0A1318] min-w-0 text-center sm:text-right text-xs sm:text-base">
             <span className="hidden sm:inline truncate block">{awayClub.name}</span>
             <span className="sm:hidden font-heading font-black text-xs uppercase tracking-wider text-[#0A1318]">
-              {(awayClub.short_name && awayClub.short_name !== awayClub.name) ? awayClub.short_name : (awayClub.name || '').slice(0, 3).toUpperCase()}
+              {awayClub.short_name || (awayClub.name || '').slice(0, 3).toUpperCase()}
             </span>
           </div>
           {nationalMode ? (
