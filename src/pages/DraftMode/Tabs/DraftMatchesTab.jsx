@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
 import { DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
 import { generateMockRoster, generateSchedule, simulateMatch } from '../../../utils/draftLogic'
+import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
 import LeagueSetupModal from '../../../components/matches/LeagueSetupModal'
@@ -529,19 +530,23 @@ export default function DraftMatchesTab() {
         stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
       }) : t)
 
+      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [], 10)
+
       const newSettings = { ...saveData.settings }
       newSettings.seasons = [{
         id: 1,
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
+        seasonAdjustments,
         prizeSettings: { placements: [...DEFAULT_LEAGUE_PRIZES.placements], awards: { ...DEFAULT_LEAGUE_PRIZES.awards } },
         status: 'active'
       }]
 
       const newSaveData = {
         ...saveData,
-        teams: newTeams,
+        teams: updatedTeams,
+        freeAgents: updatedFreeAgents,
         settings: newSettings,
         currentWeek: 1
       }
@@ -588,11 +593,14 @@ export default function DraftMatchesTab() {
       const previousCup = [...(newSettings.cups || [])].reverse().find(cup => cup.prizeSettings)
       const inheritedCupPrizes = [...(previousSeason?.cupPrizeSettings || previousCup?.prizeSettings || DEFAULT_CUP_PRIZES)]
       
+      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [], 10)
+
       newSettings.seasons.push({
         id: newSeasonId,
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
+        seasonAdjustments,
         prizeSettings: inheritedLeaguePrizes,
         cupPrizeSettings: inheritedCupPrizes,
         status: 'active'
@@ -600,7 +608,8 @@ export default function DraftMatchesTab() {
 
       const newSaveData = {
         ...saveData,
-        teams: newTeams,
+        teams: updatedTeams,
+        freeAgents: updatedFreeAgents,
         settings: newSettings,
         currentWeek: 1
       }

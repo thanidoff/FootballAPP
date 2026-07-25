@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
-import { ArrowLeftRight, CalendarDays, ChartNoAxesColumn, Play, Plus, Search, Trophy } from 'lucide-react'
+import { ArrowLeftRight, CalendarDays, ChartNoAxesColumn, Play, Plus, Search, Sparkles, Trophy } from 'lucide-react'
 import LeagueStandingsTable from '../../../components/draft/LeagueStandingsTable'
 import Button from '../../../components/ui/Button'
 import SegmentedControl from '../../../components/ui/SegmentedControl'
@@ -8,6 +8,7 @@ import CardHeaderAction from '../../../components/ui/CardHeaderAction'
 import Select from '../../../components/ui/Select'
 import ResultScore from '../../../components/draft/ResultScore'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
+import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 
 const STAT_FILTERS = [
   { key: 'topScorers', label: 'Goals' },
@@ -156,11 +157,43 @@ export default function DraftOverviewTab() {
     } })
   }
 
+  const [growthModalOpen, setGrowthModalOpen] = useState(false)
+  const seasonAdjustments = activeSeason?.seasonAdjustments || []
+
   return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(460px,0.85fr)_minmax(0,1.15fr)]">
-      <div className="space-y-6">
-        <div>
-          <LeagueStandingsTable standings={hasLeague ? standings : []} championId={activeSeason?.champion} onFullTable={() => navigate(`/draft/${saveId}/matches`)} onTeamClick={row => navigate(`/draft/${saveId}/squads?team=${row.club_id}`)} emptyContent={<div className="flex min-h-40 flex-col items-center justify-center px-6 text-center"><p className="text-sm text-gray-400">Create a league to see the standings.</p><Button variant="outline" size="sm" onClick={() => navigate(`/draft/${saveId}/matches`)} className="mt-4 flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"><Plus size={16} /> Start League</Button></div>} />
+    <>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(460px,0.85fr)_minmax(0,1.15fr)]">
+        <div className="space-y-6">
+          {/* Seasonal Growth & Form Entrance Banner */}
+          {seasonAdjustments.length > 0 && (
+            <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-500/20">
+                  <Sparkles size={20} strokeWidth={2.25} />
+                </span>
+                <div>
+                  <div className="font-heading text-sm font-black uppercase tracking-wide text-[#0A1318]">
+                    Season Rating Growth & Form
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {seasonAdjustments.length} players gained or lost ratings (-5 to +5 OVR)
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setGrowthModalOpen(true)}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100"
+              >
+                <Sparkles size={14} /> View Ratings
+              </Button>
+            </div>
+          )}
+
+          <div>
+            <LeagueStandingsTable standings={hasLeague ? standings : []} championId={activeSeason?.champion} onFullTable={() => navigate(`/draft/${saveId}/matches`)} onTeamClick={row => navigate(`/draft/${saveId}/squads?team=${row.club_id}`)} emptyContent={<div className="flex min-h-40 flex-col items-center justify-center px-6 text-center"><p className="text-sm text-gray-400">Create a league to see the standings.</p><Button variant="outline" size="sm" onClick={() => navigate(`/draft/${saveId}/matches`)} className="mt-4 flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"><Plus size={16} /> Start League</Button></div>} />
+          </div>
         </div>
 
         <section className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -276,6 +309,7 @@ export default function DraftOverviewTab() {
       </section>
 
       <PlayerProfileModal open={Boolean(selectedPlayer)} player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
-    </div>
+      <SeasonalGrowthModal open={growthModalOpen} onClose={() => setGrowthModalOpen(false)} adjustments={seasonAdjustments} seasonName={`Season ${activeSeason?.id || 1}`} />
+    </>
   )
 }
