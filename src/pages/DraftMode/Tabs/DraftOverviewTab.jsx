@@ -10,6 +10,9 @@ import ResultScore from '../../../components/draft/ResultScore'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import OvrBadge from '../../../components/ui/OvrBadge'
+import PositionBadge from '../../../components/ui/PositionBadge'
+import { FIFA_NATIONS } from '../../../utils/fifaNations'
 import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
 import { updateDraftState } from '../../../services/draftSave'
 
@@ -330,11 +333,87 @@ export default function DraftOverviewTab() {
             </header>
             {featureView === 'transfers' ? (transfers.length ? (
               <div className="w-full overflow-hidden">
-                <div className="grid grid-cols-[minmax(100px,1.5fr)_minmax(72px,0.8fr)_minmax(72px,0.8fr)_76px] gap-2 bg-white border-b border-gray-100 px-5 py-3 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400">
+                <div className="grid grid-cols-[minmax(180px,2fr)_minmax(80px,1fr)_minmax(80px,1fr)_76px] gap-2 bg-white border-b border-gray-100 px-5 py-3 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400">
                   <span>Player</span><span>From</span><span>To</span><span className="text-right">Fee</span>
                 </div>
                 <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto hide-scrollbar">
-                  {transfers.map((item, index) => <div key={item.id || index} className="grid grid-cols-[minmax(100px,1.5fr)_minmax(72px,0.8fr)_minmax(72px,0.8fr)_76px] items-center gap-2 px-5 py-3 transition-colors hover:bg-red-50/30"><span className="truncate text-sm font-semibold text-[#0A1318]" title={item.playerName}>{item.playerName}</span><TransferClub team={teamById(item.fromClubId)} name={item.fromName} /><TransferClub team={teamById(item.toClubId)} name={item.toName} /><span className="text-right text-sm font-semibold tabular-nums text-[#FD5461]">{money(item.fee)}</span></div>)}
+                  {transfers.map((item, index) => {
+                    // Find player data from save
+                    let playerObj = (saveData.freeAgents || []).find(p => String(p.id) === String(item.playerId))
+                    if (!playerObj) {
+                      for (const t of (saveData.teams || [])) {
+                        const found = (t.roster || []).find(p => String(p.id) === String(item.playerId))
+                        if (found) {
+                          playerObj = found
+                          break
+                        }
+                      }
+                    }
+
+                    const flagCode = playerObj?.nationality ? FIFA_NATIONS.find(n => n.name === playerObj.nationality)?.code : null
+                    const currentClub = playerObj?.club_id ? teamById(playerObj.club_id) : null
+
+                    return (
+                      <div
+                        key={item.id || index}
+                        onClick={() => playerObj && setSelectedPlayer(playerObj)}
+                        className={`grid grid-cols-[minmax(180px,2fr)_minmax(80px,1fr)_minmax(80px,1fr)_76px] items-center gap-2 px-5 py-3 transition-colors ${playerObj ? 'cursor-pointer hover:bg-red-50/30' : 'hover:bg-gray-50'}`}
+                      >
+                        {/* Player column: OVR Badge + Avatar + Details (Name, Flag, Club, Position) */}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {playerObj?.ovr ? (
+                            <OvrBadge value={playerObj.ovr} size="sm" />
+                          ) : (
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-[10px] font-bold text-gray-400">—</span>
+                          )}
+
+                          <div className="h-9 w-9 rounded-full overflow-hidden shrink-0 bg-gray-100 ring-1 ring-gray-200">
+                            {playerObj?.photo_url ? (
+                              <img src={playerObj.photo_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center font-bold text-gray-400 text-xs">
+                                {item.playerName?.charAt(0)}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-bold text-[#0A1318]" title={item.playerName}>
+                              {item.playerName}
+                            </span>
+                            <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-gray-500">
+                              {flagCode && (
+                                <img
+                                  src={`https://flagcdn.com/${flagCode}.svg`}
+                                  alt=""
+                                  className="h-3 w-4 shrink-0 rounded-[2px] object-cover ring-1 ring-black/10"
+                                  title={playerObj?.nationality}
+                                />
+                              )}
+                              {currentClub ? (
+                                <span className="flex items-center gap-1 truncate text-gray-600 font-medium">
+                                  <Badge team={currentClub} size="h-3.5 w-3.5" />
+                                  <span className="truncate">{currentClub.short_name || currentClub.club_name}</span>
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-gray-400 font-medium">
+                                  <FreeAgentIcon size={12} className="shrink-0" />
+                                  <span>FA</span>
+                                </span>
+                              )}
+                              {playerObj?.position && (
+                                <PositionBadge position={playerObj.position} />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <TransferClub team={teamById(item.fromClubId)} name={item.fromName} />
+                        <TransferClub team={teamById(item.toClubId)} name={item.toName} />
+                        <span className="text-right text-xs font-semibold tabular-nums text-[#FD5461]">{money(item.fee)}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ) : <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center"><p className="text-sm text-gray-400">No transfers have been completed this season.</p><Button variant="outline" size="sm" onClick={() => navigate(`/draft/${saveId}/transfers`)} className="mt-4 flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"><ArrowLeftRight size={16} /> Open Market</Button></div>) : (leaders.length ? (
