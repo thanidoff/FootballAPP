@@ -20,6 +20,7 @@ export function generateInitialDraft(clubs, allPlayers, startingBudget) {
     const teamState = {
       club_id: club.id,
       club_name: club.name,
+      short_name: club.short_name || club.name?.slice(0, 3).toUpperCase(),
       badge_url: club.badge_url,
       badge_color: club.badge_color,
       budget: club.startingBudget ?? startingBudget ?? 0,

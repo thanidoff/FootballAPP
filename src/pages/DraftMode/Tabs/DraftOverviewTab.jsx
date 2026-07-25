@@ -172,8 +172,8 @@ export default function DraftOverviewTab() {
             <div className="divide-y divide-gray-50">
               {upcoming.map((match, index) => {
                 const home = teamById(match.home), away = teamById(match.away)
-                const homeShort = (home?.short_name && home.short_name !== home.club_name) ? home.short_name : (home?.club_name || '').slice(0, 3).toUpperCase()
-                const awayShort = (away?.short_name && away.short_name !== away.club_name) ? away.short_name : (away?.club_name || '').slice(0, 3).toUpperCase()
+                const homeShort = home?.short_name || (home?.club_name || '').slice(0, 3).toUpperCase()
+                const awayShort = away?.short_name || (away?.club_name || '').slice(0, 3).toUpperCase()
                 return (
                   <div key={`${match.week}-${index}`} className={`w-full px-5 py-3 text-left transition-[opacity,background-color] ${match.week > (saveData.currentWeek || 1) ? 'bg-gray-50/70 opacity-55' : 'hover:bg-red-50/40'}`}>
                     <div className="mb-2 text-xs font-medium text-[#FD5461]">Week {match.week}</div>
@@ -225,8 +225,8 @@ export default function DraftOverviewTab() {
             <div className="divide-y divide-gray-50">
               {recentResults.map((match, index) => {
                 const home = teamById(match.home), away = teamById(match.away)
-                const homeShort = (home?.short_name && home.short_name !== home.club_name) ? home.short_name : (home?.club_name || '').slice(0, 3).toUpperCase()
-                const awayShort = (away?.short_name && away.short_name !== away.club_name) ? away.short_name : (away?.club_name || '').slice(0, 3).toUpperCase()
+                const homeShort = home?.short_name || (home?.club_name || '').slice(0, 3).toUpperCase()
+                const awayShort = away?.short_name || (away?.club_name || '').slice(0, 3).toUpperCase()
                 return (
                   <button key={`${match.week}-${match.matchIndex}-${index}`} onClick={() => navigate(`/draft/${saveId}/matches`)} className="w-full cursor-pointer px-5 py-3 text-left transition-colors hover:bg-slate-50">
                     <div className="mb-2 text-xs font-medium text-gray-500">Week {match.week}</div>

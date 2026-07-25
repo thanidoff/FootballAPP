@@ -24,9 +24,7 @@ export default function LeagueStandingsTable({ standings = [], championId, onFul
             const gd = stats.GD || 0
             const isChampion = Boolean(championId && row.club_id === championId)
             const Wrapper = onTeamClick ? 'button' : 'div'
-            const shortName = (row.short_name && row.short_name !== row.club_name) 
-              ? row.short_name 
-              : (row.club_name || '').slice(0, 3).toUpperCase()
+            const shortName = row.short_name || (row.club_name || '').slice(0, 3).toUpperCase()
             return <Wrapper key={row.club_id} {...(onTeamClick ? { type: 'button', onClick: () => onTeamClick(row), title: `View ${row.club_name} squad` } : {})} className={`grid w-full grid-cols-[16px_minmax(64px,1.5fr)_repeat(6,minmax(20px,26px))] items-center gap-1 sm:gap-2.5 px-2.5 sm:px-5 py-3 text-left transition-[background-color,box-shadow] duration-200 ${isChampion ? 'bg-[#FD5461]/[0.07]' : ''} ${onTeamClick ? 'cursor-pointer hover:bg-[#FD5461]/[0.06] focus-visible:z-10 focus-visible:bg-[#FD5461]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FD5461]/40' : ''}`}>
               <span className={`text-center text-xs font-bold ${index === 0 || index === standings.length - 1 ? 'text-[#FD5461]' : 'text-gray-400'}`}>{index + 1}</span>
               <span className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">

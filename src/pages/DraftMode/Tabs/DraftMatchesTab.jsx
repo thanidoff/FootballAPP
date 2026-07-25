@@ -627,8 +627,8 @@ export default function DraftMatchesTab() {
 
     navigate('/matches/draft/prematch', {
       state: {
-        homeClub: { id: homeTeam.club_id, name: homeTeam.club_name, short_name: homeTeam.club_name, badge_url: homeTeam.badge_url, roster: homeTeam.roster },
-        awayClub: { id: awayTeam.club_id, name: awayTeam.club_name, short_name: awayTeam.club_name, badge_url: awayTeam.badge_url, roster: awayTeam.roster },
+        homeClub: { id: homeTeam.club_id, name: homeTeam.club_name, short_name: homeTeam.short_name || homeTeam.club_name?.slice(0, 3).toUpperCase(), badge_url: homeTeam.badge_url, roster: homeTeam.roster },
+        awayClub: { id: awayTeam.club_id, name: awayTeam.club_name, short_name: awayTeam.short_name || awayTeam.club_name?.slice(0, 3).toUpperCase(), badge_url: awayTeam.badge_url, roster: awayTeam.roster },
         duration: 5,
         returnPath: `/draft/${saveId}/matches`,
         saveId,
