@@ -144,7 +144,7 @@ export default function DraftOverviewTab() {
 
   const transfers = [...(saveData.transferHistory || [])]
     .filter(item => !activeSeason?.id || !item.seasonId || item.seasonId === activeSeason.id)
-    .sort((a, b) => (b.fee || 0) - (a.fee || 0))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
   const teamById = id => (saveData.teams || []).find(team => team.club_id === id)
   const money = value => `$${((value || 0) / 1_000_000).toFixed(1)}M`

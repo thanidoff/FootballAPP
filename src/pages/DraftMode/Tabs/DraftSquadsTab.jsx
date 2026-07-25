@@ -130,7 +130,27 @@ export default function DraftSquadsTab() {
       const releasedPlayer = { ...releasingPlayer, club_id: null, club: null }
       newFreeAgents.push(releasedPlayer)
 
-      const newSaveData = { ...saveData, teams: newTeams, freeAgents: newFreeAgents }
+      const activeSeason = saveData.settings?.seasons?.find(season => season.status === 'active')
+      const transferRecord = {
+        id: globalThis.crypto?.randomUUID?.() || `transfer-${Date.now()}`,
+        playerId: releasingPlayer.id,
+        playerName: releasingPlayer.name,
+        fromClubId: currentTeam.club_id,
+        fromName: currentTeam.club_name,
+        toClubId: null,
+        toName: 'Free Agent',
+        fee: refundAmount,
+        week: saveData.currentWeek || 1,
+        seasonId: activeSeason?.id || null,
+        createdAt: new Date().toISOString(),
+      }
+
+      const newSaveData = {
+        ...saveData,
+        teams: newTeams,
+        freeAgents: newFreeAgents,
+        transferHistory: [...(saveData.transferHistory || []), transferRecord],
+      }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
       toast.success(`Released ${releasingPlayer.name} (Refunded $${formatCurrency(refundAmount)})`)
