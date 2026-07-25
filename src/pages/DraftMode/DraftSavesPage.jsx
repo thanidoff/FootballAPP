@@ -38,32 +38,37 @@ export default function DraftSavesPage() {
   }
 
   async function handleSetupComplete({ name, clubs, freeAgents, prizes }) {
-    const { newTeams, remainingPlayers } = generateInitialDraft(clubs, freeAgents)
-    const teams = newTeams.map(team => {
-      const originalClub = clubs.find(c => String(c.id) === String(team.club_id))
-      return {
-        ...team,
-        short_name: originalClub?.short_name || team.short_name || team.club_name?.slice(0, 3).toUpperCase(),
-        stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 },
-      }
-    })
-    const saveId = await createDraftState({
-      name,
-      settings: {
-        startingBudgets: Object.fromEntries(teams.map(team => [team.club_id, team.budget])),
-        ...(prizes ? {
-          customPrizes: prizes.prizeSettings,
-          customCupPrizes: prizes.cupPrizeSettings,
-          hasLeague: prizes.hasLeague,
-          hasCup: prizes.hasCup,
-        } : {}),
-      },
-      teams,
-      freeAgents: remainingPlayers,
-      currentWeek: 1,
-    })
-    setCreateOpen(false)
-    navigate(`/draft/${saveId}/overview`)
+    try {
+      const { newTeams, remainingPlayers } = generateInitialDraft(clubs, freeAgents)
+      const teams = newTeams.map(team => {
+        const originalClub = clubs.find(c => String(c.id) === String(team.club_id))
+        return {
+          ...team,
+          short_name: originalClub?.short_name || team.short_name || team.club_name?.slice(0, 3).toUpperCase(),
+          stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 },
+        }
+      })
+      const saveId = await createDraftState({
+        name,
+        settings: {
+          startingBudgets: Object.fromEntries(teams.map(team => [team.club_id, team.budget])),
+          ...(prizes ? {
+            customPrizes: prizes.prizeSettings,
+            customCupPrizes: prizes.cupPrizeSettings,
+            hasLeague: prizes.hasLeague,
+            hasCup: prizes.hasCup,
+          } : {}),
+        },
+        teams,
+        freeAgents: remainingPlayers,
+        currentWeek: 1,
+      })
+      setCreateOpen(false)
+      navigate(`/draft/${saveId}/overview`)
+    } catch (err) {
+      console.error('Failed to create career save', err)
+      alert(err.message || 'Failed to create career save')
+    }
   }
 
   function handleLoad(saveId) {
