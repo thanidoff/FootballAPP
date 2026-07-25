@@ -65,14 +65,17 @@ async function requireCloudUser() {
 }
 
 function toDatabaseRow(save, ownerId) {
+  const settings = {
+    ...(save.settings || {}),
+    transferHistory: save.transferHistory ?? save.transfer_history ?? save.settings?.transferHistory ?? [],
+  }
   return {
     id: save.id,
     owner_id: ownerId,
     name: save.name || 'Career Save',
-    settings: save.settings || {},
+    settings,
     teams: save.teams || [],
     free_agents: save.freeAgents ?? save.free_agents ?? [],
-    transfer_history: save.transferHistory ?? save.transfer_history ?? [],
     current_week: save.currentWeek ?? save.current_week ?? 1,
     created_at: save.created_at || new Date().toISOString(),
     updated_at: save.updated_at || new Date().toISOString(),
@@ -85,7 +88,7 @@ async function readSaves() {
   await requireCloudUser()
   const { data, error } = await supabase
     .from('draft_saves')
-    .select('id,name,settings,teams,free_agents,transfer_history,current_week,created_at,updated_at,schema_version')
+    .select('id,name,settings,teams,free_agents,current_week,created_at,updated_at,schema_version')
     .order('updated_at', { ascending: false })
   if (error) throw error
   return data || []
@@ -175,7 +178,7 @@ export async function loadDraftState(saveId) {
   let saveData = {
     ...data,
     freeAgents: data.free_agents ?? data.freeAgents ?? [],
-    transferHistory: data.transfer_history ?? data.transferHistory ?? [],
+    transferHistory: data.settings?.transferHistory ?? data.transfer_history ?? data.transferHistory ?? [],
     currentWeek: data.current_week ?? data.currentWeek ?? 1
   }
 
@@ -222,11 +225,17 @@ export async function updateDraftState(saveId, saveObj) {
   const index = saves.findIndex(save => save.id === saveId)
   if (index === -1) throw new Error('Career save not found')
   const snapshot = cloneCareerSnapshot(saveObj)
+  const transferHistory = snapshot.transferHistory ?? snapshot.transfer_history ?? snapshot.settings?.transferHistory ?? saves[index].settings?.transferHistory ?? []
+  
   saves[index] = {
     ...saves[index],
     ...snapshot,
+    settings: {
+      ...(saves[index].settings || {}),
+      ...(snapshot.settings || {}),
+      transferHistory,
+    },
     free_agents: snapshot.freeAgents ?? snapshot.free_agents ?? saves[index].free_agents,
-    transfer_history: snapshot.transferHistory ?? snapshot.transfer_history ?? saves[index].transfer_history,
     current_week: snapshot.currentWeek ?? snapshot.current_week ?? saves[index].current_week,
     updated_at: new Date().toISOString(),
   }
