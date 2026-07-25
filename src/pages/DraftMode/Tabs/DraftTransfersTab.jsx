@@ -359,13 +359,7 @@ export default function DraftTransfersTab() {
               key={player.id}
               player={player}
               onEdit={() => setEditPlayer(player)}
-              onSign={() => {
-                setSigningPlayer(player)
-                setSelectedClubId('')
-                setAgreedFee(player.market_value || 0)
-                setFeeDisplay(((player.market_value || 0) / 1_000_000).toFixed(1))
-              }}
-              deleteLabel={player.club ? 'Transfer' : 'Sign'}
+              onSign={() => openSigning(player)}
             />
           ))}
         </div>
