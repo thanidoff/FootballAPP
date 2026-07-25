@@ -186,7 +186,7 @@ export default function DraftOverviewTab() {
                 onClick={() => setGrowthModalOpen(true)}
                 className="flex items-center gap-1.5 whitespace-nowrap rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100"
               >
-                <Sparkles size={14} /> View Ratings
+                <Sparkles size={14} className="shrink-0" /> View Ratings
               </Button>
             </div>
           )}
