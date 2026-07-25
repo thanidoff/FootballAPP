@@ -255,12 +255,12 @@ export default function DraftTransfersTab() {
         />
         <div className="flex items-center gap-2">
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             onClick={() => setGrowthModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-amber-900 border border-amber-300 bg-amber-50 hover:bg-amber-100"
+            className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
           >
-            <Sparkles size={14} className="shrink-0 text-amber-600" /> Season Ratings
+            <Sparkles size={15} className="shrink-0" /> Season Ratings
           </Button>
           <Button
             variant="outline"
