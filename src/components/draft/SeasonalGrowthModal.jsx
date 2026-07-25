@@ -38,11 +38,6 @@ export default function SeasonalGrowthModal({
               <span className="flex items-center gap-1 text-rose-600">
                 <TrendingDown size={15} /> -{negativeCount} Decreased
               </span>
-              {isLocked && (
-                <span className="ml-1 rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-bold text-gray-500">
-                  Locked for Season
-                </span>
-              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -56,7 +51,16 @@ export default function SeasonalGrowthModal({
                   <RefreshCw size={14} /> Reshuffle
                 </Button>
               )}
-              {!isLocked && onConfirmSave && (
+              {isLocked ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled
+                  className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
+                >
+                  <Sparkles size={14} /> Ratings Saved
+                </Button>
+              ) : onConfirmSave ? (
                 <Button
                   variant="primary"
                   size="sm"
@@ -65,7 +69,7 @@ export default function SeasonalGrowthModal({
                 >
                   <Sparkles size={14} /> Save Ratings
                 </Button>
-              )}
+              ) : null}
             </div>
           </div>
 
