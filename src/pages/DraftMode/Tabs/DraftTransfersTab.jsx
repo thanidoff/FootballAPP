@@ -424,7 +424,7 @@ export default function DraftTransfersTab() {
                 ...(signingPlayer.club_id || signingPlayer.club?.id ? [{
                   id: 'free_agent',
                   club_id: 'free_agent',
-                  name: 'Free Agent (Release to Market)',
+                  name: 'Free Agent',
                   short_name: 'FA',
                 }] : []),
                 ...saveData.teams.filter(team => (team.budget > 0 || team.club_id === selectedClubId) && team.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(team => ({
