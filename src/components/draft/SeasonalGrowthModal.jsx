@@ -69,7 +69,7 @@ export default function SeasonalGrowthModal({
             </div>
           </div>
 
-          {/* List of Adjusted Players */}
+          {/* List of Adjusted Players (Continuous Divided List) */}
           {adjustments.length === 0 ? (
             <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center">
               <Sparkles size={32} className="mb-2 text-[#FD5461]/60" />
@@ -89,75 +89,75 @@ export default function SeasonalGrowthModal({
               )}
             </div>
           ) : (
-            <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-              {adjustments.map((item) => {
-                const isPositive = item.deltaOvr > 0
-                const flagCode = FIFA_NATIONS.find(n => n.name === item.nationality)?.code
+            <div className="max-h-[420px] overflow-y-auto overflow-x-hidden rounded-2xl border border-gray-200 bg-white">
+              <div className="divide-y divide-gray-100">
+                {adjustments.map((item) => {
+                  const flagCode = FIFA_NATIONS.find(n => n.name === item.nationality)?.code
 
-                return (
-                  <div
-                    key={item.playerId}
-                    onClick={() => setSelectedPlayer({ id: item.playerId, name: item.name, position: item.position, stats: item.newStats, ovr: item.newOvr, photo_url: item.photo_url, nationality: item.nationality })}
-                    className="group flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-gray-200/80 bg-white p-3.5 shadow-sm transition-all hover:border-gray-400/60 hover:bg-slate-50/60 hover:shadow-md"
-                  >
-                    {/* Player Info */}
-                    <div className="flex min-w-0 items-center gap-3">
-                      {item.photo_url ? (
-                        <img
-                          src={item.photo_url}
-                          alt=""
-                          className="h-10 w-10 shrink-0 rounded-full bg-gray-100 object-cover ring-1 ring-black/5"
-                        />
-                      ) : (
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-                          <UserRound size={20} />
-                        </span>
-                      )}
+                  return (
+                    <div
+                      key={item.playerId}
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                      {/* Player Info */}
+                      <div className="flex min-w-0 items-center gap-3">
+                        {item.photo_url ? (
+                          <img
+                            src={item.photo_url}
+                            alt=""
+                            className="h-10 w-10 shrink-0 rounded-full bg-gray-100 object-cover ring-1 ring-black/5"
+                          />
+                        ) : (
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                            <UserRound size={20} />
+                          </span>
+                        )}
 
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-heading text-sm font-black text-[#0A1318] group-hover:text-[#FD5461]">
-                          {item.name}
-                        </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
-                          <PositionBadge position={item.position} />
-                          {flagCode && (
-                            <img
-                              src={`https://flagcdn.com/${flagCode}.svg`}
-                              alt=""
-                              className="h-3 w-4.5 shrink-0 rounded-sm object-cover ring-1 ring-black/10"
-                            />
-                          )}
-                          {item.clubBadge ? (
-                            <img src={item.clubBadge} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
-                          ) : (
-                            <FreeAgentIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          )}
-                          {item.clubName && <span className="truncate">{item.clubName}</span>}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-heading text-sm font-black text-[#0A1318]">
+                            {item.name}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
+                            <PositionBadge position={item.position} />
+                            {flagCode && (
+                              <img
+                                src={`https://flagcdn.com/${flagCode}.svg`}
+                                alt=""
+                                className="h-3 w-4.5 shrink-0 rounded-sm object-cover ring-1 ring-black/10"
+                              />
+                            )}
+                            {item.clubBadge ? (
+                              <img src={item.clubBadge} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+                            ) : (
+                              <FreeAgentIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            )}
+                            {item.clubName && <span className="truncate">{item.clubName}</span>}
+                          </div>
                         </div>
                       </div>
+
+                      {/* Rating Shift Display */}
+                      <div className="flex shrink-0 items-center gap-2">
+                        <OvrBadge value={item.oldOvr} size="md" />
+
+                        <ChevronRight
+                          size={18}
+                          strokeWidth={3}
+                          className={
+                            item.deltaOvr > 0
+                              ? 'text-emerald-500'
+                              : item.deltaOvr < 0
+                              ? 'text-rose-500'
+                              : 'text-gray-300'
+                          }
+                        />
+
+                        <OvrBadge value={item.newOvr} size="md" />
+                      </div>
                     </div>
-
-                    {/* Rating Shift Display */}
-                    <div className="flex shrink-0 items-center gap-2">
-                      <OvrBadge value={item.oldOvr} size="md" />
-
-                      <ChevronRight
-                        size={18}
-                        strokeWidth={3}
-                        className={
-                          item.deltaOvr > 0
-                            ? 'text-emerald-500'
-                            : item.deltaOvr < 0
-                            ? 'text-rose-500'
-                            : 'text-gray-300'
-                        }
-                      />
-
-                      <OvrBadge value={item.newOvr} size="md" />
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
