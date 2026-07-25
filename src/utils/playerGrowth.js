@@ -46,10 +46,15 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
       deltaOvr = Math.floor(Math.random() * 11) - 5 // -5 to +5
     }
 
-    // Determine stat allocation based on position
-    const statsToModify = player.position === 'GK'
-      ? ['SAV', 'GKA', 'PAS', 'PHY', 'PAC', 'DRI']
-      : ['SHO', 'PAS', 'DRI', 'DEF', 'PAC', 'PHY']
+    // Position-weighted probability pool for realistic growth/decline
+    const WEIGHTED_POOLS = {
+      GK:  ['SAV', 'SAV', 'SAV', 'SAV', 'GKA', 'GKA', 'GKA', 'PAS', 'PHY', 'PAC'],
+      DEF: ['DEF', 'DEF', 'DEF', 'DEF', 'PHY', 'PHY', 'PHY', 'PAC', 'PAC', 'PAS', 'PAS', 'DRI', 'SHO'],
+      MF:  ['PAS', 'PAS', 'PAS', 'DRI', 'DRI', 'DRI', 'DEF', 'DEF', 'PHY', 'PHY', 'PAC', 'SHO'],
+      FWD: ['SHO', 'SHO', 'SHO', 'SHO', 'DRI', 'DRI', 'DRI', 'PAC', 'PAC', 'PHY', 'PHY', 'PAS', 'DEF'],
+    }
+
+    const statPool = WEIGHTED_POOLS[player.position] || WEIGHTED_POOLS.MF
 
     // Clone stats object to mutate
     const newStats = { ...oldStats }
@@ -60,7 +65,7 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     const stepDirection = deltaOvr > 0 ? 1 : -1
 
     for (let i = 0; i < steps; i++) {
-      const targetStat = statsToModify[Math.floor(Math.random() * statsToModify.length)]
+      const targetStat = statPool[Math.floor(Math.random() * statPool.length)]
       const currentVal = newStats[targetStat] ?? 50
       const newVal = Math.max(30, Math.min(140, currentVal + stepDirection))
       newStats[targetStat] = newVal
