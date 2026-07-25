@@ -161,29 +161,41 @@ export default function DraftOverviewTab() {
 
   const [growthModalOpen, setGrowthModalOpen] = useState(false)
   const seasonAdjustments = activeSeason?.seasonAdjustments || []
+  const isGrowthLocked = activeSeason?.seasonAdjustmentsLocked || false
 
-  async function handleGenerateGrowthNow() {
+  const [previewGrowthData, setPreviewGrowthData] = useState(null)
+
+  function handleReshufflePreview() {
+    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], 10)
+    setPreviewGrowthData(result)
+  }
+
+  async function handleConfirmSaveRatings() {
+    const target = previewGrowthData || (seasonAdjustments.length === 0 ? applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], 10) : null)
+    if (!target) return
+
     try {
-      const { updatedTeams, updatedFreeAgents, seasonAdjustments: newAdjustments } = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], 10)
       const nextSettings = { ...saveData.settings }
       if (nextSettings.seasons && nextSettings.seasons.length > 0) {
         const idx = nextSettings.seasons.findIndex(s => String(s.id) === String(activeSeason?.id))
         const targetIdx = idx >= 0 ? idx : nextSettings.seasons.length - 1
         nextSettings.seasons[targetIdx] = {
           ...nextSettings.seasons[targetIdx],
-          seasonAdjustments: newAdjustments,
+          seasonAdjustments: target.seasonAdjustments,
+          seasonAdjustmentsLocked: true,
         }
       }
       const newSaveData = {
         ...saveData,
-        teams: updatedTeams,
-        freeAgents: updatedFreeAgents,
+        teams: target.updatedTeams,
+        freeAgents: target.updatedFreeAgents,
         settings: nextSettings,
       }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
+      setPreviewGrowthData(null)
     } catch (err) {
-      console.error('Failed to generate seasonal player adjustments:', err)
+      console.error('Failed to confirm seasonal player adjustments:', err)
     }
   }
 
@@ -340,7 +352,18 @@ export default function DraftOverviewTab() {
       </div>
 
       <PlayerProfileModal open={Boolean(selectedPlayer)} player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
-      <SeasonalGrowthModal open={growthModalOpen} onClose={() => setGrowthModalOpen(false)} adjustments={seasonAdjustments} seasonName={`Season ${activeSeason?.id || 1}`} onGenerate={handleGenerateGrowthNow} />
+      <SeasonalGrowthModal
+        open={growthModalOpen}
+        onClose={() => {
+          setGrowthModalOpen(false)
+          setPreviewGrowthData(null)
+        }}
+        adjustments={previewGrowthData ? previewGrowthData.seasonAdjustments : seasonAdjustments}
+        seasonName={`Season ${activeSeason?.id || 1}`}
+        isLocked={isGrowthLocked}
+        onReshufflePreview={handleReshufflePreview}
+        onConfirmSave={handleConfirmSaveRatings}
+      />
     </>
   )
 }
