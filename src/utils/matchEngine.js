@@ -45,19 +45,19 @@ function teamControl(players) {
   return average(players, 'PAS') * 0.35 + average(players, 'DRI') * 0.25 + average(players, 'DEF') * 0.20 + average(players, 'PAC') * 0.10 + average(players, 'PHY') * 0.10
 }
 
-function creatorWeight(player) {
-  return ({ MF: 0.45, DEF: 0.25, FWD: 0.25, GK: 0.05 }[player.position] || 0.1) * (0.5 + stat(player, 'PAS') / 100)
+function creatorWeight(player, isGk = false) {
+  if (isGk) return 0.04 * (0.5 + stat(player, 'PAS') / 100) // Rare long-range assist chance
+  return ({ MF: 0.45, DEF: 0.25, FWD: 0.25, GK: 0.04 }[player.position] || 0.1) * (0.5 + stat(player, 'PAS') / 100)
 }
 
-function shooterWeight(player) {
-  const position = { FWD: 1.60, MF: 1, DEF: 0.45, GK: 0.05 }[player.position] || 0.5
+function shooterWeight(player, isGk = false) {
+  if (isGk) return 0.008 * (stat(player, 'SHO') / 100) // Extremely rare long-range goal attempt
+  const position = { FWD: 1.60, MF: 1, DEF: 0.45, GK: 0.008 }[player.position] || 0.5
   return position * (stat(player, 'SHO') * 0.55 + stat(player, 'DRI') * 0.25 + stat(player, 'PAC') * 0.15 + stat(player, 'PHY') * 0.05)
 }
 
 export function simulatePossession({ attacking, defending, team, minute, random }) {
-  const outfieldAttackers = attacking.slice(0, 4).filter(Boolean)
-  const attackersToUse = outfieldAttackers.length ? outfieldAttackers : attacking
-  const creator = weightedPick(attackersToUse, creatorWeight, random)
+  const creator = weightedPick(attacking, (player) => creatorWeight(player, player.id === attacking[4]?.id), random)
   const outfieldDefenders = defending.slice(0, 4).filter(Boolean)
   const defendersToUse = outfieldDefenders.length ? outfieldDefenders : defending
   const defender = weightedPick(defendersToUse, player => stat(player, 'DEF') * 0.6 + stat(player, 'PHY') * 0.4, random)
@@ -78,11 +78,12 @@ export function simulatePossession({ attacking, defending, team, minute, random 
   const buildupChance = contestProbability(attackPower, defensePower, 0.10)
   if (random() > buildupChance) return { type: action === 'dribble' ? 'dispossessed' : 'bad_pass', team, minute, player: creator, opponent: defender }
 
-  const shooter = weightedPick(attackersToUse, shooterWeight, random)
+  const shooter = weightedPick(attacking, (player) => shooterWeight(player, player.id === attacking[4]?.id), random)
   const blocker = weightedPick(defendersToUse, player => stat(player, 'DEF') + stat(player, 'PHY') * 0.4, random)
   // 🧤 Lock Goalkeeper strictly to the 5th player (Index 4 of Starting 5)
   const goalkeeper = defending[4] || defending.find(player => player.position === 'GK') || defending.at(-1)
   
+  const isGkShooter = shooter.id === attacking[4]?.id
   const preparation = stat(shooter, 'SHO') * 0.45 + stat(shooter, 'DRI') * 0.35 + stat(shooter, 'PAC') * 0.20
   const blockPower = stat(blocker, 'DEF') * 0.55 + stat(blocker, 'PHY') * 0.25 + stat(blocker, 'PAC') * 0.20
   const blockChance = clamp(0.24 + (blockPower - preparation) / 200, 0.05, 0.55)
@@ -90,7 +91,8 @@ export function simulatePossession({ attacking, defending, team, minute, random 
 
   const pressure = Math.max(0, blockPower - preparation) * 0.12
   const accuracy = stat(shooter, 'SHO') * 0.70 + stat(shooter, 'DRI') * 0.20 + stat(shooter, 'PAC') * 0.10 - pressure
-  const onTargetChance = clamp(0.40 + accuracy / 160, 0.25, 0.92)
+  // Goalkeeper long-range shots have lower accuracy & lower onTargetChance
+  const onTargetChance = clamp((isGkShooter ? 0.18 : 0.40) + accuracy / 160, 0.10, 0.92)
   if (random() > onTargetChance) {
     const misses = ['shot_wide', 'shot_over', 'hit_post']
     return { type: misses[Math.min(misses.length - 1, Math.floor(random() * misses.length))], team, minute, player: shooter }
@@ -102,8 +104,8 @@ export function simulatePossession({ attacking, defending, team, minute, random 
   const finishing = stat(shooter, 'SHO') * 0.65 + stat(shooter, 'DRI') * 0.18 + stat(shooter, 'PHY') * 0.10 + stat(shooter, 'PAC') * 0.07
   const goalkeeperPower = stat(goalkeeper, 'SAV') * 0.55 + stat(goalkeeper, 'GKA') * 0.30 + stat(goalkeeper, 'PHY') * 0.15
 
-  // Base scoring chance tuned from -0.16 -> -0.09 (increases average goals per match from 2-3 to 3.8 - 4.5 goals)
-  const scoringChance = contestProbability(finishing, goalkeeperPower, -0.09)
+  // Long range GK goal attempts apply penalty modifier (-0.25) making GK goals rare miracles
+  const scoringChance = contestProbability(finishing, goalkeeperPower, isGkShooter ? -0.25 : -0.09)
   const roll = random()
   if (roll >= scoringChance) return { type: 'save', team, minute, player: shooter, goalkeeper }
   
