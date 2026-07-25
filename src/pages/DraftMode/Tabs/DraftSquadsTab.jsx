@@ -67,12 +67,7 @@ export default function DraftSquadsTab() {
     if (!signingPlayer || !signingClubId) return
     setProcessing(true)
     try {
-      const nextSaveData = transferDraftPlayer(saveData, {
-        playerId: signingPlayer.id,
-        toClubId: signingClubId,
-        fee: agreedFee,
-      })
-      await updateDraftState(saveId, nextSaveData)
+      const nextSaveData = await transferDraftPlayer(saveId, signingPlayer.id, signingClubId, agreedFee)
       setSaveData(nextSaveData)
       setSigningPlayer(null)
       setSigningClubId('')
