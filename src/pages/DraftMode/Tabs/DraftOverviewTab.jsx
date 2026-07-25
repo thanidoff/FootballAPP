@@ -163,7 +163,7 @@ export default function DraftOverviewTab() {
   return (
     <>
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(460px,0.85fr)_minmax(0,1.15fr)]">
-        {/* LEFT COLUMN: Season Growth Banner + Standings + Recent Results */}
+        {/* LEFT COLUMN: Season Growth Banner + Standings + Recent Results + Upcoming Matches */}
         <div className="space-y-6">
           {/* Seasonal Growth & Form Entrance Banner */}
           {seasonAdjustments.length > 0 && (
@@ -233,10 +233,7 @@ export default function DraftOverviewTab() {
               </div>
             ) : <Empty className="flex-1">No match results yet.</Empty>}
           </section>
-        </div>
 
-        {/* RIGHT COLUMN: Upcoming Matches + Season Transfers / Leaders */}
-        <div className="space-y-6">
           <section className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <header className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <h2 className="font-heading text-base font-black uppercase tracking-wide text-[#0A1318]">Upcoming Matches</h2>
@@ -289,7 +286,10 @@ export default function DraftOverviewTab() {
               </div>
             )}
           </section>
+        </div>
 
+        {/* RIGHT COLUMN: Season Transfers / Leaders (Full Height Alone) */}
+        <div>
           <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
             <header className="border-b border-gray-100 px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
