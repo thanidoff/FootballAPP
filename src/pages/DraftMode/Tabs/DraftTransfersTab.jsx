@@ -415,12 +415,20 @@ export default function DraftTransfersTab() {
               label="Select Club"
               value={selectedClubId}
               onChange={setSelectedClubId}
-              clubs={saveData.teams.filter(team => (team.budget > 0 || team.club_id === selectedClubId) && team.club_id !== signingPlayer.club?.id).map(team => ({
-                ...team,
-                id: team.club_id,
-                name: `${team.club_name}  ·  $${formatCurrency(team.budget)}  ·  ${team.roster?.length || 0} players`,
-                short_name: team.short_name || team.club_name.slice(0, 3).toUpperCase(),
-              }))}
+              clubs={[
+                ...(signingPlayer.club_id || signingPlayer.club?.id ? [{
+                  id: 'free_agent',
+                  club_id: 'free_agent',
+                  name: 'Free Agent (Release to Market)',
+                  short_name: 'FA',
+                }] : []),
+                ...saveData.teams.filter(team => (team.budget > 0 || team.club_id === selectedClubId) && team.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(team => ({
+                  ...team,
+                  id: team.club_id,
+                  name: `${team.club_name}  ·  $${formatCurrency(team.budget)}  ·  ${team.roster?.length || 0} players`,
+                  short_name: team.short_name || team.club_name.slice(0, 3).toUpperCase(),
+                }))
+              ]}
             />
 
             <div>

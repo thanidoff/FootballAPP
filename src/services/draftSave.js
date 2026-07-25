@@ -602,8 +602,10 @@ export async function advanceDraftLeagueWeek(saveId) {
 export async function transferDraftPlayer(saveId, playerId, targetClubId, agreedFee = null) {
   const saveData = await loadDraftState(saveId)
   const teams = (saveData.teams || []).map(team => ({ ...team, roster: [...(team.roster || [])] }))
-  const targetIndex = teams.findIndex(team => team.club_id === targetClubId)
-  if (targetIndex < 0) throw new Error('Target club not found')
+  const isFreeAgentTarget = !targetClubId || targetClubId === 'free' || targetClubId === 'free_agent'
+  const targetIndex = isFreeAgentTarget ? -1 : teams.findIndex(team => team.club_id === targetClubId)
+  
+  if (!isFreeAgentTarget && targetIndex < 0) throw new Error('Target club not found')
 
   let player = (saveData.freeAgents || []).find(item => item.id === playerId)
   let sourceIndex = -1
@@ -616,24 +618,36 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
 
   const fee = agreedFee == null ? (player.market_value || 0) : Number(agreedFee)
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
-  if ((teams[targetIndex].budget || 0) < fee) throw new Error('Insufficient budget')
-  teams[targetIndex].budget -= fee
+
+  if (!isFreeAgentTarget) {
+    if ((teams[targetIndex].budget || 0) < fee) throw new Error('Insufficient budget')
+    teams[targetIndex].budget -= fee
+  }
+
   if (sourceIndex >= 0) {
     teams[sourceIndex].budget = (teams[sourceIndex].budget || 0) + fee
     teams[sourceIndex].roster = teams[sourceIndex].roster.filter(item => item.id !== playerId)
   }
-  const storedPlayer = { ...player, club_id: targetClubId, market_value: fee }
-  delete storedPlayer.club
-  teams[targetIndex].roster.push(storedPlayer)
 
-  const freeAgents = (saveData.freeAgents || []).filter(item => item.id !== playerId)
+  let freeAgents = [...(saveData.freeAgents || []).filter(item => item.id !== playerId)]
+
+  if (isFreeAgentTarget) {
+    const releasedPlayer = { ...player, club_id: null, club: null }
+    freeAgents.push(releasedPlayer)
+  } else {
+    const storedPlayer = { ...player, club_id: targetClubId, market_value: fee }
+    delete storedPlayer.club
+    teams[targetIndex].roster.push(storedPlayer)
+  }
+
   const activeSeason = saveData.settings?.seasons?.find(season => season.status === 'active')
   const transfer = {
     id: globalThis.crypto?.randomUUID?.() || `transfer-${Date.now()}`,
     playerId, playerName: player.name,
     fromClubId: sourceIndex >= 0 ? teams[sourceIndex].club_id : null,
     fromName: sourceIndex >= 0 ? teams[sourceIndex].club_name : null,
-    toClubId: teams[targetIndex].club_id, toName: teams[targetIndex].club_name,
+    toClubId: isFreeAgentTarget ? null : teams[targetIndex].club_id,
+    toName: isFreeAgentTarget ? 'Free Agent' : teams[targetIndex].club_name,
     fee, week: saveData.currentWeek || 1, seasonId: activeSeason?.id || null,
     createdAt: new Date().toISOString(),
   }
