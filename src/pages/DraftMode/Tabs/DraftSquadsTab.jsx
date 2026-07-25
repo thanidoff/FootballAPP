@@ -104,8 +104,15 @@ export default function DraftSquadsTab() {
   const isLineupDirty = JSON.stringify(displayRoster.map(p => p.id)) !== JSON.stringify((team.roster || []).map(p => p.id))
   const averageOvr = displayRoster.length ? Math.round(displayRoster.reduce((sum, player) => sum + player.ovr, 0) / displayRoster.length) : 0
 
-  async function handleRelease(player) {
-    if (!window.confirm(`Release ${player.name} to Free Agents? You will get back $${(player.market_value / 1000000).toFixed(1)}M.`)) return
+  const [releasingPlayer, setReleasingPlayer] = useState(null)
+
+  function openReleaseModal(player) {
+    setReleasingPlayer(player)
+  }
+
+  async function handleConfirmRelease() {
+    if (!releasingPlayer) return
+    const refundAmount = Math.round((releasingPlayer.market_value || 0) * 0.7)
     
     setProcessing(true)
     try {
@@ -114,21 +121,23 @@ export default function DraftSquadsTab() {
       const newFreeAgents = [...(saveData.freeAgents || [])]
 
       // Remove from roster
-      currentTeam.roster = currentTeam.roster.filter(p => p.id !== player.id)
-      // Refund budget
-      currentTeam.budget += (player.market_value || 0)
+      currentTeam.roster = currentTeam.roster.filter(p => p.id !== releasingPlayer.id)
+      // Refund 70% of current market value to budget
+      currentTeam.budget += refundAmount
       
       newTeams[teamIndex] = currentTeam
       
-      const releasedPlayer = { ...player, club_id: null, club: null }
+      const releasedPlayer = { ...releasingPlayer, club_id: null, club: null }
       newFreeAgents.push(releasedPlayer)
 
       const newSaveData = { ...saveData, teams: newTeams, freeAgents: newFreeAgents }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
+      toast.success(`Released ${releasingPlayer.name} (Refunded $${formatCurrency(refundAmount)})`)
+      setReleasingPlayer(null)
     } catch (err) {
       console.error('Failed to release player', err)
-      alert('Failed to release player')
+      toast.error('Failed to release player')
     } finally {
       setProcessing(false)
     }
@@ -607,7 +616,7 @@ export default function DraftSquadsTab() {
                 player={player} 
                 onClick={() => setProfilePlayer(player)}
                 onEdit={() => openPlayerEditor(player)}
-                onDelete={() => handleRelease(player)} 
+                onDelete={() => openReleaseModal(player)} 
                 deleteLabel="Release"
                 onSign={() => openSigningModal(player)}
               />
@@ -881,6 +890,68 @@ export default function DraftSquadsTab() {
             >
               {processing ? 'Processing...' : `Confirm Signing`}
             </Button>
+          </div>
+        )}
+      </Modal>
+
+      {/* Release Confirmation Modal */}
+      <Modal open={Boolean(releasingPlayer)} onClose={() => setReleasingPlayer(null)} title="Release Player" width="max-w-md">
+        {releasingPlayer && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/50 p-3.5">
+              {releasingPlayer.photo_url ? (
+                <img src={releasingPlayer.photo_url} alt="" className="h-12 w-12 rounded-full object-cover ring-1 ring-black/5" />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-200 text-gray-400 font-bold text-lg">
+                  {releasingPlayer.name?.charAt(0)}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-heading text-base font-black text-[#0A1318]">{releasingPlayer.name}</div>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+                  <PositionBadge position={releasingPlayer.position} />
+                  <span>OVR {releasingPlayer.ovr}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 space-y-2 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Current Market Value:</span>
+                <span className="font-semibold text-gray-900">${formatCurrency(releasingPlayer.market_value || 0)}</span>
+              </div>
+              <div className="flex justify-between text-rose-600 font-medium">
+                <span>Release Refund Rate:</span>
+                <span className="font-bold">70%</span>
+              </div>
+              <div className="border-t border-rose-200/60 pt-2 flex justify-between text-sm font-bold text-rose-700">
+                <span>Refunded to Budget:</span>
+                <span>+${formatCurrency(Math.round((releasingPlayer.market_value || 0) * 0.7))}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center">
+              Releasing this player will transfer them to Free Agents and refund 70% of their current market value to your club budget.
+            </p>
+
+            <div className="flex items-center gap-3 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 justify-center py-3"
+                onClick={() => setReleasingPlayer(null)}
+                disabled={processing}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1 justify-center py-3"
+                onClick={handleConfirmRelease}
+                disabled={processing}
+              >
+                {processing ? 'Releasing...' : 'Confirm Release'}
+              </Button>
+            </div>
           </div>
         )}
       </Modal>
