@@ -6,7 +6,7 @@ import OvrBadge from '../ui/OvrBadge'
 import PlayerProfileModal from '../players/PlayerProfileModal'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
 
-export default function SeasonalGrowthModal({ open, onClose, adjustments = [], seasonName = 'Current Season' }) {
+export default function SeasonalGrowthModal({ open, onClose, adjustments = [], seasonName = 'Current Season', onGenerate }) {
   const [selectedPlayer, setSelectedPlayer] = useState(null)
 
   if (!open) return null
@@ -45,8 +45,20 @@ export default function SeasonalGrowthModal({ open, onClose, adjustments = [], s
 
           {/* List of Adjusted Players */}
           {adjustments.length === 0 ? (
-            <div className="py-12 text-center text-sm text-gray-400">
-              No rating changes recorded for this season yet.
+            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center">
+              <Sparkles size={32} className="mb-2 text-amber-500/60" />
+              <p className="text-sm font-semibold text-gray-700">No seasonal rating adjustments generated yet</p>
+              <p className="mt-1 max-w-sm text-xs text-gray-400">
+                Rating changes (-5 to +5 OVR) automatically trigger when starting a new season or schedule.
+              </p>
+              {onGenerate && (
+                <button
+                  onClick={onGenerate}
+                  className="mt-4 flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95"
+                >
+                  <Sparkles size={14} /> Generate Season Ratings Now
+                </button>
+              )}
             </div>
           ) : (
             <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">

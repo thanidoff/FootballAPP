@@ -9,6 +9,8 @@ import Select from '../../../components/ui/Select'
 import ResultScore from '../../../components/draft/ResultScore'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
+import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import { updateDraftState } from '../../../services/draftSave'
 
 const STAT_FILTERS = [
   { key: 'topScorers', label: 'Goals' },
@@ -159,6 +161,31 @@ export default function DraftOverviewTab() {
 
   const [growthModalOpen, setGrowthModalOpen] = useState(false)
   const seasonAdjustments = activeSeason?.seasonAdjustments || []
+
+  async function handleGenerateGrowthNow() {
+    try {
+      const { updatedTeams, updatedFreeAgents, seasonAdjustments: newAdjustments } = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], 10)
+      const nextSettings = { ...saveData.settings }
+      if (nextSettings.seasons && nextSettings.seasons.length > 0) {
+        const idx = nextSettings.seasons.findIndex(s => String(s.id) === String(activeSeason?.id))
+        const targetIdx = idx >= 0 ? idx : nextSettings.seasons.length - 1
+        nextSettings.seasons[targetIdx] = {
+          ...nextSettings.seasons[targetIdx],
+          seasonAdjustments: newAdjustments,
+        }
+      }
+      const newSaveData = {
+        ...saveData,
+        teams: updatedTeams,
+        freeAgents: updatedFreeAgents,
+        settings: nextSettings,
+      }
+      await updateDraftState(saveId, newSaveData)
+      setSaveData(newSaveData)
+    } catch (err) {
+      console.error('Failed to generate seasonal player adjustments:', err)
+    }
+  }
 
   return (
     <>
@@ -313,7 +340,7 @@ export default function DraftOverviewTab() {
       </div>
 
       <PlayerProfileModal open={Boolean(selectedPlayer)} player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
-      <SeasonalGrowthModal open={growthModalOpen} onClose={() => setGrowthModalOpen(false)} adjustments={seasonAdjustments} seasonName={`Season ${activeSeason?.id || 1}`} />
+      <SeasonalGrowthModal open={growthModalOpen} onClose={() => setGrowthModalOpen(false)} adjustments={seasonAdjustments} seasonName={`Season ${activeSeason?.id || 1}`} onGenerate={handleGenerateGrowthNow} />
     </>
   )
 }
