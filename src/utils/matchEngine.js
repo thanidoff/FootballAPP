@@ -55,8 +55,12 @@ function shooterWeight(player) {
 }
 
 export function simulatePossession({ attacking, defending, team, minute, random }) {
-  const creator = weightedPick(attacking, creatorWeight, random)
-  const defender = weightedPick(defending.filter(player => player.position !== 'GK'), player => stat(player, 'DEF') * 0.6 + stat(player, 'PHY') * 0.4, random)
+  const outfieldAttackers = attacking.slice(0, 4).filter(Boolean)
+  const attackersToUse = outfieldAttackers.length ? outfieldAttackers : attacking
+  const creator = weightedPick(attackersToUse, creatorWeight, random)
+  const outfieldDefenders = defending.slice(0, 4).filter(Boolean)
+  const defendersToUse = outfieldDefenders.length ? outfieldDefenders : defending
+  const defender = weightedPick(defendersToUse, player => stat(player, 'DEF') * 0.6 + stat(player, 'PHY') * 0.4, random)
   if (!creator || !defender) return { type: 'turnover', team, minute }
 
   const actionRoll = random()
@@ -74,9 +78,8 @@ export function simulatePossession({ attacking, defending, team, minute, random 
   const buildupChance = contestProbability(attackPower, defensePower, 0.10)
   if (random() > buildupChance) return { type: action === 'dribble' ? 'dispossessed' : 'bad_pass', team, minute, player: creator, opponent: defender }
 
-  const shooter = weightedPick(attacking, shooterWeight, random)
-  const outfieldDefenders = defending.slice(0, 4)
-  const blocker = weightedPick(outfieldDefenders.length ? outfieldDefenders : defending, player => stat(player, 'DEF') + stat(player, 'PHY') * 0.4, random)
+  const shooter = weightedPick(attackersToUse, shooterWeight, random)
+  const blocker = weightedPick(defendersToUse, player => stat(player, 'DEF') + stat(player, 'PHY') * 0.4, random)
   // 🧤 Lock Goalkeeper strictly to the 5th player (Index 4 of Starting 5)
   const goalkeeper = defending[4] || defending.find(player => player.position === 'GK') || defending.at(-1)
   
