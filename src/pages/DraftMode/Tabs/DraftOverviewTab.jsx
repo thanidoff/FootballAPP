@@ -142,9 +142,7 @@ export default function DraftOverviewTab() {
 
   const leaders = leaderData.slice(0, 15)
 
-  const currentSeasonId = activeSeason?.id || 1
   const transfers = [...(saveData.transferHistory || [])]
-    .filter(item => !item.seasonId || item.seasonId === currentSeasonId || String(item.seasonId) === String(currentSeasonId))
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
   const teamById = id => (saveData.teams || []).find(team => team.club_id === id)
@@ -319,7 +317,14 @@ export default function DraftOverviewTab() {
               )}
             </header>
             {featureView === 'transfers' ? (transfers.length ? (
-              <div className="w-full overflow-hidden"><div className="grid grid-cols-[minmax(100px,1.5fr)_minmax(72px,0.8fr)_minmax(72px,0.8fr)_76px] gap-2 bg-white border-b border-gray-100 px-5 py-3 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400"><span>Player</span><span>From</span><span>To</span><span className="text-right">Fee</span></div><div className="divide-y divide-gray-100">{transfers.map((item, index) => <div key={item.id || index} className="grid grid-cols-[minmax(100px,1.5fr)_minmax(72px,0.8fr)_minmax(72px,0.8fr)_76px] items-center gap-2 px-5 py-3 transition-colors hover:bg-red-50/30"><span className="truncate text-sm font-semibold text-[#0A1318]" title={item.playerName}>{item.playerName}</span><TransferClub team={teamById(item.fromClubId)} name={item.fromName} /><TransferClub team={teamById(item.toClubId)} name={item.toName} /><span className="text-right text-sm font-semibold tabular-nums text-[#FD5461]">{money(item.fee)}</span></div>)}</div></div>
+              <div className="w-full overflow-hidden">
+                <div className="grid grid-cols-[minmax(100px,1.5fr)_minmax(72px,0.8fr)_minmax(72px,0.8fr)_76px] gap-2 bg-white border-b border-gray-100 px-5 py-3 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400">
+                  <span>Player</span><span>From</span><span>To</span><span className="text-right">Fee</span>
+                </div>
+                <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto hide-scrollbar">
+                  {transfers.map((item, index) => <div key={item.id || index} className="grid grid-cols-[minmax(100px,1.5fr)_minmax(72px,0.8fr)_minmax(72px,0.8fr)_76px] items-center gap-2 px-5 py-3 transition-colors hover:bg-red-50/30"><span className="truncate text-sm font-semibold text-[#0A1318]" title={item.playerName}>{item.playerName}</span><TransferClub team={teamById(item.fromClubId)} name={item.fromName} /><TransferClub team={teamById(item.toClubId)} name={item.toName} /><span className="text-right text-sm font-semibold tabular-nums text-[#FD5461]">{money(item.fee)}</span></div>)}
+                </div>
+              </div>
             ) : <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center"><p className="text-sm text-gray-400">No transfers have been completed this season.</p><Button variant="outline" size="sm" onClick={() => navigate(`/draft/${saveId}/transfers`)} className="mt-4 flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"><ArrowLeftRight size={16} /> Open Market</Button></div>) : (leaders.length ? (
               <div className="divide-y divide-gray-50">{leaders.map(({ player, value }, index) => <button key={player.id} onClick={() => setSelectedPlayer(player)} className="w-full cursor-pointer grid grid-cols-[28px_40px_1fr_auto] items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-red-50/30"><span className={`text-center font-heading text-sm font-black ${index < 3 ? 'text-[#FD5461]' : 'text-gray-300'}`}>{index + 1}</span><span className="h-10 w-10 overflow-hidden rounded-full bg-gray-100">{player.photo_url && <img src={player.photo_url} alt="" className="h-full w-full object-cover" />}</span><span className="min-w-0"><span className="block truncate text-sm font-bold text-[#0A1318]">{player.name}</span><span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-gray-400">{player.team ? <><Badge team={player.team} size="h-4 w-4" /><span className="truncate">{player.team.club_name}</span></> : <span>Free Agent</span>}</span></span><span className="font-heading text-2xl font-black text-[#FD5461]">{value}</span></button>)}</div>
             ) : <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center"><p className="text-sm text-gray-400">No {STAT_FILTERS.find(filter => filter.key === statFilter)?.label.toLowerCase()} recorded yet.</p><Button variant="outline" size="sm" onClick={() => navigate(`/draft/${saveId}/matches`)} className="mt-4 flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"><Trophy size={16} /> Open League</Button></div>)}
