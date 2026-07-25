@@ -391,15 +391,9 @@ export default function DraftOverviewTab() {
                                 />
                               )}
                               {currentClub ? (
-                                <span className="flex items-center gap-1 truncate text-gray-600 font-medium">
-                                  <Badge team={currentClub} size="h-3.5 w-3.5" />
-                                  <span className="truncate">{currentClub.short_name || currentClub.club_name}</span>
-                                </span>
+                                <Badge team={currentClub} size="h-3.5 w-3.5" />
                               ) : (
-                                <span className="flex items-center gap-1 text-gray-400 font-medium">
-                                  <FreeAgentIcon size={12} className="shrink-0" />
-                                  <span>FA</span>
-                                </span>
+                                <FreeAgentIcon size={12} className="shrink-0" />
                               )}
                               {playerObj?.position && (
                                 <PositionBadge position={playerObj.position} />
