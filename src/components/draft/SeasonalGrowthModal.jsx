@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, ChevronRight, Sparkles, TrendingDown, TrendingUp, UserRound, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, RefreshCw, Sparkles, TrendingDown, TrendingUp, UserRound, X } from 'lucide-react'
 import Modal from '../ui/Modal'
 import PositionBadge from '../ui/PositionBadge'
 import OvrBadge from '../ui/OvrBadge'
+import FreeAgentIcon from '../ui/FreeAgentIcon'
 import PlayerProfileModal from '../players/PlayerProfileModal'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
 
@@ -34,6 +35,15 @@ export default function SeasonalGrowthModal({ open, onClose, adjustments = [], s
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {onGenerate && (
+                <button
+                  onClick={onGenerate}
+                  title="Reshuffle rating changes"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-all hover:bg-amber-100 active:scale-95"
+                >
+                  <RefreshCw size={14} />
+                </button>
+              )}
               <span className="flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-600 border border-emerald-200">
                 <TrendingUp size={13} /> +{positiveCount} Up
               </span>
@@ -87,13 +97,11 @@ export default function SeasonalGrowthModal({ open, onClose, adjustments = [], s
                       )}
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate font-heading text-sm font-black text-[#0A1318] group-hover:text-amber-600">
-                            {item.name}
-                          </span>
-                          <PositionBadge position={item.position} />
+                        <div className="truncate font-heading text-sm font-black text-[#0A1318] group-hover:text-amber-600">
+                          {item.name}
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
+                          <PositionBadge position={item.position} />
                           {flagCode && (
                             <img
                               src={`https://flagcdn.com/${flagCode}.svg`}
@@ -101,10 +109,12 @@ export default function SeasonalGrowthModal({ open, onClose, adjustments = [], s
                               className="h-3 w-4.5 shrink-0 rounded-sm object-cover ring-1 ring-black/10"
                             />
                           )}
-                          {item.clubBadge && (
+                          {item.clubBadge ? (
                             <img src={item.clubBadge} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+                          ) : (
+                            <FreeAgentIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                           )}
-                          <span className="truncate">{item.clubName || 'Free Agent'}</span>
+                          {item.clubName && <span className="truncate">{item.clubName}</span>}
                         </div>
                       </div>
                     </div>
