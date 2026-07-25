@@ -39,7 +39,7 @@ export default function DraftSquadsTab() {
   const [editPlayer, setEditPlayer] = useState(null)
   const [profilePlayer, setProfilePlayer] = useState(null)
   const [activeSection, setActiveSection] = useState('roster')
-  const [teamSelectorCollapsed, setTeamSelectorCollapsed] = useState(false)
+  const [teamSelectorCollapsed, setTeamSelectorCollapsed] = useState(true)
   const [clubManagerOpen, setClubManagerOpen] = useState(false)
   const [masterClubs, setMasterClubs] = useState([])
   const [managedClubIds, setManagedClubIds] = useState([])
