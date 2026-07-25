@@ -107,9 +107,9 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
 
         <div className="flex flex-1 items-start justify-between gap-2 min-w-0">
           {/* name + flag + club */}
-          <div className="min-w-0 pt-0.5">
-            <div className="text-base font-semibold text-gray-900 leading-tight truncate">{player.name}</div>
-            <div className="mt-2 flex items-center gap-2">
+          <div className="min-w-0 pt-0.5 flex-1">
+            <div className="text-base font-semibold text-gray-900 leading-tight truncate" title={player.name}>{player.name}</div>
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
               {flagCode && (
                 <img src={`https://flagcdn.com/${flagCode}.svg`} alt={player.nationality}
                   className="h-4 w-6 flex-shrink-0 rounded-sm object-cover ring-1 ring-black/10" />
@@ -118,7 +118,7 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
                 ? <ClubBadge club={player.club} />
                 : <FreeAgentIcon size={24} />
               }
-              <span className="text-xs text-gray-400">{player.age} yrs</span>
+              <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{player.age} yrs</span>
             </div>
           </div>
           {/* OVR + position */}

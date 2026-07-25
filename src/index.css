@@ -308,9 +308,15 @@ h1, h2, h3, h4, h5, h6 {
    container width instead of viewport breakpoints (important beside sidebars). */
 .player-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
   align-items: stretch;
   gap: 1rem;
+}
+
+@media (min-width: 1280px) {
+  .player-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
