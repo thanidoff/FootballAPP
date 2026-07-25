@@ -142,8 +142,9 @@ export default function DraftOverviewTab() {
 
   const leaders = leaderData.slice(0, 15)
 
+  const currentSeasonId = activeSeason?.id || 1
   const transfers = [...(saveData.transferHistory || [])]
-    .filter(item => !activeSeason?.id || !item.seasonId || item.seasonId === activeSeason.id)
+    .filter(item => !item.seasonId || item.seasonId === currentSeasonId || String(item.seasonId) === String(currentSeasonId))
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
   const teamById = id => (saveData.teams || []).find(team => team.club_id === id)
