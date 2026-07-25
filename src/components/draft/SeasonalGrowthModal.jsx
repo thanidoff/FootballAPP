@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronRight, RefreshCw, Sparkles, TrendingDown, TrendingUp, UserRound, X } from 'lucide-react'
 import Modal from '../ui/Modal'
+import Button from '../ui/Button'
 import PositionBadge from '../ui/PositionBadge'
 import OvrBadge from '../ui/OvrBadge'
 import FreeAgentIcon from '../ui/FreeAgentIcon'
@@ -46,20 +47,24 @@ export default function SeasonalGrowthModal({
 
             <div className="flex items-center gap-2">
               {!isLocked && onReshufflePreview && (
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={onReshufflePreview}
-                  className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 font-heading text-xs font-bold uppercase tracking-wider text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                  className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
                 >
-                  <RefreshCw size={13} /> Reshuffle
-                </button>
+                  <RefreshCw size={14} /> Reshuffle
+                </Button>
               )}
               {!isLocked && onConfirmSave && (
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={onConfirmSave}
-                  className="flex items-center gap-1.5 rounded-xl bg-[#FD5461] px-3.5 py-1.5 font-heading text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-[#e04552] active:scale-95"
+                  className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
                 >
-                  <Sparkles size={13} /> Save Ratings
-                </button>
+                  <Sparkles size={14} /> Save Ratings
+                </Button>
               )}
             </div>
           </div>
@@ -73,12 +78,14 @@ export default function SeasonalGrowthModal({
                 Rating changes (-5 to +5 OVR) can be previewed and reshuffled before saving to this season.
               </p>
               {onReshufflePreview && (
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={onReshufflePreview}
-                  className="mt-4 flex items-center gap-2 rounded-xl bg-[#FD5461] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:bg-[#e04552] active:scale-95"
+                  className="mt-4 flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
                 >
-                  <Sparkles size={14} /> Preview Rating Changes Now
-                </button>
+                  <Sparkles size={16} /> Preview Rating Changes Now
+                </Button>
               )}
             </div>
           ) : (
