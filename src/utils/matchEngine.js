@@ -74,6 +74,14 @@ export function simulatePossession({ attacking, defending, team, minute, random 
     ? stat(defender, 'DEF') * 0.50 + stat(defender, 'PAC') * 0.25 + stat(defender, 'PHY') * 0.25
     : stat(defender, 'DEF') * 0.55 + stat(defender, 'PAC') * 0.25 + stat(defender, 'PHY') * 0.20
   
+  // Check for foul during contest
+  const foulChance = clamp(0.12 + (stat(defender, 'PHY') - stat(creator, 'DRI')) / 250, 0.04, 0.22)
+  if (random() < foulChance) {
+    const cardRoll = random()
+    const card = cardRoll < 0.05 ? 'red' : cardRoll < 0.35 ? 'yellow' : null
+    return { type: 'foul', team: team === 'home' ? 'away' : 'home', minute, player: defender, card, victim: creator }
+  }
+
   // Higher buildup chance for high-tempo attacking opportunities
   const buildupChance = contestProbability(attackPower, defensePower, 0.10)
   if (random() > buildupChance) return { type: action === 'dribble' ? 'dispossessed' : 'bad_pass', team, minute, player: creator, opponent: defender }

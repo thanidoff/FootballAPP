@@ -18,7 +18,7 @@ describe('possession match engine', () => {
 
   it('resolves shots through explicit outcomes', () => {
     const events = simulateMatchSequences(home, away, { seed: 'outcomes', possessions: 80 })
-    const outcomes = new Set(['bad_pass', 'dispossessed', 'blocked_shot', 'shot_wide', 'shot_over', 'hit_post', 'save', 'goal'])
+    const outcomes = new Set(['bad_pass', 'dispossessed', 'blocked_shot', 'shot_wide', 'shot_over', 'hit_post', 'save', 'goal', 'foul'])
     expect(events.every(event => outcomes.has(event.type))).toBe(true)
   })
 

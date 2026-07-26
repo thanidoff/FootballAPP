@@ -108,28 +108,22 @@ function GoalConfetti({ active, onDone }) {
 
 // ─── Live Event Ticker ────────────────────────────────────────────────────────
 function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeClub, awayClub }) {
-  // Key events filter: goals, cards, shots, saves, fouls, substitutions, mvp
-  const ALLOWED_ACTION_TYPES = new Set(['blocked_shot', 'shot_wide', 'shot_over', 'hit_post', 'save', 'foul', 'substitution'])
+  // Filter ONLY key events: goals, fouls/cards, and match MVP
+  const ALLOWED_ACTION_TYPES = new Set(['foul'])
   
   const events = [
     ...goals.map((goal, index) => ({ ...goal, id: `goal-${goal.minute}-${goal.scorer?.id ?? index}`, type: 'goal', player: goal.scorer })),
-    ...fouls.map((foul, index) => ({ ...foul, id: `${foul.card}-${foul.minute}-${foul.player?.id ?? index}`, type: foul.card, card: foul.card })),
-    ...actions.filter(event => event.type !== 'goal' && ALLOWED_ACTION_TYPES.has(event.type)).map((event, index) => ({ ...event, id: `action-${event.type}-${event.minute}-${event.player?.id ?? index}` })),
+    ...fouls.map((foul, index) => ({ ...foul, id: `${foul.card || 'foul'}-${foul.minute}-${foul.player?.id ?? index}`, type: foul.card || 'foul', card: foul.card, player: foul.player })),
+    ...actions.filter(event => event.type === 'foul').map((event, index) => ({ ...event, id: `action-foul-${event.minute}-${event.player?.id ?? index}`, type: event.card || 'foul', card: event.card, player: event.player })),
     ...(phase === 'full_time' && mvp ? [{ id: `mvp-${mvp.id}`, type: 'mvp', minute: Infinity, team: mvpTeam, player: mvp }] : []),
   ].sort((a, b) => a.minute - b.minute)
 
   const eventMeta = {
     goal: { label: 'Goal', icon: <CircleDot size={17} strokeWidth={2.5} />, tone: 'bg-[#FD5461] text-white' },
-    yellow: { label: 'Yellow card', icon: <span className="h-4 w-3 rounded-[2px] bg-amber-400" />, tone: 'bg-amber-50 text-amber-700' },
-    red: { label: 'Red card', icon: <span className="h-4 w-3 rounded-[2px] bg-red-500" />, tone: 'bg-red-50 text-red-600' },
+    yellow: { label: 'Yellow card', icon: <span className="h-4 w-3 rounded-[2px] bg-amber-400 shrink-0" />, tone: 'bg-amber-50 text-amber-700' },
+    red: { label: 'Red card', icon: <span className="h-4 w-3 rounded-[2px] bg-red-500 shrink-0" />, tone: 'bg-red-50 text-red-600' },
     mvp: { label: 'Player of the Match', icon: <Trophy size={17} strokeWidth={2.5} />, tone: 'bg-[#0A1318] text-white' },
-    foul: { label: 'Foul', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-700' },
-    blocked_shot: { label: 'Shot blocked', icon: <ShieldCheck size={15} />, tone: 'bg-slate-100 text-slate-700' },
-    shot_wide: { label: 'Shot wide', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
-    shot_over: { label: 'Shot over', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' },
-    hit_post: { label: 'Hit the post', icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-700' },
-    save: { label: 'Saved', icon: <ShieldCheck size={15} />, tone: 'bg-slate-100 text-slate-700' },
-    substitution: { label: 'Substituted', icon: <RefreshCw size={15} />, tone: 'bg-emerald-50 text-emerald-600' },
+    foul: { label: 'Foul', icon: <span className="text-[10px] font-black text-amber-600">!</span>, tone: 'bg-amber-100 text-amber-800' },
   }
 
   const feedRef = useRef(null)
@@ -153,7 +147,7 @@ function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeC
           {events.map((event, index) => {
             const club = event.team === 'home' ? homeClub : awayClub
             const meta = eventMeta[event.type] || { label: event.type, icon: <CircleDot size={15} />, tone: 'bg-slate-100 text-slate-600' }
-            const tier = event.player?.ovr ? getOVRTier(event.player.ovr) : null
+            const flagCode = FIFA_NATIONS.find(n => n.name === event.player?.nationality)?.code
             return (
               <div key={event.id} className="flex items-center gap-3 px-4 py-3"
                 style={{ animation: index === events.length - 1 ? 'tickerSlideIn 0.35s ease-out both' : undefined }}>
@@ -169,20 +163,23 @@ function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeC
                     {event.player?.name ?? 'Own goal'}
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
-                    {club?.badge_url
-                      ? <img src={club.badge_url} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                      : <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-md text-[6px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>{(club?.short_name || club?.name || 'CLB').slice(0, 3)}</span>}
+                    {/* Club Badge Leading */}
+                    {club?.badge_url ? (
+                      <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+                    ) : (
+                      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>
+                        {(club?.short_name || club?.name || 'CLB').slice(0, 3)}
+                      </span>
+                    )}
+                    {/* Position Badge */}
                     {event.player?.position && (
                       <span className="font-semibold uppercase text-[11px]" style={{ color: POS_COLORS[event.player.position] ?? '#6b7280' }}>
                         {POS_LABEL[event.player.position] ?? event.player.position}
                       </span>
                     )}
+                    {/* Flag Trailing */}
+                    {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10 ml-0.5" alt="" />}
                     <span className="font-medium text-gray-600">{meta.label}</span>
-                    {event.type === 'substitution' && event.subIn && (
-                      <span className="text-emerald-600 font-medium ml-0.5">
-                        (IN: {event.subIn.name} <span className="text-gray-400">[{POS_LABEL[event.subIn.position] || event.subIn.position}]</span>)
-                      </span>
-                    )}
                     {event.type === 'goal' && event.assist && <><span className="text-gray-300">·</span><span>Assist: {event.assist.name}</span></>}
                   </div>
                 </div>
