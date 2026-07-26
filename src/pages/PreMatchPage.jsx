@@ -227,7 +227,7 @@ function CaptainBadge() {
   )
 }
 
-function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMoveDown, isFirst, isLast, isCaptain, stats, isSuspended }) {
+function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMoveDown, isFirst, isLast, isCaptain, stats, isSuspended, animOffset = 0 }) {
   const tier = getOVRTier(player.ovr)
   const flagCode = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
   const { goals = 0, assists = 0, yellows = 0, reds = 0 } = stats ?? {}
@@ -235,6 +235,10 @@ function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMove
 
   return (
     <div
+      style={{
+        transform: animOffset ? `translate3d(0, ${animOffset}px, 0)` : undefined,
+        transition: animOffset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms',
+      }}
       className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-300 ease-in-out min-h-[52px]
         ${isDragging ? 'opacity-20 scale-[0.98]' : 'scale-100'}
         ${isSuspended ? 'opacity-50' : ''}
@@ -471,7 +475,7 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
   return { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate }
 }
 
-function SlotCell({ player, club, idx, totalCount = 12, onMovePlayer, activeDragIdx, dragOver, slotRefs, handlePointerDown, handleActivate, goals, fouls, suspendedIds }) {
+function SlotCell({ player, club, idx, totalCount = 12, onMovePlayer, activeDragIdx, dragOver, slotRefs, handlePointerDown, handleActivate, goals, fouls, suspendedIds, animOffset = 0 }) {
   const isDragging = activeDragIdx === idx
   const isOver = dragOver === idx && activeDragIdx !== null
   const canDrop = dragOver === idx && activeDragIdx !== idx
@@ -504,7 +508,7 @@ function SlotCell({ player, club, idx, totalCount = 12, onMovePlayer, activeDrag
             onMoveDown={() => onMovePlayer?.(idx, idx + 1)}
             isFirst={idx === 0}
             isLast={idx >= totalCount - 1}
-            isCaptain={idx === 0} stats={stats} isSuspended={isSuspended} />
+            isCaptain={idx === 0} stats={stats} isSuspended={isSuspended} animOffset={animOffset} />
         : <EmptyRow isOver={isOver} canDrop={canDrop} />
       }
     </div>
@@ -516,21 +520,46 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
   const home = useDrag(setHomeSlots, suspendedIds, (idx) => { const p = homeSlots[idx]; if (p) onPlayerClick(p) })
   const away = useDrag(setAwaySlots, suspendedIds, (idx) => { const p = awaySlots[idx]; if (p) onPlayerClick(p) })
 
+  const [homeAnimOffsets, setHomeAnimOffsets] = useState({})
+  const [awayAnimOffsets, setAwayAnimOffsets] = useState({})
+
   const moveHomePlayer = (from, to) => {
-    if (to < 0 || to >= homeSlots.length) return
+    if (to < 0 || to >= homeSlots.length || from === to) return
+    const p1 = homeSlots[from], p2 = homeSlots[to]
+    const distance = (to - from) * 58
+    if (p1) setHomeAnimOffsets(prev => ({ ...prev, [p1.id]: -distance }))
+    if (p2) setHomeAnimOffsets(prev => ({ ...prev, [p2.id]: distance }))
+
     setHomeSlots(prev => {
       const next = [...prev]
       const tmp = next[from]; next[from] = next[to]; next[to] = tmp
       return next
     })
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setHomeAnimOffsets({})
+      })
+    })
   }
 
   const moveAwayPlayer = (from, to) => {
-    if (to < 0 || to >= awaySlots.length) return
+    if (to < 0 || to >= awaySlots.length || from === to) return
+    const p1 = awaySlots[from], p2 = awaySlots[to]
+    const distance = (to - from) * 58
+    if (p1) setAwayAnimOffsets(prev => ({ ...prev, [p1.id]: -distance }))
+    if (p2) setAwayAnimOffsets(prev => ({ ...prev, [p2.id]: distance }))
+
     setAwaySlots(prev => {
       const next = [...prev]
       const tmp = next[from]; next[from] = next[to]; next[to] = tmp
       return next
+    })
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setAwayAnimOffsets({})
+      })
     })
   }
 
@@ -554,9 +583,9 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
       {/* Starter rows */}
       <div className="space-y-1.5">
         {Array.from({ length: 5 }, (_, i) => (
-          <div key={`starter-row-${homeSlots[i]?.id || 'h'+i}-${awaySlots[i]?.id || 'a'+i}`} className="grid grid-cols-2 gap-4 transition-all duration-300 ease-out">
-            <SlotCell player={homeSlots[i]} club={homeClub} idx={i} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
-            <SlotCell player={awaySlots[i]} club={awayClub} idx={i} onMovePlayer={moveAwayPlayer} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+          <div key={`starter-row-${homeSlots[i]?.id || 'h'+i}-${awaySlots[i]?.id || 'a'+i}`} className="grid grid-cols-2 gap-4">
+            <SlotCell player={homeSlots[i]} club={homeClub} idx={i} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={homeSlots[i] ? homeAnimOffsets[homeSlots[i].id] || 0 : 0} />
+            <SlotCell player={awaySlots[i]} club={awayClub} idx={i} onMovePlayer={moveAwayPlayer} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={awaySlots[i] ? awayAnimOffsets[awaySlots[i].id] || 0 : 0} />
           </div>
         ))}
       </div>
@@ -580,9 +609,9 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
         {Array.from({ length: 7 }, (_, i) => {
           const idx = i + 5
           return (
-            <div key={`sub-row-${homeSlots[idx]?.id || 'h'+idx}-${awaySlots[idx]?.id || 'a'+idx}`} className="grid grid-cols-2 gap-4 transition-all duration-300 ease-out">
-              <SlotCell player={homeSlots[idx]} club={homeClub} idx={idx} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
-              <SlotCell player={awaySlots[idx]} club={awayClub} idx={idx} onMovePlayer={moveAwayPlayer} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            <div key={`sub-row-${homeSlots[idx]?.id || 'h'+idx}-${awaySlots[idx]?.id || 'a'+idx}`} className="grid grid-cols-2 gap-4">
+              <SlotCell player={homeSlots[idx]} club={homeClub} idx={idx} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={homeSlots[idx] ? homeAnimOffsets[homeSlots[idx].id] || 0 : 0} />
+              <SlotCell player={awaySlots[idx]} club={awayClub} idx={idx} onMovePlayer={moveAwayPlayer} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={awaySlots[idx] ? awayAnimOffsets[awaySlots[idx].id] || 0 : 0} />
             </div>
           )
         })}
@@ -596,13 +625,25 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
   const { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate } = useDrag(setSlots, suspendedIds, (idx) => { const p = slots[idx]; if (p) onPlayerClick(p) })
   const starters = slots.slice(0, 5)
   const subs = slots.slice(5)
+  const [animOffsets, setAnimOffsets] = useState({})
 
   const movePlayer = (from, to) => {
-    if (to < 0 || to >= slots.length) return
+    if (to < 0 || to >= slots.length || from === to) return
+    const p1 = slots[from], p2 = slots[to]
+    const distance = (to - from) * 58
+    if (p1) setAnimOffsets(prev => ({ ...prev, [p1.id]: -distance }))
+    if (p2) setAnimOffsets(prev => ({ ...prev, [p2.id]: distance }))
+
     setSlots(prev => {
       const next = [...prev]
       const tmp = next[from]; next[from] = next[to]; next[to] = tmp
       return next
+    })
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setAnimOffsets({})
+      })
     })
   }
 
@@ -615,8 +656,8 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
         </div>
         <div className="space-y-1.5">
           {starters.map((player, i) => (
-            <div key={player?.id || `starter-${i}`} className="transition-all duration-300 ease-out">
-              <SlotCell player={player} club={club} idx={i} onMovePlayer={movePlayer} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} handleActivate={handleActivate} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            <div key={player?.id || `starter-${i}`}>
+              <SlotCell player={player} club={club} idx={i} onMovePlayer={movePlayer} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} handleActivate={handleActivate} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={player ? animOffsets[player.id] || 0 : 0} />
             </div>
           ))}
         </div>
@@ -630,8 +671,8 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
         {subs.map((player, i) => {
           const idx = i + 5
           return (
-            <div key={player?.id || `sub-${idx}`} className="transition-all duration-300 ease-out">
-              <SlotCell player={player} club={club} idx={idx} onMovePlayer={movePlayer} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} handleActivate={handleActivate} goals={goals} fouls={fouls} suspendedIds={suspendedIds} />
+            <div key={player?.id || `sub-${idx}`}>
+              <SlotCell player={player} club={club} idx={idx} onMovePlayer={movePlayer} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} handleActivate={handleActivate} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={player ? animOffsets[player.id] || 0 : 0} />
             </div>
           )
         })}
