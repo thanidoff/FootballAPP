@@ -414,12 +414,22 @@ export default function DraftSquadsTab() {
     }
   }).filter(entry => entry.league || entry.cup)
   const allClubMatches = [
-    ...seasons.flatMap((season, seasonIndex) => (season.matches || []).flatMap(week => (week.matches || []).filter(match => match.played).map(match => ({ ...match, competition: `League ${seasonIndex + 1}` })))),
+    ...seasons.flatMap((season, seasonIndex) => (season.matches || []).flatMap(week => (week.matches || []).filter(match => match.played).map(match => ({ ...match, competition: `League ${seasonIndex + 1}`, standings: season.standings })))),
     ...cups.flatMap(cup => Object.values(cup.rounds || {}).flat().filter(match => match?.played).map(match => ({ ...match, competition: `Club Cup ${cup.number}` }))),
-  ].filter(match => [match.home, match.away].some(id => String(id) === String(team.club_id))).map(match => {
-    const homeClub = saveData.teams.find(item => String(item.club_id) === String(match.home))
-    const awayClub = saveData.teams.find(item => String(item.club_id) === String(match.away))
-    const isHome = String(match.home) === String(team.club_id)
+  ].map(match => {
+    let homeId = match.home
+    let awayId = match.away
+    if (homeId === 'place_1' || homeId === '1st') {
+      homeId = match.standings?.[0]?.club_id || saveData.teams[0]?.club_id
+    }
+    if (awayId === 'place_1' || awayId === '1st') {
+      awayId = match.standings?.[0]?.club_id || saveData.teams[0]?.club_id
+    }
+    return { ...match, resolvedHomeId: homeId, resolvedAwayId: awayId }
+  }).filter(match => String(match.resolvedHomeId) === String(team.club_id) || String(match.resolvedAwayId) === String(team.club_id)).map(match => {
+    const isHome = String(match.resolvedHomeId) === String(team.club_id)
+    const homeClub = saveData.teams.find(item => String(item.club_id) === String(match.resolvedHomeId)) || (match.home === 'place_1' ? team : null)
+    const awayClub = saveData.teams.find(item => String(item.club_id) === String(match.resolvedAwayId)) || (match.away === '__allstars__' ? { club_id: '__allstars__', club_name: 'League All-Stars', short_name: 'ALL', badge_color: '#FD5461', badge_url: saveData.settings?.allStarBadgeUrl || null } : null)
     return { ...match, homeClub, awayClub, clubGoals: isHome ? match.homeScore : match.awayScore, opponentGoals: isHome ? match.awayScore : match.homeScore }
   })
   const highestScoringMatch = [...allClubMatches].sort((a, b) => b.clubGoals - a.clubGoals || (b.clubGoals - b.opponentGoals) - (a.clubGoals - a.opponentGoals) || String(a.competition).localeCompare(String(b.competition)))[0]
@@ -433,43 +443,101 @@ export default function DraftSquadsTab() {
       return records.get(id)
     }
     ;(team.roster || []).forEach(ensure)
+    // Aggregate match events across all played season and cup matches
     seasons.forEach(season => {
-      const snapshots = season.stats?.playerSnapshots || {}
-      const clubMatches = (season.matches || []).flatMap(week => week.matches || []).filter(match => match.played && [match.home, match.away].some(id => String(id) === String(team.club_id))).length
-      Object.entries(snapshots).forEach(([playerId, snapshot]) => {
-        if (String(snapshot?.club?.id) !== String(team.club_id)) return
-        const record = ensure({ id: snapshot.id || playerId, name: snapshot.name, photo_url: snapshot.photo_url, nationality: snapshot.nationality, position: snapshot.position })
-        record.goals += season.stats?.topScorers?.[playerId] || 0
-        record.assists += season.stats?.topAssists?.[playerId] || 0
-        record.mvps += season.stats?.mostMvps?.[playerId] || 0
-        record.games += clubMatches
-      })
-    })
-    cups.filter(cup => !cup.seasonId || !seasons.some(season => String(season.id) === String(cup.seasonId))).forEach(cup => {
-      Object.values(cup.rounds || {}).flat().filter(match => match?.played && [match.home, match.away].some(id => String(id) === String(team.club_id))).forEach(match => {
+      (season.matches || []).flatMap(week => week.matches || []).filter(match => match.played).forEach(match => {
+        let homeId = match.home
+        let awayId = match.away
+        if (homeId === 'place_1' || homeId === '1st') homeId = season.standings?.[0]?.club_id || saveData.teams[0]?.club_id
+        if (awayId === 'place_1' || awayId === '1st') awayId = season.standings?.[0]?.club_id || saveData.teams[0]?.club_id
+
+        const isHome = String(homeId) === String(team.club_id)
+        const isAway = String(awayId) === String(team.club_id)
+        if (!isHome && !isAway) return
+
+        const targetTeamSide = isHome ? 'home' : 'away'
         const participants = new Set()
+
         ;(match.events || []).forEach(event => {
-          const eventClubId = event.team === 'home' ? match.home : event.team === 'away' ? match.away : null
-          if (String(eventClubId) !== String(team.club_id)) return
-          if (event.player) {
-            const record = ensure(event.player)
-            participants.add(String(event.player.id))
-            if (event.type === 'goal') record.goals += 1
-          }
-          if (event.type === 'goal' && event.assist) {
-            const record = ensure(event.assist)
-            participants.add(String(event.assist.id))
-            record.assists += 1
+          if (event.team === targetTeamSide) {
+            if (event.type === 'goal' && event.player) {
+              const record = ensure(event.player)
+              if (record) {
+                record.goals += 1
+                participants.add(String(event.player.id))
+              }
+            }
+            if (event.type === 'goal' && event.assist) {
+              const record = ensure(event.assist)
+              if (record) {
+                record.assists += 1
+                participants.add(String(event.assist.id))
+              }
+            }
           }
         })
+
         if (match.mvp) {
-          const currentClub = saveData.teams.find(item => (item.roster || []).some(player => String(player.id) === String(match.mvp.id)))
-          if (String(currentClub?.club_id) === String(team.club_id)) {
-            ensure(match.mvp).mvps += 1
-            participants.add(String(match.mvp.id))
+          const mvpInRoster = (team.roster || []).some(p => String(p.id) === String(match.mvp.id))
+          if (mvpInRoster) {
+            const record = ensure(match.mvp)
+            if (record) {
+              record.mvps += 1
+              participants.add(String(match.mvp.id))
+            }
           }
         }
-        participants.forEach(id => { records.get(id).games += 1 })
+
+        participants.forEach(id => {
+          const rec = records.get(id)
+          if (rec) rec.games += 1
+        })
+      })
+    })
+
+    cups.forEach(cup => {
+      Object.values(cup.rounds || {}).flat().filter(match => match?.played).forEach(match => {
+        const isHome = String(match.home) === String(team.club_id)
+        const isAway = String(match.away) === String(team.club_id)
+        if (!isHome && !isAway) return
+
+        const targetTeamSide = isHome ? 'home' : 'away'
+        const participants = new Set()
+
+        ;(match.events || []).forEach(event => {
+          if (event.team === targetTeamSide) {
+            if (event.type === 'goal' && event.player) {
+              const record = ensure(event.player)
+              if (record) {
+                record.goals += 1
+                participants.add(String(event.player.id))
+              }
+            }
+            if (event.type === 'goal' && event.assist) {
+              const record = ensure(event.assist)
+              if (record) {
+                record.assists += 1
+                participants.add(String(event.assist.id))
+              }
+            }
+          }
+        })
+
+        if (match.mvp) {
+          const mvpInRoster = (team.roster || []).some(p => String(p.id) === String(match.mvp.id))
+          if (mvpInRoster) {
+            const record = ensure(match.mvp)
+            if (record) {
+              record.mvps += 1
+              participants.add(String(match.mvp.id))
+            }
+          }
+        }
+
+        participants.forEach(id => {
+          const rec = records.get(id)
+          if (rec) rec.games += 1
+        })
       })
     })
     const metricValue = record => clubRecordMetric === 'goals' ? record.goals : clubRecordMetric === 'assists' ? record.assists : record.mvps
