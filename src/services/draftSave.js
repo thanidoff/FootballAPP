@@ -15,9 +15,11 @@ function cloneCareerSnapshot(value) {
 export const DEFAULT_LEAGUE_PRIZES = {
   placements: [50_000_000, 30_000_000, 20_000_000, 10_000_000, 5_000_000],
   awards: { topScorers: 5_000_000, topAssists: 5_000_000, mostMvps: 5_000_000 },
+  matchPrizes: { win: 2_000_000, draw: 1_000_000, loss: 1_000_000 },
 }
 
 export const DEFAULT_CUP_PRIZES = [30_000_000, 20_000_000, 15_000_000, 10_000_000, 10_000_000, 5_000_000, 5_000_000, 5_000_000]
+export const DEFAULT_CUP_MATCH_PRIZES = { win: 3_000_000, loss: 2_000_000 }
 
 function normalizeLeaguePrizes(prizes) {
   return {
@@ -25,6 +27,11 @@ function normalizeLeaguePrizes(prizes) {
     awards: Object.fromEntries(Object.keys(DEFAULT_LEAGUE_PRIZES.awards).map(key => [
       key, Math.max(0, Number(prizes?.awards?.[key] ?? DEFAULT_LEAGUE_PRIZES.awards[key])),
     ])),
+    matchPrizes: {
+      win: Math.max(0, Number(prizes?.matchPrizes?.win ?? DEFAULT_LEAGUE_PRIZES.matchPrizes.win)),
+      draw: Math.max(0, Number(prizes?.matchPrizes?.draw ?? DEFAULT_LEAGUE_PRIZES.matchPrizes.draw)),
+      loss: Math.max(0, Number(prizes?.matchPrizes?.loss ?? DEFAULT_LEAGUE_PRIZES.matchPrizes.loss)),
+    },
   }
 }
 
@@ -373,15 +380,22 @@ export async function completeDraftMatch(saveId, currentWeek, matchIndex, payloa
     aStats.GA += homeScore
     aStats.GD = aStats.GF - aStats.GA
 
+    const prizeConfig = normalizeLeaguePrizes(season.prizeSettings).matchPrizes
     if (homeScore > awayScore) {
       hStats.PTS += 3; hStats.W += 1
       aStats.L += 1
+      newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.win
+      newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.loss
     } else if (homeScore < awayScore) {
       aStats.PTS += 3; aStats.W += 1
       hStats.L += 1
+      newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.win
+      newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.loss
     } else {
       hStats.PTS += 1; hStats.D += 1
       aStats.PTS += 1; aStats.D += 1
+      newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.draw
+      newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.draw
     }
 
     newTeams[homeIdx].stats = hStats
@@ -438,6 +452,19 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
   } else {
     match.winner = payload.homeScore > payload.awayScore ? match.home : match.away
   }
+
+  // Pay per-match Cup prize (Win: 3M, Loss: 2M by default)
+  const loserId = match.winner === match.home ? match.away : match.home
+  const cupMatchPrizes = {
+    win: Math.max(0, Number(cup.matchPrizes?.win ?? DEFAULT_CUP_MATCH_PRIZES.win)),
+    loss: Math.max(0, Number(cup.matchPrizes?.loss ?? DEFAULT_CUP_MATCH_PRIZES.loss)),
+  }
+  const teams = (saveData.teams || []).map(team => ({ ...team }))
+  const winnerTeam = teams.find(t => String(t.club_id) === String(match.winner))
+  const loserTeam = teams.find(t => String(t.club_id) === String(loserId))
+  if (winnerTeam) winnerTeam.budget = (winnerTeam.budget || 0) + cupMatchPrizes.win
+  if (loserTeam) loserTeam.budget = (loserTeam.budget || 0) + cupMatchPrizes.loss
+  saveData.teams = teams
 
   if (matches.every(item => item.played)) {
     if (Number(round) < 3) {
