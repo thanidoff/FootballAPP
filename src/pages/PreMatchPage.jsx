@@ -227,7 +227,7 @@ function CaptainBadge() {
   )
 }
 
-function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMoveDown, isFirst, isLast, isCaptain, stats, isSuspended, animOffset = 0 }) {
+function PlayerRow({ player, club, isDragging, isOver, canDrop, onPointerDown, onMoveUp, onMoveDown, isFirst, isLast, isCaptain, stats, isSuspended, animOffset = 0 }) {
   const tier = getOVRTier(player.ovr)
   const flagCode = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
   const { goals = 0, assists = 0, yellows = 0, reds = 0 } = stats ?? {}
@@ -235,7 +235,9 @@ function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMove
 
   return (
     <div
+      onPointerDown={onPointerDown}
       style={{
+        touchAction: 'none',
         transform: animOffset ? `translate3d(0, ${animOffset}px, 0)` : undefined,
         transition: animOffset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms',
       }}
