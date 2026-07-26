@@ -636,7 +636,7 @@ export default function DraftMatchesTab() {
         stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
       }) : t)
 
-      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [], 10)
+      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
 
       const newSettings = { ...saveData.settings }
       newSettings.seasons = [{
@@ -692,7 +692,7 @@ export default function DraftMatchesTab() {
       const previousCup = [...(newSettings.cups || [])].reverse().find(cup => cup.prizeSettings)
       const inheritedCupPrizes = [...(previousSeason?.cupPrizeSettings || previousCup?.prizeSettings || DEFAULT_CUP_PRIZES)]
       
-      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [], 10)
+      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
 
       newSettings.seasons.push({
         id: newSeasonId,

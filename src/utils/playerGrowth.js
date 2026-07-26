@@ -10,7 +10,7 @@ import { calculateOVR, normalizeStats } from './stats'
  * @param {number} count Number of players to adjust (default 10)
  * @returns {Object} { updatedTeams, updatedFreeAgents, seasonAdjustments }
  */
-export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], count = 10) {
+export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], count = null) {
   // Collect all available players from teams and free agents
   const allPlayers = []
 
@@ -28,9 +28,8 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     return { updatedTeams: teams, updatedFreeAgents: freeAgents, seasonAdjustments: [] }
   }
 
-  // Randomly pick unique players (up to count)
-  const shuffled = [...allPlayers].sort(() => Math.random() - 0.5)
-  const selectedEntries = shuffled.slice(0, Math.min(count, shuffled.length))
+  // Adjust all players unless a specific count is requested
+  const selectedEntries = count ? [...allPlayers].sort(() => Math.random() - 0.5).slice(0, Math.min(count, allPlayers.length)) : allPlayers
 
   const adjustmentsMap = new Map() // playerId -> adjustment record
   const seasonAdjustments = []

@@ -224,12 +224,12 @@ export default function DraftOverviewTab() {
   const [previewGrowthData, setPreviewGrowthData] = useState(null)
 
   function handleReshufflePreview() {
-    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], 10)
+    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [])
     setPreviewGrowthData(result)
   }
 
   async function handleConfirmSaveRatings() {
-    const target = previewGrowthData || (seasonAdjustments.length === 0 ? applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], 10) : null)
+    const target = previewGrowthData || (seasonAdjustments.length === 0 ? applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || []) : null)
     if (!target) return
 
     try {
