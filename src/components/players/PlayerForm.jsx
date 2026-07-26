@@ -219,14 +219,9 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
                 <label className="block text-xs font-heading font-bold tracking-wider uppercase text-gray-400">
                   {key} <span className="text-gray-300">· {STAT_LABELS[key]}</span>
                 </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={STAT_MAX}
-                  value={form.stats[key] ?? 50}
-                  onChange={(e) => handleStatChange(key, e.target.value)}
-                  className="w-10 text-right text-xs font-heading font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-gray-900"
-                />
+                <span className="text-xs font-heading font-bold text-gray-800 tabular-nums">
+                  {form.stats[key] ?? 50}
+                </span>
               </div>
               <input
                 type="range"
