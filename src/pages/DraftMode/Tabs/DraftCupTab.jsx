@@ -311,7 +311,7 @@ export default function DraftCupTab() {
     }
   }
 
-  if (!isFirstCup && !completedLeague && (!cup || cup.status === 'completed')) return (
+  if (!isFirstCup && !completedLeague && cups.length === 0) return (
     <div className="rounded-2xl border border-gray-200 bg-white px-6 py-20 text-center shadow-sm">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-[#FD5461]"><Trophy size={28} /></div>
       <h2 className="mt-5 font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Cup qualification</h2>
@@ -320,7 +320,7 @@ export default function DraftCupTab() {
     </div>
   )
 
-  if (!cup || cup.status === 'completed') return (
+  if (!cup) return (
     <>
       {cup?.champion && <div className="mb-5 rounded-2xl border border-[#FD5461]/35 bg-[#FD5461]/[0.07] p-5"><div className="text-[10px] font-black uppercase tracking-widest text-[#FD5461]">Last cup champion</div><div className="mt-1 font-heading text-xl font-black uppercase text-[#0A1318]">{allClubs.find(club => club.id === cup.champion)?.name}</div></div>}
       <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-[#FD5461]" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">Create the cup tournament</h2><p className="mt-2 text-sm text-gray-500">Select clubs for the cup tournament. League qualifiers are preselected but can be changed before the unrestricted random draw.</p><div className="mt-7 flex flex-wrap justify-center gap-2"><Button variant="outline" onClick={() => { setPrizeDraft([...DEFAULT_CUP_PRIZES]); setPrizeOpen(true) }} className="flex items-center gap-2"><Settings2 size={16} />Set prizes</Button><Button onClick={openSetup}>{`Select ${selectionTarget} clubs`}</Button></div></div>
