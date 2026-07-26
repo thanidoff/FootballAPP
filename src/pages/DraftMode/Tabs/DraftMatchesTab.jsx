@@ -626,15 +626,30 @@ export default function DraftMatchesTab() {
       if (topTeam) return topTeam
     }
     if (teamId === '__allstars__' || teamId === 'allstars') {
-      // Generate All-Stars roster from top players of 2nd-5th teams
+      // Include ALL players from teams ranked 2nd to 5th
       const otherTeams = (standings || []).slice(1, 5).map(row => saveData.teams.find(t => t.club_id === row.club_id)).filter(Boolean)
-      const allStarPlayers = otherTeams.flatMap(t => t.roster || []).sort((a, b) => (b.ovr || 0) - (a.ovr || 0)).slice(0, 5)
+      const pool = otherTeams.flatMap(t => t.roster || [])
+      
+      // Default Starting 5: Top 4 outfield players + Top 1 Goalkeeper
+      const goalkeepers = pool.filter(p => p.position === 'GK').sort((a, b) => (b.ovr || 0) - (a.ovr || 0))
+      const outfields = pool.filter(p => p.position !== 'GK').sort((a, b) => (b.ovr || 0) - (a.ovr || 0))
+
+      const topGk = goalkeepers[0] || pool.sort((a, b) => (b.ovr || 0) - (a.ovr || 0))[0]
+      const topOutfield = outfields.slice(0, 4)
+      const starting5 = [...topOutfield, topGk].filter(Boolean)
+      
+      const starting5Ids = new Set(starting5.map(p => p.id))
+      const substitutes = pool.filter(p => !starting5Ids.has(p.id)).sort((a, b) => (b.ovr || 0) - (a.ovr || 0))
+      
+      // Complete roster: Starting 5 first, followed by all other players as bench
+      const fullRoster = [...starting5, ...substitutes]
+
       return {
         club_id: '__allstars__',
         club_name: 'League All-Stars',
         short_name: 'ALL',
         badge_color: '#FD5461',
-        roster: allStarPlayers,
+        roster: fullRoster,
       }
     }
     return saveData.teams.find(t => t.club_id === teamId)
