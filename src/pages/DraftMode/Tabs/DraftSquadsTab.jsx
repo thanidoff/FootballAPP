@@ -832,12 +832,12 @@ export default function DraftSquadsTab() {
                           transform: `translate3d(0, ${offset}px, 0)`,
                           transition: offset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms, box-shadow 200ms',
                         }}
-                        className={`relative flex min-h-16 items-center rounded-2xl border bg-white pr-3 transition-all cursor-grab active:cursor-grabbing hover:border-slate-300 hover:bg-slate-50 ${
+                        className={`relative flex min-h-[52px] items-center rounded-xl border px-3 py-2.5 transition-all duration-300 ease-in-out cursor-grab active:cursor-grabbing hover:border-gray-200 ${
                           draggedPlayerIndex === playerIndex
-                            ? 'scale-[0.98] border-[#FD5461] opacity-60 shadow-lg ring-2 ring-[#FD5461]/30'
+                            ? 'scale-[0.98] border-[#FD5461] opacity-60 shadow-lg ring-2 ring-[#FD5461]/30 bg-white'
                             : dragTargetIndex === playerIndex
                             ? 'scale-[1.01] border-blue-500 bg-blue-50/60 ring-2 ring-blue-400/50 shadow-md z-20'
-                            : 'border-gray-200'
+                            : 'border-gray-100 bg-white'
                         }`}
                       >
                         {dragTargetIndex === playerIndex && (
@@ -846,7 +846,7 @@ export default function DraftSquadsTab() {
                           </div>
                         )}
                       {/* Stacked Up/Down Reorder Control */}
-                      <div className="flex h-16 w-10 shrink-0 flex-col items-center justify-center gap-0.5 pl-2 pr-1">
+                      <div className="flex flex-col items-center justify-center gap-0.5 shrink-0 -ml-1 pr-0.5">
                         <button
                           type="button"
                           disabled={playerIndex === 0}
