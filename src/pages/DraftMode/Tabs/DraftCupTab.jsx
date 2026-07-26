@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { CalendarClock, Check, ChevronLeft, ChevronRight, Eye, Plus, Settings2, Shuffle, Trophy } from 'lucide-react'
-import { DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
+import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
 import { createSeededRandom } from '../../../utils/matchEngine'
 import { generateMockRoster } from '../../../utils/draftLogic'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
 import { ScoreChip } from '../../../components/draft/ResultScore'
-import { PrizeSettingsForm } from './DraftMatchesTab'
 
 const ROUND_NAMES = { 1: 'Quarter Finals', 2: 'Semi Finals', 3: 'Final' }
 
@@ -19,45 +18,107 @@ const CUP_PRIZE_GROUPS = [
   { label: 'Positions 6–8', positions: [5, 6, 7] },
 ]
 
-function CupPrizeFields({ prizes, setPrizes, disabled = false }) {
+function CupPrizeFields({ prizes, setPrizes, matchPrizes, setMatchPrizes, disabled = false }) {
   const updateGroup = (positions, value) => setPrizes(current => current.map((amount, index) => positions.includes(index) ? Math.max(0, Number(value) || 0) * 1_000_000 : amount))
   const adjustGroup = (positions, diffMillions) => setPrizes(current => current.map((amount, index) => positions.includes(index) ? Math.max(0, amount + diffMillions * 1_000_000) : amount))
 
+  const adjustCupMatch = (key, diffMillions) => setMatchPrizes(current => ({
+    ...current,
+    [key]: Math.max(0, ((current[key] ?? DEFAULT_CUP_MATCH_PRIZES[key]) || 0) + diffMillions * 1_000_000),
+  }))
+
+  const setCupMatch = (key, millions) => setMatchPrizes(current => ({
+    ...current,
+    [key]: Math.max(0, Number(millions) || 0) * 1_000_000,
+  }))
+
+  const matchRows = [
+    ['win', 'Match Win Prize', 'Bonus for winning a cup match'],
+    ['loss', 'Match Loss Prize', 'Bonus for losing a cup match'],
+  ]
+
   return (
-    <div className="space-y-2">
-      {CUP_PRIZE_GROUPS.map((group, index) => (
-        <div key={group.label} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${index === 0 ? 'bg-[#FD5461] text-white' : index === 1 ? 'bg-[#0A1318] text-white' : index === 2 ? 'border-2 border-[#FD5461] text-[#FD5461]' : 'bg-gray-100 text-gray-500'}`}>{index + 1}</span>
-            <span className="truncate text-sm font-semibold">{group.label}</span>
-          </div>
-          <div className="flex w-full sm:w-auto items-center gap-1.5">
-            <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, -10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-10</button>
-            <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, -1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-1</button>
-            <span className="relative flex h-9 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461] focus-within:ring-2 focus-within:ring-red-50">
-              <span className="flex items-baseline justify-center w-full">
-                <input
-                  disabled={disabled}
-                  type="text"
-                  inputMode="decimal"
-                  value={((prizes[group.positions[0]] || 0) / 1_000_000).toFixed(1)}
-                  onFocus={event => event.target.select()}
-                  onChange={event => {
-                    const raw = event.target.value.replace(/[^0-9.]/g, '')
-                    if (!/^\d*(?:\.\d?)?$/.test(raw)) return
-                    const millions = Number.parseFloat(raw)
-                    if (Number.isFinite(millions)) updateGroup(group.positions, millions)
-                  }}
-                  className="bg-transparent text-right text-sm font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
-                />
-                <span className="ml-1 text-xs font-bold text-gray-400 shrink-0">M</span>
-              </span>
-            </span>
-            <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, 1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+1</button>
-            <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, 10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+10</button>
-          </div>
+    <div className="space-y-5">
+      <div>
+        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Final Tournament Standings</h4>
+        <div className="space-y-2">
+          {CUP_PRIZE_GROUPS.map((group, index) => (
+            <div key={group.label} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${index === 0 ? 'bg-[#FD5461] text-white' : index === 1 ? 'bg-[#0A1318] text-white' : index === 2 ? 'border-2 border-[#FD5461] text-[#FD5461]' : 'bg-gray-100 text-gray-500'}`}>{index + 1}</span>
+                <span className="truncate text-sm font-semibold">{group.label}</span>
+              </div>
+              <div className="flex w-full sm:w-auto items-center gap-1.5">
+                <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, -10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-10</button>
+                <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, -1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-1</button>
+                <span className="relative flex h-9 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461] focus-within:ring-2 focus-within:ring-red-50">
+                  <span className="flex items-baseline justify-center w-full">
+                    <input
+                      disabled={disabled}
+                      type="text"
+                      inputMode="decimal"
+                      value={((prizes[group.positions[0]] || 0) / 1_000_000).toFixed(1)}
+                      onFocus={event => event.target.select()}
+                      onChange={event => {
+                        const raw = event.target.value.replace(/[^0-9.]/g, '')
+                        if (!/^\d*(?:\.\d?)?$/.test(raw)) return
+                        const millions = Number.parseFloat(raw)
+                        if (Number.isFinite(millions)) updateGroup(group.positions, millions)
+                      }}
+                      className="bg-transparent text-right text-sm font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
+                    />
+                    <span className="ml-1 text-xs font-bold text-gray-400 shrink-0">M</span>
+                  </span>
+                </span>
+                <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, 1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+1</button>
+                <button type="button" disabled={disabled} onClick={() => adjustGroup(group.positions, 10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+10</button>
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      <div>
+        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Per-Match Rewards</h4>
+        <div className="space-y-2">
+          {matchRows.map(([key, label, description]) => (
+            <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-[#FD5461]"><Trophy size={18} /></span>
+                <div className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{label}</span>
+                  <span className="block truncate text-xs text-gray-400">{description}</span>
+                </div>
+              </div>
+              <div className="flex w-full sm:w-auto items-center gap-1.5">
+                <button type="button" disabled={disabled} onClick={() => adjustCupMatch(key, -10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-10</button>
+                <button type="button" disabled={disabled} onClick={() => adjustCupMatch(key, -1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-1</button>
+                <span className="relative flex h-9 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461] focus-within:ring-2 focus-within:ring-red-50">
+                  <span className="flex items-baseline justify-center w-full">
+                    <input
+                      disabled={disabled}
+                      type="text"
+                      inputMode="decimal"
+                      value={(((matchPrizes?.[key] ?? DEFAULT_CUP_MATCH_PRIZES[key]) || 0) / 1_000_000).toFixed(1)}
+                      onFocus={event => event.target.select()}
+                      onChange={event => {
+                        const raw = event.target.value.replace(/[^0-9.]/g, '')
+                        if (!/^\d*(?:\.\d?)?$/.test(raw)) return
+                        const val = Number.parseFloat(raw)
+                        if (Number.isFinite(val)) setCupMatch(key, val)
+                      }}
+                      className="bg-transparent text-right text-sm font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
+                    />
+                    <span className="ml-1 text-xs font-bold text-gray-400 shrink-0">M</span>
+                  </span>
+                </span>
+                <button type="button" disabled={disabled} onClick={() => adjustCupMatch(key, 1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+1</button>
+                <button type="button" disabled={disabled} onClick={() => adjustCupMatch(key, 10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+10</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -137,6 +198,7 @@ export default function DraftCupTab() {
   const [mobileRound, setMobileRound] = useState(1)
   const [prizeOpen, setPrizeOpen] = useState(false)
   const [prizeDraft, setPrizeDraft] = useState(DEFAULT_CUP_PRIZES)
+  const [cupMatchPrizeDraft, setCupMatchPrizeDraft] = useState(DEFAULT_CUP_MATCH_PRIZES)
   const [savingPrizes, setSavingPrizes] = useState(false)
 
   const leagueSeasons = saveData.settings?.seasons || []
@@ -200,6 +262,7 @@ export default function DraftCupTab() {
       status: 'active', round: 1, qualifiedIds: selectedQualifierIds, invitedIds: selectedInvitedIds,
       rounds: { 1: firstRound },
       prizeSettings: [...prizeDraft],
+      matchPrizes: { ...cupMatchPrizeDraft },
       createdAt: new Date().toISOString(),
     }
     const cupTeamIds = new Set(selected)
@@ -225,13 +288,22 @@ export default function DraftCupTab() {
 
   function openPrizeSettings() {
     setPrizeDraft([...(cup?.prizeSettings || completedLeague?.cupPrizeSettings || DEFAULT_CUP_PRIZES)])
+    setCupMatchPrizeDraft({ ...(DEFAULT_CUP_MATCH_PRIZES), ...(cup?.matchPrizes || {}) })
     setPrizeOpen(true)
   }
 
   async function savePrizeSettings() {
     setSavingPrizes(true)
     try {
-      const nextState = await updateDraftCupPrizeSettings(saveId, cup.id, prizeDraft)
+      let nextState = await updateDraftCupPrizeSettings(saveId, cup.id, prizeDraft)
+      nextState = {
+        ...nextState,
+        settings: {
+          ...nextState.settings,
+          cups: (nextState.settings.cups || []).map(c => String(c.id) === String(cup.id) ? { ...c, matchPrizes: cupMatchPrizeDraft } : c),
+        },
+      }
+      await updateDraftState(saveId, nextState)
       setSaveData(nextState)
       setPrizeOpen(false)
     } finally {
@@ -494,8 +566,7 @@ export default function DraftCupTab() {
       </div>
       <Modal open={prizeOpen} onClose={() => setPrizeOpen(false)} title={`Club Cup ${cup.number} prizes`} width="max-w-xl">
         <div className="space-y-5">
-          <div><h3 className="text-sm font-semibold">Final tournament positions</h3><p className="mt-1 text-sm text-gray-500">All eight clubs receive their configured prize when the final ends.</p></div>
-          <CupPrizeFields prizes={prizeDraft} setPrizes={setPrizeDraft} disabled={cup.status === 'completed'} />
+          <CupPrizeFields prizes={prizeDraft} setPrizes={setPrizeDraft} matchPrizes={cupMatchPrizeDraft} setMatchPrizes={setCupMatchPrizeDraft} disabled={cup.status === 'completed'} />
           <button onClick={savePrizeSettings} disabled={savingPrizes} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50">{savingPrizes ? 'Saving...' : 'Save cup prizes'}</button>
         </div>
       </Modal>

@@ -97,6 +97,28 @@ export function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, 
     ['topAssists', 'Top Assists', 'Most assists'],
     ['mostMvps', 'Most MVP', 'Most MVP awards'],
   ]
+  const adjustMatchPrize = (key, diffMillions) => setPrizes(current => ({
+    ...current,
+    matchPrizes: {
+      ...(current.matchPrizes || DEFAULT_LEAGUE_PRIZES.matchPrizes),
+      [key]: Math.max(0, ((current.matchPrizes?.[key] ?? DEFAULT_LEAGUE_PRIZES.matchPrizes[key]) || 0) + diffMillions * 1_000_000),
+    },
+  }))
+
+  const setMatchPrize = (key, millions) => setPrizes(current => ({
+    ...current,
+    matchPrizes: {
+      ...(current.matchPrizes || DEFAULT_LEAGUE_PRIZES.matchPrizes),
+      [key]: Math.max(0, Number(millions) || 0) * 1_000_000,
+    },
+  }))
+
+  const matchPrizeRows = [
+    ['win', 'Match Win Prize', 'Bonus for winning a league match'],
+    ['draw', 'Match Draw Prize', 'Bonus for drawing a league match'],
+    ['loss', 'Match Loss Prize', 'Bonus for losing a league match'],
+  ]
+
   return (
     <div className="space-y-6">
       <div>
@@ -140,92 +162,44 @@ export function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, 
       </div>
       <div>
         <h3 className="text-sm font-semibold text-[#0A1318]">Match-by-match prizes</h3>
-        <p className="mt-0.5 text-xs text-gray-400">Bonus paid to clubs after every played match.</p>
+        <p className="mt-0.5 text-xs text-gray-400">Bonus paid to clubs after every played league match.</p>
         <div className="mt-3 space-y-2">
-          {/* League Win / Draw / Loss */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-3 space-y-2.5">
-            <div className="text-xs font-bold uppercase tracking-wider text-gray-400">League Match Rewards</div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {[
-                ['win', 'Win Prize', 2],
-                ['draw', 'Draw Prize', 1],
-                ['loss', 'Loss Prize', 1],
-              ].map(([key, label]) => (
-                <div key={key} className="flex flex-col gap-1 p-2 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] font-semibold text-gray-600">{label}</span>
-                  <div className="flex items-center gap-1">
-                    <span className="relative flex h-8 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461]">
-                      <input
-                        disabled={locked}
-                        type="text"
-                        inputMode="decimal"
-                        value={(((prizes.matchPrizes?.[key] ?? DEFAULT_LEAGUE_PRIZES.matchPrizes[key]) || 0) / 1_000_000).toFixed(1)}
-                        onFocus={event => event.target.select()}
-                        onChange={event => {
-                          const raw = event.target.value.replace(/[^0-9.]/g, '')
-                          if (!/^\d*(?:\.\d?)?$/.test(raw)) return
-                          const val = Number.parseFloat(raw)
-                          if (Number.isFinite(val)) {
-                            setPrizes(curr => ({
-                              ...curr,
-                              matchPrizes: {
-                                ...(curr.matchPrizes || DEFAULT_LEAGUE_PRIZES.matchPrizes),
-                                [key]: Math.max(0, val) * 1_000_000
-                              }
-                            }))
-                          }
-                        }}
-                        className="bg-transparent text-right text-xs font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
-                      />
-                      <span className="ml-1 text-[10px] font-bold text-gray-400 shrink-0">M</span>
-                    </span>
-                  </div>
+          {matchPrizeRows.map(([key, label, description]) => (
+            <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-[#FD5461]"><Trophy size={18} /></span>
+                <div className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{label}</span>
+                  <span className="block truncate text-xs text-gray-400">{description}</span>
                 </div>
-              ))}
+              </div>
+              <div className="flex w-full sm:w-auto items-center gap-1.5">
+                <button type="button" disabled={locked} onClick={() => adjustMatchPrize(key, -10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-10</button>
+                <button type="button" disabled={locked} onClick={() => adjustMatchPrize(key, -1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-1</button>
+                <span className="relative flex h-9 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461] focus-within:ring-2 focus-within:ring-red-50">
+                  <span className="flex items-baseline justify-center w-full">
+                    <input
+                      disabled={locked}
+                      type="text"
+                      inputMode="decimal"
+                      value={(((prizes.matchPrizes?.[key] ?? DEFAULT_LEAGUE_PRIZES.matchPrizes[key]) || 0) / 1_000_000).toFixed(1)}
+                      onFocus={event => event.target.select()}
+                      onChange={event => {
+                        const raw = event.target.value.replace(/[^0-9.]/g, '')
+                        if (!/^\d*(?:\.\d?)?$/.test(raw)) return
+                        const val = Number.parseFloat(raw)
+                        if (Number.isFinite(val)) setMatchPrize(key, val)
+                      }}
+                      className="bg-transparent text-right text-sm font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
+                    />
+                    <span className="ml-1 text-xs font-bold text-gray-400 shrink-0">M</span>
+                  </span>
+                </span>
+                <button type="button" disabled={locked} onClick={() => adjustMatchPrize(key, 1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+1</button>
+                <button type="button" disabled={locked} onClick={() => adjustMatchPrize(key, 10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+10</button>
+              </div>
             </div>
-          </div>
-
-          {/* Cup Win / Loss */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-3 space-y-2.5">
-            <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Cup Match Rewards</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {[
-                ['win', 'Cup Win Prize', 3],
-                ['loss', 'Cup Loss Prize', 2],
-              ].map(([key, label]) => (
-                <div key={key} className="flex flex-col gap-1 p-2 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] font-semibold text-gray-600">{label}</span>
-                  <div className="flex items-center gap-1">
-                    <span className="relative flex h-8 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461]">
-                      <input
-                        disabled={locked}
-                        type="text"
-                        inputMode="decimal"
-                        value={(((prizes.cupMatchPrizes?.[key] ?? DEFAULT_CUP_MATCH_PRIZES[key]) || 0) / 1_000_000).toFixed(1)}
-                        onFocus={event => event.target.select()}
-                        onChange={event => {
-                          const raw = event.target.value.replace(/[^0-9.]/g, '')
-                          if (!/^\d*(?:\.\d?)?$/.test(raw)) return
-                          const val = Number.parseFloat(raw)
-                          if (Number.isFinite(val)) {
-                            setPrizes(curr => ({
-                              ...curr,
-                              cupMatchPrizes: {
-                                ...(curr.cupMatchPrizes || DEFAULT_CUP_MATCH_PRIZES),
-                                [key]: Math.max(0, val) * 1_000_000
-                              }
-                            }))
-                          }
-                        }}
-                        className="bg-transparent text-right text-xs font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
-                      />
-                      <span className="ml-1 text-[10px] font-bold text-gray-400 shrink-0">M</span>
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
