@@ -139,6 +139,97 @@ export function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, 
         </div>
       </div>
       <div>
+        <h3 className="text-sm font-semibold text-[#0A1318]">Match-by-match prizes</h3>
+        <p className="mt-0.5 text-xs text-gray-400">Bonus paid to clubs after every played match.</p>
+        <div className="mt-3 space-y-2">
+          {/* League Win / Draw / Loss */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-3 space-y-2.5">
+            <div className="text-xs font-bold uppercase tracking-wider text-gray-400">League Match Rewards</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                ['win', 'Win Prize', 2],
+                ['draw', 'Draw Prize', 1],
+                ['loss', 'Loss Prize', 1],
+              ].map(([key, label]) => (
+                <div key={key} className="flex flex-col gap-1 p-2 rounded-xl bg-gray-50 border border-gray-100">
+                  <span className="text-[11px] font-semibold text-gray-600">{label}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="relative flex h-8 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461]">
+                      <input
+                        disabled={locked}
+                        type="text"
+                        inputMode="decimal"
+                        value={(((prizes.matchPrizes?.[key] ?? DEFAULT_LEAGUE_PRIZES.matchPrizes[key]) || 0) / 1_000_000).toFixed(1)}
+                        onFocus={event => event.target.select()}
+                        onChange={event => {
+                          const raw = event.target.value.replace(/[^0-9.]/g, '')
+                          if (!/^\d*(?:\.\d?)?$/.test(raw)) return
+                          const val = Number.parseFloat(raw)
+                          if (Number.isFinite(val)) {
+                            setPrizes(curr => ({
+                              ...curr,
+                              matchPrizes: {
+                                ...(curr.matchPrizes || DEFAULT_LEAGUE_PRIZES.matchPrizes),
+                                [key]: Math.max(0, val) * 1_000_000
+                              }
+                            }))
+                          }
+                        }}
+                        className="bg-transparent text-right text-xs font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
+                      />
+                      <span className="ml-1 text-[10px] font-bold text-gray-400 shrink-0">M</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cup Win / Loss */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-3 space-y-2.5">
+            <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Cup Match Rewards</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                ['win', 'Cup Win Prize', 3],
+                ['loss', 'Cup Loss Prize', 2],
+              ].map(([key, label]) => (
+                <div key={key} className="flex flex-col gap-1 p-2 rounded-xl bg-gray-50 border border-gray-100">
+                  <span className="text-[11px] font-semibold text-gray-600">{label}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="relative flex h-8 flex-1 min-w-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461]">
+                      <input
+                        disabled={locked}
+                        type="text"
+                        inputMode="decimal"
+                        value={(((prizes.cupMatchPrizes?.[key] ?? DEFAULT_CUP_MATCH_PRIZES[key]) || 0) / 1_000_000).toFixed(1)}
+                        onFocus={event => event.target.select()}
+                        onChange={event => {
+                          const raw = event.target.value.replace(/[^0-9.]/g, '')
+                          if (!/^\d*(?:\.\d?)?$/.test(raw)) return
+                          const val = Number.parseFloat(raw)
+                          if (Number.isFinite(val)) {
+                            setPrizes(curr => ({
+                              ...curr,
+                              cupMatchPrizes: {
+                                ...(curr.cupMatchPrizes || DEFAULT_CUP_MATCH_PRIZES),
+                                [key]: Math.max(0, val) * 1_000_000
+                              }
+                            }))
+                          }
+                        }}
+                        className="bg-transparent text-right text-xs font-bold tabular-nums outline-none disabled:bg-transparent min-w-0 flex-1"
+                      />
+                      <span className="ml-1 text-[10px] font-bold text-gray-400 shrink-0">M</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
         <h3 className="text-sm font-semibold text-[#0A1318]">Player award bonuses</h3>
         <p className="mt-0.5 text-xs text-gray-400">Bonus paid to the player's club at season end.</p>
         <div className="mt-3 space-y-2">
@@ -459,6 +550,8 @@ export default function DraftMatchesTab() {
     setPrizeDraft({
       placements: [...(seasonData?.prizeSettings?.placements || DEFAULT_LEAGUE_PRIZES.placements)],
       awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(seasonData?.prizeSettings?.awards || {}) },
+      matchPrizes: { ...(DEFAULT_LEAGUE_PRIZES.matchPrizes), ...(seasonData?.prizeSettings?.matchPrizes || {}) },
+      cupMatchPrizes: { ...(DEFAULT_CUP_MATCH_PRIZES), ...(seasonCup?.matchPrizes || seasonData?.cupMatchPrizes || {}) },
     })
     setCupPrizeDraft([...(seasonCup?.prizeSettings || seasonData?.cupPrizeSettings || DEFAULT_CUP_PRIZES)])
     setPrizeSettingsOpen(true)
@@ -468,12 +561,18 @@ export default function DraftMatchesTab() {
     if (!isActiveSeason) return
     setSavingPrizes(true)
     try {
-      let nextState = await updateDraftSeasonPrizeSettings(saveId, seasonData.id, prizeDraft)
+      const updatedPrizeSettings = {
+        placements: prizeDraft.placements,
+        awards: prizeDraft.awards,
+        matchPrizes: prizeDraft.matchPrizes,
+      }
+      let nextState = await updateDraftSeasonPrizeSettings(saveId, seasonData.id, updatedPrizeSettings)
       nextState = {
         ...nextState,
         settings: {
           ...nextState.settings,
-          seasons: nextState.settings.seasons.map(season => String(season.id) === String(seasonData.id) ? { ...season, cupPrizeSettings: [...cupPrizeDraft] } : season),
+          seasons: nextState.settings.seasons.map(season => String(season.id) === String(seasonData.id) ? { ...season, cupPrizeSettings: [...cupPrizeDraft], cupMatchPrizes: prizeDraft.cupMatchPrizes } : season),
+          cups: (nextState.settings.cups || []).map(cup => String(cup.seasonId) === String(seasonData.id) ? { ...cup, matchPrizes: prizeDraft.cupMatchPrizes } : cup),
         },
       }
       await updateDraftState(saveId, nextState)
