@@ -166,7 +166,7 @@ function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeC
                   <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
                     {/* Club Badge Leading */}
                     {club?.id === '__allstars__' ? (
-                      <AllStarIcon size={14} className="shrink-0" />
+                      <AllStarIcon size={14} badgeUrl={club?.badge_url} className="shrink-0" />
                     ) : club?.badge_url ? (
                       <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
                     ) : (
@@ -288,7 +288,7 @@ function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMove
         <div className="flex items-center gap-1.5 mt-0.5">
           {/* Club Badge Leading */}
           {club?.id === '__allstars__' ? (
-            <AllStarIcon size={14} className="shrink-0" />
+            <AllStarIcon size={14} badgeUrl={club?.badge_url} className="shrink-0" />
           ) : club?.badge_url ? (
             <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
           ) : (

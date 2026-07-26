@@ -672,6 +672,7 @@ export default function DraftMatchesTab() {
         club_name: 'League All-Stars',
         short_name: 'ALL',
         badge_color: '#FD5461',
+        badge_url: saveData.settings?.allStarBadgeUrl || null,
         is_allstars: true,
         roster: fullRoster,
       }
@@ -877,7 +878,7 @@ export default function DraftMatchesTab() {
                         <div className="flex min-w-0 items-center gap-3">
                           {home?.is_allstars || home?.id === '__allstars__' ? (
                             <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
-                              <AllStarIcon size={22} />
+                              <AllStarIcon size={22} badgeUrl={home?.badge_url} />
                             </div>
                           ) : home?.badge_url ? (
                             <div className="w-9 h-9 shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-gray-200 p-0.5">
@@ -904,7 +905,7 @@ export default function DraftMatchesTab() {
                           <span className="truncate text-right font-heading text-sm font-black uppercase">{away?.club_name || (match.away === '__allstars__' ? 'League All-Stars' : 'Away')}</span>
                           {away?.is_allstars || away?.id === '__allstars__' ? (
                             <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
-                              <AllStarIcon size={22} />
+                              <AllStarIcon size={22} badgeUrl={away?.badge_url} />
                             </div>
                           ) : away?.badge_url ? (
                             <div className="w-9 h-9 shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-gray-200 p-0.5">
@@ -1076,7 +1077,7 @@ export default function DraftMatchesTab() {
                     <div className="flex items-center gap-2.5 flex-1 min-w-0">
                       {homeTeam?.is_allstars || homeTeam?.id === '__allstars__' ? (
                         <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
-                          <AllStarIcon size={22} />
+                          <AllStarIcon size={22} badgeUrl={homeTeam?.badge_url} />
                         </div>
                       ) : (
                         <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm flex items-center justify-center" style={{ backgroundColor: homeTeam?.badge_url ? 'white' : (homeTeam?.badge_color || '#FD5461') }}>
@@ -1114,7 +1115,7 @@ export default function DraftMatchesTab() {
                       </div>
                       {awayTeam?.is_allstars || awayTeam?.id === '__allstars__' ? (
                         <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
-                          <AllStarIcon size={22} />
+                          <AllStarIcon size={22} badgeUrl={awayTeam?.badge_url} />
                         </div>
                       ) : (
                         <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm flex items-center justify-center" style={{ backgroundColor: awayTeam?.badge_url ? 'white' : (awayTeam?.badge_color || '#FD5461') }}>

@@ -1,4 +1,15 @@
-export default function AllStarIcon({ size = 24, className = '' }) {
+export default function AllStarIcon({ size = 24, badgeUrl = null, className = '' }) {
+  if (badgeUrl) {
+    return (
+      <img
+        src={badgeUrl}
+        alt="All-Stars"
+        style={{ width: size, height: size }}
+        className={`object-contain ${className}`}
+      />
+    )
+  }
+
   return (
     <svg
       width={size}
