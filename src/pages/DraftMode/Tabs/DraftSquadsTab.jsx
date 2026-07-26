@@ -321,33 +321,35 @@ export default function DraftSquadsTab() {
 
   const [animOffsets, setAnimOffsets] = useState({})
 
-  function movePlayer(fromIndex, toIndex) {
+  function swapPlayer(fromIndex, toIndex) {
     const currentRoster = localDraftRoster || team.roster || []
     if (toIndex < 0 || toIndex >= currentRoster.length || fromIndex === toIndex) return
 
-    const playerMoving = currentRoster[fromIndex]
-    const playerDisplaced = currentRoster[toIndex]
+    const player1 = currentRoster[fromIndex]
+    const player2 = currentRoster[toIndex]
 
-    // Card height + gap ~ 72px
+    // Distance in pixels based on index gap (~72px per card slot)
     const distance = (toIndex - fromIndex) * 72
 
-    // Set immediate physical offset before React DOM re-render (FLIP First step)
     setAnimOffsets({
-      [playerMoving.id]: -distance,
-      [playerDisplaced.id]: distance,
+      [player1.id]: -distance,
+      [player2.id]: distance,
     })
 
     const nextRoster = [...currentRoster]
-    const [player] = nextRoster.splice(fromIndex, 1)
-    nextRoster.splice(toIndex, 0, player)
+    nextRoster[fromIndex] = player2
+    nextRoster[toIndex] = player1
     setLocalDraftRoster(nextRoster)
 
-    // Trigger smooth transition back to 0 (FLIP Play step)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setAnimOffsets({})
       })
     })
+  }
+
+  function movePlayer(fromIndex, toIndex) {
+    swapPlayer(fromIndex, toIndex)
   }
 
   function openRosterPlayer(player) {
@@ -365,7 +367,7 @@ export default function DraftSquadsTab() {
 
   function dropPlayerAt(toIndex) {
     if (draggedPlayerIndex == null) return
-    movePlayer(draggedPlayerIndex, toIndex)
+    swapPlayer(draggedPlayerIndex, toIndex)
     setDraggedPlayerIndex(null)
   }
 
@@ -667,13 +669,37 @@ export default function DraftSquadsTab() {
                     return (
                       <div
                         key={player.id}
-                        onDragOver={event => event.preventDefault()}
-                        onDrop={() => dropPlayerAt(playerIndex)}
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggedPlayerIndex(playerIndex)
+                          e.dataTransfer.setData('text/plain', String(playerIndex))
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                          e.dataTransfer.dropEffect = 'move'
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          dropPlayerAt(playerIndex)
+                        }}
+                        onTouchStart={() => {
+                          longPressTimer.current = setTimeout(() => {
+                            setDraggedPlayerIndex(playerIndex)
+                            if (navigator.vibrate) navigator.vibrate(50)
+                          }, 250)
+                        }}
+                        onTouchEnd={() => {
+                          if (longPressTimer.current) clearTimeout(longPressTimer.current)
+                        }}
+                        onTouchMove={() => {
+                          if (longPressTimer.current) clearTimeout(longPressTimer.current)
+                        }}
                         style={{
                           transform: `translate3d(0, ${offset}px, 0)`,
                           transition: offset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms',
                         }}
-                        className={`flex min-h-16 items-center rounded-2xl border bg-white pr-3 hover:border-slate-300 hover:bg-slate-50 ${draggedPlayerIndex === playerIndex ? 'scale-[0.99] border-[#FD5461] opacity-50' : 'border-gray-200'}`}
+                        className={`flex min-h-16 items-center rounded-2xl border bg-white pr-3 transition-all cursor-grab active:cursor-grabbing hover:border-slate-300 hover:bg-slate-50 ${draggedPlayerIndex === playerIndex ? 'scale-[0.98] border-[#FD5461] opacity-60 shadow-lg ring-2 ring-[#FD5461]/30' : 'border-gray-200'}`}
                       >
                       {/* Stacked Up/Down Reorder Control */}
                       <div className="flex h-16 w-10 shrink-0 flex-col items-center justify-center gap-0.5 pl-2 pr-1">
