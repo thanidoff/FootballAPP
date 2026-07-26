@@ -732,7 +732,7 @@ export default function DraftMatchesTab() {
         }))
   )
     .sort((a, b) => b.value - a.value || (a.player?.name || '').localeCompare(b.player?.name || ''))
-    .slice(0, 15)
+    .slice(0, 25)
   const priorRanks = previousPlayerRanks(seasonData, desktopStat)
 
   const canGoPrev = currentSeasonIdx > 0
