@@ -98,6 +98,10 @@ export default function DraftOverviewTab() {
   const leaderData = useMemo(() => {
     const metricKeys = STAT_FILTERS.map(filter => filter.key)
     const scopedSeasons = statScope === 'league' ? (activeSeason ? [activeSeason] : []) : seasons
+    const scopedCups = statScope === 'league'
+      ? (saveData.settings?.cups || []).filter(cup => String(cup.seasonId) === String(activeSeason?.id))
+      : (saveData.settings?.cups || [])
+
     const metrics = Object.fromEntries(metricKeys.map(key => [key, {}]))
     scopedSeasons.forEach(season => metricKeys.forEach(key => Object.entries(season.stats?.[key] || {}).forEach(([id, value]) => {
       metrics[key][id] = (metrics[key][id] || 0) + value
@@ -106,12 +110,20 @@ export default function DraftOverviewTab() {
     const discipline = new Map()
     const firstGoal = new Map()
     let eventOrder = 0
-    scopedSeasons.forEach(season => (season.matches || []).forEach(week => (week.matches || []).forEach(match => {
-      ;(match.events || []).forEach(event => {
+
+    const processEvents = (events) => {
+      (events || []).forEach(event => {
         eventOrder += 1
-        const id = String(event.player?.id ?? '')
+        const pId = event.player?.id ?? event.scorer?.id ?? event.player_id
+        const id = pId ? String(pId) : ''
         if (!id) return
-        if (event.type === 'goal' && !firstGoal.has(id)) firstGoal.set(id, eventOrder)
+
+        if (event.type === 'goal') {
+          if (!firstGoal.has(id)) firstGoal.set(id, eventOrder)
+          if (statScope === 'league') {
+            // Include Cup goals for this season in metrics
+          }
+        }
         if (event.type === 'foul') {
           const current = discipline.get(id) || { red: 0, yellow: 0 }
           if (event.card === 'red') current.red += 1
@@ -119,6 +131,38 @@ export default function DraftOverviewTab() {
           discipline.set(id, current)
         }
       })
+    }
+
+    // Accumulate Cup stats for scopedCups into metrics
+    scopedCups.forEach(cup => {
+      Object.values(cup.rounds || {}).forEach(roundMatches => {
+        (roundMatches || []).forEach(match => {
+          if (!match.played) return
+          (match.events || []).forEach(event => {
+            if (event.type === 'goal' && event.scorer) {
+              const scorerId = String(event.scorer.id)
+              metrics.topScorers[scorerId] = (metrics.topScorers[scorerId] || 0) + 1
+            }
+            if (event.type === 'goal' && event.assist) {
+              const assistId = String(event.assist.id)
+              metrics.topAssists[assistId] = (metrics.topAssists[assistId] || 0) + 1
+            }
+            if (event.type === 'foul' && event.player) {
+              const playerId = String(event.player.id)
+              metrics.mostFouls = metrics.mostFouls || {}
+              metrics.mostFouls[playerId] = (metrics.mostFouls[playerId] || 0) + 1
+            }
+          })
+          if (match.mvp) {
+            const mvpId = String(match.mvp.id)
+            metrics.mostMvps[mvpId] = (metrics.mostMvps[mvpId] || 0) + 1
+          }
+        })
+      })
+    })
+
+    scopedSeasons.forEach(season => (season.matches || []).forEach(week => (week.matches || []).forEach(match => {
+      processEvents(match.events)
     })))
 
     const eligibleTeams = statScope === 'league' ? leagueTeams : (saveData.teams || [])
@@ -326,7 +370,7 @@ export default function DraftOverviewTab() {
               </div>
               {featureView === 'leaders' && (
                 <div className="mt-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex gap-1 overflow-x-auto hide-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">{STAT_FILTERS.map(filter => <button key={filter.key} onClick={() => setStatFilter(filter.key)} className={`min-h-9 cursor-pointer whitespace-nowrap rounded-full px-4 text-xs font-medium transition-colors ${statFilter === filter.key ? 'bg-[#FD5461] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{filter.label}</button>)}</div><div className="w-40"><Select value={statScope} onChange={event => setStatScope(event.target.value)} reserveErrorSpace={false} className="min-h-10 rounded-xl py-1.5 text-sm"><option value="league">This league</option><option value="career">All seasons</option></Select></div></div>
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex gap-1 overflow-x-auto hide-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">{STAT_FILTERS.map(filter => <button key={filter.key} onClick={() => setStatFilter(filter.key)} className={`min-h-9 cursor-pointer whitespace-nowrap rounded-full px-4 text-xs font-medium transition-colors ${statFilter === filter.key ? 'bg-[#FD5461] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{filter.label}</button>)}</div><div className="w-52"><Select value={statScope} onChange={event => setStatScope(event.target.value)} reserveErrorSpace={false} className="min-h-10 rounded-xl py-1.5 text-sm"><option value="league">This season (League & Cup)</option><option value="career">All seasons</option></Select></div></div>
                   <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 transition-colors focus-within:border-[#FD5461]"><Search size={16} className="shrink-0 text-gray-400" /><input value={leaderSearch} onChange={event => setLeaderSearch(event.target.value)} placeholder="Search players or clubs..." className="ui-inner-input min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400" /></label>
                 </div>
               )}
