@@ -119,7 +119,13 @@ export function simulatePossession({ attacking, defending, team, minute, random 
   
   const saveChance = 1 - scoringChance
   const error = saveChance >= 0.82
-  const assist = creator.id !== shooter.id && action !== 'dribble' ? creator : null
+  // Every goal MUST have an assister assigned from teammates (excluding the shooter)
+  const teammatesForAssist = attacking.filter(p => p.id !== shooter.id)
+  const assist = weightedPick(
+    teammatesForAssist.length ? teammatesForAssist : attacking,
+    player => creatorWeight(player, player.id === attacking[4]?.id),
+    random
+  )
   return { type: 'goal', team, minute, player: shooter, scorer: shooter, assist, goalkeeper, error: error ? 'goalkeeper_error' : null }
 }
 

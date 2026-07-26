@@ -1934,10 +1934,6 @@ export default function PreMatchPage() {
                       </button>
                     )
                   })}
-                  <button onClick={() => confirmGoal(null)}
-                    className="w-full p-3 rounded-xl border-2 border-dashed border-gray-200 text-xs font-heading font-bold uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors">
-                    No Assist
-                  </button>
                 </>
               )}
             </div>
