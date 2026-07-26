@@ -243,6 +243,7 @@ export default function DraftSquadsTab() {
     setProcessing(true)
     try {
       const name = form.name || `${form.first_name || ''} ${form.last_name || ''}`.trim() || editPlayer.name
+      const targetClubId = form.club_id || null
       const updatedPlayer = {
         ...editPlayer,
         name,
@@ -253,22 +254,45 @@ export default function DraftSquadsTab() {
         stats: form.stats,
         ovr: calculateOVR(form.position, form.stats),
         photo_url: form.photo?.preview || editPlayer.photo_url || null,
-        club_id: team.club_id,
+        club_id: targetClubId,
       }
       delete updatedPlayer.club
 
-      const newTeams = saveData.teams.map(item => item.club_id === team.club_id
-        ? { ...item, roster: (item.roster || []).map(player => player.id === editPlayer.id ? updatedPlayer : player) }
-        : item)
-      const newSaveData = { ...saveData, teams: newTeams }
+      let newTeams = saveData.teams
+      let newFreeAgents = saveData.freeAgents || []
+
+      // If club changed or remains same
+      const sourceClubId = team.club_id
+      if (targetClubId === sourceClubId) {
+        newTeams = saveData.teams.map(item => item.club_id === sourceClubId
+          ? { ...item, roster: (item.roster || []).map(player => player.id === editPlayer.id ? updatedPlayer : player) }
+          : item)
+      } else {
+        // Remove from source club
+        newTeams = saveData.teams.map(item => {
+          if (item.club_id === sourceClubId) {
+            return { ...item, roster: (item.roster || []).filter(player => player.id !== editPlayer.id) }
+          }
+          if (targetClubId && item.club_id === targetClubId) {
+            return { ...item, roster: [...(item.roster || []), updatedPlayer] }
+          }
+          return item
+        })
+        if (!targetClubId) {
+          newFreeAgents = [...newFreeAgents, updatedPlayer]
+        }
+      }
+
+      const newSaveData = { ...saveData, teams: newTeams, freeAgents: newFreeAgents }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
-      setProfilePlayer({ ...updatedPlayer, club: { id: team.club_id, name: team.club_name, short_name: team.short_name, badge_url: team.badge_url, badge_color: team.badge_color } })
+      const targetClub = saveData.teams.find(t => t.club_id === targetClubId)
+      setProfilePlayer(targetClub ? { ...updatedPlayer, club: { id: targetClub.club_id, name: targetClub.club_name, short_name: targetClub.short_name, badge_url: targetClub.badge_url, badge_color: targetClub.badge_color } } : null)
       setEditDirty(false)
       setEditPlayer(null)
     } catch (error) {
       console.error('Failed to update player', error)
-      alert('Failed to update player')
+      alert(error.message || 'Failed to update player')
     } finally {
       setProcessing(false)
     }
