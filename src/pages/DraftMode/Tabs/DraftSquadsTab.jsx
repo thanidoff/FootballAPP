@@ -48,6 +48,7 @@ export default function DraftSquadsTab() {
   const [editDirty, setEditDirty] = useState(false)
   const [discardAction, setDiscardAction] = useState(null)
   const [draggedPlayerIndex, setDraggedPlayerIndex] = useState(null)
+  const [dragTargetIndex, setDragTargetIndex] = useState(null)
   const [localDraftRoster, setLocalDraftRoster] = useState(null)
   const [savingLineup, setSavingLineup] = useState(false)
 
@@ -369,6 +370,7 @@ export default function DraftSquadsTab() {
     if (draggedPlayerIndex == null) return
     swapPlayer(draggedPlayerIndex, toIndex)
     setDraggedPlayerIndex(null)
+    setDragTargetIndex(null)
   }
 
   const editPlayerInitial = editPlayer ? {
@@ -669,15 +671,35 @@ export default function DraftSquadsTab() {
                     return (
                       <div
                         key={player.id}
+                        data-player-index={playerIndex}
                         draggable
                         onDragStart={(e) => {
                           setDraggedPlayerIndex(playerIndex)
                           e.dataTransfer.setData('text/plain', String(playerIndex))
                           e.dataTransfer.effectAllowed = 'move'
                         }}
+                        onDragEnter={(e) => {
+                          e.preventDefault()
+                          if (draggedPlayerIndex != null && draggedPlayerIndex !== playerIndex) {
+                            setDragTargetIndex(playerIndex)
+                          }
+                        }}
                         onDragOver={(e) => {
                           e.preventDefault()
                           e.dataTransfer.dropEffect = 'move'
+                          if (draggedPlayerIndex != null && draggedPlayerIndex !== playerIndex && dragTargetIndex !== playerIndex) {
+                            setDragTargetIndex(playerIndex)
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault()
+                          if (dragTargetIndex === playerIndex) {
+                            setDragTargetIndex(null)
+                          }
+                        }}
+                        onDragEnd={() => {
+                          setDraggedPlayerIndex(null)
+                          setDragTargetIndex(null)
                         }}
                         onDrop={(e) => {
                           e.preventDefault()
@@ -691,16 +713,44 @@ export default function DraftSquadsTab() {
                         }}
                         onTouchEnd={() => {
                           if (longPressTimer.current) clearTimeout(longPressTimer.current)
+                          if (draggedPlayerIndex != null && dragTargetIndex != null) {
+                            dropPlayerAt(dragTargetIndex)
+                          } else {
+                            setDraggedPlayerIndex(null)
+                            setDragTargetIndex(null)
+                          }
                         }}
-                        onTouchMove={() => {
+                        onTouchMove={(e) => {
                           if (longPressTimer.current) clearTimeout(longPressTimer.current)
+                          if (draggedPlayerIndex != null && e.touches[0]) {
+                            const touch = e.touches[0]
+                            const elem = document.elementFromPoint(touch.clientX, touch.clientY)
+                            const card = elem?.closest('[data-player-index]')
+                            if (card) {
+                              const targetIdx = Number(card.getAttribute('data-player-index'))
+                              if (!isNaN(targetIdx) && targetIdx !== draggedPlayerIndex) {
+                                setDragTargetIndex(targetIdx)
+                              }
+                            }
+                          }
                         }}
                         style={{
                           transform: `translate3d(0, ${offset}px, 0)`,
-                          transition: offset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms',
+                          transition: offset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms, box-shadow 200ms',
                         }}
-                        className={`flex min-h-16 items-center rounded-2xl border bg-white pr-3 transition-all cursor-grab active:cursor-grabbing hover:border-slate-300 hover:bg-slate-50 ${draggedPlayerIndex === playerIndex ? 'scale-[0.98] border-[#FD5461] opacity-60 shadow-lg ring-2 ring-[#FD5461]/30' : 'border-gray-200'}`}
+                        className={`relative flex min-h-16 items-center rounded-2xl border bg-white pr-3 transition-all cursor-grab active:cursor-grabbing hover:border-slate-300 hover:bg-slate-50 ${
+                          draggedPlayerIndex === playerIndex
+                            ? 'scale-[0.98] border-[#FD5461] opacity-60 shadow-lg ring-2 ring-[#FD5461]/30'
+                            : dragTargetIndex === playerIndex
+                            ? 'scale-[1.01] border-blue-500 bg-blue-50/60 ring-2 ring-blue-400/50 shadow-md z-20'
+                            : 'border-gray-200'
+                        }`}
                       >
+                        {dragTargetIndex === playerIndex && (
+                          <div className="absolute -top-2.5 right-4 z-30 flex items-center gap-1 rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-heading font-black uppercase text-white shadow-md animate-bounce">
+                            Swap Target
+                          </div>
+                        )}
                       {/* Stacked Up/Down Reorder Control */}
                       <div className="flex h-16 w-10 shrink-0 flex-col items-center justify-center gap-0.5 pl-2 pr-1">
                         <button
