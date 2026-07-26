@@ -215,20 +215,27 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
         <div className="grid grid-cols-2 gap-3">
           {statKeys.map((key) => (
             <div key={key}>
-              <label className="block text-xs font-heading font-bold tracking-wider uppercase text-gray-400 mb-1">
-                {key} <span className="text-gray-300">· {STAT_LABELS[key]}</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-heading font-bold tracking-wider uppercase text-gray-400">
+                  {key} <span className="text-gray-300">· {STAT_LABELS[key]}</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={STAT_MAX}
+                  value={form.stats[key] ?? 50}
+                  onChange={(e) => handleStatChange(key, e.target.value)}
+                  className="w-10 text-right text-xs font-heading font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-gray-900"
+                />
+              </div>
               <input
                 type="range"
                 min={1}
                 max={STAT_MAX}
                 value={form.stats[key] ?? 50}
                 onChange={(e) => handleStatChange(key, e.target.value)}
-                className="w-full h-1.5 appearance-none bg-gray-200 rounded-full accent-gray-900 cursor-pointer"
+                className="w-full h-2 appearance-none bg-gray-200 rounded-full accent-[#FD5461] cursor-pointer"
               />
-              <div className="text-right text-xs font-heading font-bold text-gray-600 mt-0.5">
-                {form.stats[key] ?? 50}
-              </div>
             </div>
           ))}
         </div>

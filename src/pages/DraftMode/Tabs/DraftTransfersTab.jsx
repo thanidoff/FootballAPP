@@ -118,9 +118,10 @@ export default function DraftTransfersTab() {
     if (!editPlayer) return
     setProcessing(true)
     try {
+      const name = form.name || `${form.first_name || ''} ${form.last_name || ''}`.trim() || editPlayer.name
       const updatedPlayer = {
         ...editPlayer,
-        name: form.name,
+        name,
         nationality: form.nationality,
         age: form.age,
         position: form.position,
