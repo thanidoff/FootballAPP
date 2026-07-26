@@ -15,6 +15,7 @@ import ResultScore from '../../../components/draft/ResultScore'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
 
 import OvrBadge from '../../../components/ui/OvrBadge'
+import AllStarIcon from '../../../components/ui/AllStarIcon'
 
 // --- HELPER COMPONENTS ---
 
@@ -671,6 +672,7 @@ export default function DraftMatchesTab() {
         club_name: 'League All-Stars',
         short_name: 'ALL',
         badge_color: '#FD5461',
+        is_allstars: true,
         roster: fullRoster,
       }
     }
@@ -873,7 +875,11 @@ export default function DraftMatchesTab() {
                     <article key={index} className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[opacity,background-color] duration-200 ${isActiveSeason && week.week > currentWeek ? 'bg-gray-50 opacity-55' : ''}`}>
                       <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_140px_minmax(0,1fr)] items-center gap-3 px-4 py-3">
                         <div className="flex min-w-0 items-center gap-3">
-                          {home?.badge_url ? (
+                          {home?.is_allstars || home?.id === '__allstars__' ? (
+                            <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
+                              <AllStarIcon size={22} />
+                            </div>
+                          ) : home?.badge_url ? (
                             <div className="w-9 h-9 shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-gray-200 p-0.5">
                               <img src={home.badge_url} alt="" className="h-full w-full object-contain" />
                             </div>
@@ -896,7 +902,11 @@ export default function DraftMatchesTab() {
                         </div>
                         <div className="flex min-w-0 items-center justify-end gap-3">
                           <span className="truncate text-right font-heading text-sm font-black uppercase">{away?.club_name || (match.away === '__allstars__' ? 'League All-Stars' : 'Away')}</span>
-                          {away?.badge_url ? (
+                          {away?.is_allstars || away?.id === '__allstars__' ? (
+                            <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
+                              <AllStarIcon size={22} />
+                            </div>
+                          ) : away?.badge_url ? (
                             <div className="w-9 h-9 shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-gray-200 p-0.5">
                               <img src={away.badge_url} alt="" className="h-full w-full object-contain" />
                             </div>
@@ -1064,13 +1074,19 @@ export default function DraftMatchesTab() {
                   <div className="flex items-center gap-3 px-4 py-3.5">
                     {/* Home */}
                     <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                      <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm flex items-center justify-center" style={{ backgroundColor: homeTeam?.badge_url ? 'white' : (homeTeam?.badge_color || '#FD5461') }}>
-                        {homeTeam?.badge_url ? (
-                          <img src={homeTeam.badge_url} alt="" className="w-full h-full object-contain p-1" />
-                        ) : (
-                          <span className="font-heading font-black text-white text-xs">{(homeTeam?.short_name || homeTeam?.club_name || '1ST').slice(0, 3).toUpperCase()}</span>
-                        )}
-                      </div>
+                      {homeTeam?.is_allstars || homeTeam?.id === '__allstars__' ? (
+                        <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
+                          <AllStarIcon size={22} />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm flex items-center justify-center" style={{ backgroundColor: homeTeam?.badge_url ? 'white' : (homeTeam?.badge_color || '#FD5461') }}>
+                          {homeTeam?.badge_url ? (
+                            <img src={homeTeam.badge_url} alt="" className="w-full h-full object-contain p-1" />
+                          ) : (
+                            <span className="font-heading font-black text-white text-xs">{(homeTeam?.short_name || homeTeam?.club_name || '1ST').slice(0, 3).toUpperCase()}</span>
+                          )}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <span className="hidden sm:block font-heading font-black text-sm uppercase tracking-wide text-[#0A1318] truncate">{homeTeam?.club_name || (match.home === 'place_1' ? '1st Place Team' : 'Home')}</span>
                         <span className="sm:hidden font-heading font-black text-sm uppercase tracking-wide text-[#0A1318] truncate">{(homeTeam?.short_name || homeTeam?.club_name || '1ST').slice(0,3)}</span>
@@ -1096,13 +1112,19 @@ export default function DraftMatchesTab() {
                         <span className="hidden sm:block font-heading font-black text-sm uppercase tracking-wide text-[#0A1318] truncate">{awayTeam?.club_name || (match.away === '__allstars__' ? 'League All-Stars' : 'Away')}</span>
                         <span className="sm:hidden font-heading font-black text-sm uppercase tracking-wide text-[#0A1318] truncate">{(awayTeam?.short_name || awayTeam?.club_name || 'ALL').slice(0,3)}</span>
                       </div>
-                      <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm flex items-center justify-center" style={{ backgroundColor: awayTeam?.badge_url ? 'white' : (awayTeam?.badge_color || '#FD5461') }}>
-                        {awayTeam?.badge_url ? (
-                          <img src={awayTeam.badge_url} alt="" className="w-full h-full object-contain p-1" />
-                        ) : (
-                          <span className="font-heading font-black text-white text-xs">{(awayTeam?.short_name || awayTeam?.club_name || 'ALL').slice(0, 3).toUpperCase()}</span>
-                        )}
-                      </div>
+                      {awayTeam?.is_allstars || awayTeam?.id === '__allstars__' ? (
+                        <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-[#FD5461] p-1.5 shadow-sm">
+                          <AllStarIcon size={22} />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex-shrink-0 ring-1 ring-black/5 shadow-sm flex items-center justify-center" style={{ backgroundColor: awayTeam?.badge_url ? 'white' : (awayTeam?.badge_color || '#FD5461') }}>
+                          {awayTeam?.badge_url ? (
+                            <img src={awayTeam.badge_url} alt="" className="w-full h-full object-contain p-1" />
+                          ) : (
+                            <span className="font-heading font-black text-white text-xs">{(awayTeam?.short_name || awayTeam?.club_name || 'ALL').slice(0, 3).toUpperCase()}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

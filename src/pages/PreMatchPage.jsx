@@ -10,6 +10,7 @@ import { getOVRTier } from '../utils/stats'
 import { simulateMatchSequences } from '../utils/matchEngine'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 import PlayerCard from '../components/ui/PlayerCard'
+import AllStarIcon from '../components/ui/AllStarIcon'
 import { ChevronDown, ChevronUp, CircleDot, Footprints, RefreshCw, ShieldCheck, Star, Trophy } from 'lucide-react'
 import useOverlayBehavior from '../hooks/useOverlayBehavior'
 
@@ -164,7 +165,9 @@ function MatchEventFeed({ goals, fouls, actions = [], mvp, mvpTeam, phase, homeC
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
                     {/* Club Badge Leading */}
-                    {club?.badge_url ? (
+                    {club?.id === '__allstars__' ? (
+                      <AllStarIcon size={14} className="shrink-0" />
+                    ) : club?.badge_url ? (
                       <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
                     ) : (
                       <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>
@@ -284,7 +287,9 @@ function PlayerRow({ player, club, isDragging, isOver, canDrop, onMoveUp, onMove
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
           {/* Club Badge Leading */}
-          {club?.badge_url ? (
+          {club?.id === '__allstars__' ? (
+            <AllStarIcon size={14} className="shrink-0" />
+          ) : club?.badge_url ? (
             <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
           ) : (
             <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>
