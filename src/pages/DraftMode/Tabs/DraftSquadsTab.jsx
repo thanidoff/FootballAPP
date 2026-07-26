@@ -103,7 +103,8 @@ export default function DraftSquadsTab() {
   if (!team) return null
   const displayRoster = localDraftRoster || team.roster || []
   const isLineupDirty = JSON.stringify(displayRoster.map(p => p.id)) !== JSON.stringify((team.roster || []).map(p => p.id))
-  const averageOvr = displayRoster.length ? Math.round(displayRoster.reduce((sum, player) => sum + player.ovr, 0) / displayRoster.length) : 0
+  const starters = displayRoster.slice(0, 5)
+  const averageOvr = starters.length ? Math.round(starters.reduce((sum, player) => sum + player.ovr, 0) / starters.length) : 0
 
   const [releasingPlayer, setReleasingPlayer] = useState(null)
 
