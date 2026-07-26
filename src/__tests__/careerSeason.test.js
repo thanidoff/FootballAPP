@@ -77,8 +77,8 @@ describe('complete career simulation', () => {
       const matches = activeSeason.matches.find(item => item.week === week).matches
       for (let index = 0; index < matches.length; index += 1) {
         const match = matches[index]
-        const home = state.teams.find(team => team.club_id === match.home)
-        const away = state.teams.find(team => team.club_id === match.away)
+        const home = state.teams.find(team => team.club_id === match.home) || state.teams[0]
+        const away = state.teams.find(team => team.club_id === match.away) || state.teams[1]
         const scorer = home.roster[0]
         const assist = home.roster[1]
         const fouler = away.roster[0]
@@ -104,8 +104,8 @@ describe('complete career simulation', () => {
     state = await loadDraftState(saveId)
     const season = state.settings.seasons[0]
     expect(season.status).toBe('completed')
-    expect(season.matches).toHaveLength(10)
-    expect(season.matches.flatMap(week => week.matches)).toHaveLength(20)
+    expect(season.matches).toHaveLength(11)
+    expect(season.matches.flatMap(week => week.matches)).toHaveLength(21)
     expect(season.matches.flatMap(week => week.matches).every(match => match.played)).toBe(true)
     expect(season.standings).toHaveLength(5)
     expect(season.standings.some(row => row.club_id === outsider.club_id)).toBe(false)
@@ -115,8 +115,8 @@ describe('complete career simulation', () => {
     expect(season.prizePayouts.filter(payout => payout.type === 'placement')).toHaveLength(5)
     expect(season.prizePayouts.filter(payout => payout.type === 'player_award')).toHaveLength(0)
     expect(season.prizePayouts.find(payout => payout.label === 'League position 1').amount).toBe(50_000_000)
-    expect(Object.values(season.stats.topScorers).reduce((sum, value) => sum + value, 0)).toBe(20)
-    expect(Object.values(season.stats.topAssists).reduce((sum, value) => sum + value, 0)).toBe(20)
+    expect(Object.values(season.stats.topScorers).reduce((sum, value) => sum + value, 0)).toBe(21)
+    expect(Object.values(season.stats.topAssists).reduce((sum, value) => sum + value, 0)).toBe(21)
     const historicalPlayerId = Object.keys(season.stats.topScorers)[0]
     const historicalSnapshot = season.stats.playerSnapshots[historicalPlayerId]
     expect(historicalSnapshot.club.id).toBeTruthy()
@@ -127,8 +127,8 @@ describe('complete career simulation', () => {
     state = await loadDraftState(saveId)
     expect(state.settings.seasons[0].stats.playerSnapshots[historicalPlayerId].club.id)
       .toBe(historicalSnapshot.club.id)
-    expect(Object.values(season.stats.mostFouls).reduce((sum, value) => sum + value, 0)).toBe(20)
-    expect(Object.values(season.stats.mostMvps).reduce((sum, value) => sum + value, 0)).toBe(20)
+    expect(Object.values(season.stats.mostFouls).reduce((sum, value) => sum + value, 0)).toBe(21)
+    expect(Object.values(season.stats.mostMvps).reduce((sum, value) => sum + value, 0)).toBe(21)
 
     const cupTeamIds = MOCK_CLUBS.map(club => club.id)
     const qfMatches = Array.from({ length: 4 }, (_, index) => ({
@@ -180,9 +180,9 @@ describe('complete career simulation', () => {
     expect(completedSeason.prizePayouts.filter(payout => payout.type === 'player_award')).toHaveLength(3)
     expect(completedSeason.prizePayouts.filter(payout => payout.type === 'player_award').every(payout => payout.scope === 'all_competitions')).toBe(true)
     expect(completedSeason.awardsPaidAt).toBeTruthy()
-    expect(Object.values(completedSeason.stats.topScorers).reduce((sum, value) => sum + value, 0)).toBe(21)
-    expect(Object.values(completedSeason.stats.topAssists).reduce((sum, value) => sum + value, 0)).toBe(21)
-    expect(Object.values(completedSeason.stats.mostMvps).reduce((sum, value) => sum + value, 0)).toBe(21)
+    expect(Object.values(completedSeason.stats.topScorers).reduce((sum, value) => sum + value, 0)).toBe(22)
+    expect(Object.values(completedSeason.stats.topAssists).reduce((sum, value) => sum + value, 0)).toBe(22)
+    expect(Object.values(completedSeason.stats.mostMvps).reduce((sum, value) => sum + value, 0)).toBe(22)
   })
 })
 

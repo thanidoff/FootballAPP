@@ -123,7 +123,24 @@ export function generateSchedule(teamIds) {
     matches: round.matches.map(m => ({ home: m.away, away: m.home, played: false, homeScore: 0, awayScore: 0 }))
   }))
 
-  return [...schedule, ...secondHalf]
+  const baseSchedule = [...schedule, ...secondHalf]
+  const finalWeek = baseSchedule.length + 1
+
+  // Add Week 11 Special Super Match: 1st Place vs All-Stars
+  baseSchedule.push({
+    week: finalWeek,
+    isSuperMatch: true,
+    matches: [{
+      home: 'place_1', // Will dynamically resolve to 1st place club at week 11 or match time
+      away: '__allstars__',
+      played: false,
+      homeScore: 0,
+      awayScore: 0,
+      isAllStarMatch: true,
+    }]
+  })
+
+  return baseSchedule
 }
 
 export function generateMockRoster(club, strengthOffset = 0) {
