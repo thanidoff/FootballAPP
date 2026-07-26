@@ -548,12 +548,23 @@ export default function DraftMatchesTab() {
 
   function openPrizeSettings() {
     setPrizeDraft({
-      placements: [...(seasonData?.prizeSettings?.placements || DEFAULT_LEAGUE_PRIZES.placements)],
-      awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(seasonData?.prizeSettings?.awards || {}) },
-      matchPrizes: { ...(DEFAULT_LEAGUE_PRIZES.matchPrizes), ...(seasonData?.prizeSettings?.matchPrizes || {}) },
-      cupMatchPrizes: { ...(DEFAULT_CUP_MATCH_PRIZES), ...(seasonCup?.matchPrizes || seasonData?.cupMatchPrizes || {}) },
+      placements: Array.isArray(seasonData?.prizeSettings?.placements)
+        ? [...seasonData.prizeSettings.placements]
+        : [...DEFAULT_LEAGUE_PRIZES.placements],
+      awards: {
+        ...DEFAULT_LEAGUE_PRIZES.awards,
+        ...(seasonData?.prizeSettings?.awards || {}),
+      },
+      matchPrizes: {
+        ...DEFAULT_LEAGUE_PRIZES.matchPrizes,
+        ...(seasonData?.prizeSettings?.matchPrizes || {}),
+      },
+      cupMatchPrizes: {
+        ...DEFAULT_CUP_MATCH_PRIZES,
+        ...(seasonCup?.matchPrizes || seasonData?.cupMatchPrizes || {}),
+      },
     })
-    setCupPrizeDraft([...(seasonCup?.prizeSettings || seasonData?.cupPrizeSettings || DEFAULT_CUP_PRIZES)])
+    setCupPrizeDraft(Array.isArray(seasonCup?.prizeSettings) ? [...seasonCup.prizeSettings] : [...DEFAULT_CUP_PRIZES])
     setPrizeSettingsOpen(true)
   }
 
