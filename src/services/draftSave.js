@@ -633,7 +633,9 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
 
   if (!isFreeAgentTarget) {
-    if ((teams[targetIndex].budget || 0) < fee) throw new Error('Insufficient budget')
+    if ((teams[targetIndex].budget || 0) < 0) {
+      throw new Error('Your budget is in debt! Sell players or earn funds before buying more.')
+    }
     teams[targetIndex].budget -= fee
   }
 

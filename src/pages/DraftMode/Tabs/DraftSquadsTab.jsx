@@ -593,8 +593,8 @@ export default function DraftSquadsTab() {
               <h1 className="text-base sm:text-2xl font-heading font-black text-[#0A1318] uppercase tracking-wider leading-none mb-0.5 sm:mb-1 truncate">
                 {team.club_name}
               </h1>
-              <div className="text-xs sm:text-sm font-semibold text-[#FD5461]">
-                Budget: ${(team.budget / 1000000).toFixed(1)}M
+              <div className={`text-xs sm:text-sm font-semibold ${team.budget < 0 ? 'text-red-600 font-bold' : 'text-[#FD5461]'}`}>
+                Budget: {team.budget < 0 ? `-$${(Math.abs(team.budget) / 1000000).toFixed(1)}M (Debt)` : `$${(team.budget / 1000000).toFixed(1)}M`}
               </div>
             </div>
           </div>
