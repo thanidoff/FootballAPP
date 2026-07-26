@@ -1300,15 +1300,18 @@ export default function PreMatchPage() {
       awayFetch,
     ]).then(([homePlayers, awayPlayers]) => {
       const makeSlots = (players, uncapped = false) => {
-        const orderKey = nationalMode ? 'national_roster_order' : 'roster_order'
-        const sorted = [...players].sort((a, b) => {
-          const aHasOrder = a[orderKey] != null
-          const bHasOrder = b[orderKey] != null
-          if (aHasOrder && bHasOrder) return a[orderKey] - b[orderKey]
-          if (aHasOrder) return -1
-          if (bHasOrder) return 1
-          return b.ovr - a.ovr
-        })
+        let sorted = [...players]
+        if (!isDraft) {
+          const orderKey = nationalMode ? 'national_roster_order' : 'roster_order'
+          sorted.sort((a, b) => {
+            const aHasOrder = a[orderKey] != null
+            const bHasOrder = b[orderKey] != null
+            if (aHasOrder && bHasOrder) return a[orderKey] - b[orderKey]
+            if (aHasOrder) return -1
+            if (bHasOrder) return 1
+            return b.ovr - a.ovr
+          })
+        }
         if (uncapped) {
           const len = Math.max(sorted.length, 12)
           const slots = Array(len).fill(null)
