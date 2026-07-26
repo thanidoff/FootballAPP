@@ -9,7 +9,6 @@ import LeagueSetupModal from '../../../components/matches/LeagueSetupModal'
 import LeagueStandingsTable from '../../../components/draft/LeagueStandingsTable'
 import AnimatedTabs from '../../../components/ui/AnimatedTabs'
 import SegmentedControl from '../../../components/ui/SegmentedControl'
-import { MOCK_CLUBS } from '../../../data/mockGameData'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
 import { ArrowDown, ArrowUp, Banknote, CalendarClock, Crown, Eye, Medal, Play, Settings2, Trophy } from 'lucide-react'
 import ResultScore from '../../../components/draft/ResultScore'
@@ -571,13 +570,6 @@ export default function DraftMatchesTab() {
       
       // Reset team stats
       const teamMap = new Map(saveData.teams.map(team => [team.club_id, team]))
-      MOCK_CLUBS.forEach(club => {
-        if (!teamMap.has(club.id) && teamIds.includes(club.id)) teamMap.set(club.id, {
-          club_id: club.id, club_name: club.name, short_name: club.short_name,
-          badge_url: club.badge_url, badge_color: club.badge_color,
-          budget: 100_000_000, roster: generateMockRoster(club), locked_player_ids: [],
-        })
-      })
       const selectedIds = new Set(teamIds)
       const newTeams = [...teamMap.values()].map(t => selectedIds.has(t.club_id) ? ({
         ...t, stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
@@ -1068,10 +1060,7 @@ export default function DraftMatchesTab() {
         onClose={() => setNewSeasonSetupOpen(false)}
         onCreate={handleStartNewSeason}
         initialSelectedIds={(seasonData?.standings || []).slice(0, 4).map(row => row.club_id)}
-        teams={[
-          ...MOCK_CLUBS,
-          ...leagueTeams.filter(team => !MOCK_CLUBS.some(club => club.id === team.id)),
-        ].filter(team => team.id !== (seasonData?.standings || []).at(-1)?.club_id)}
+        teams={leagueTeams.filter(team => team.id !== (seasonData?.standings || []).at(-1)?.club_id)}
         players={leaguePlayers}
         requiredTeams={5}
       />

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { CalendarClock, Check, ChevronLeft, ChevronRight, Eye, Plus, Settings2, Shuffle, Trophy } from 'lucide-react'
-import { MOCK_CLUBS } from '../../../data/mockGameData'
 import { DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
 import { createSeededRandom } from '../../../utils/matchEngine'
 import { generateMockRoster } from '../../../utils/draftLogic'
@@ -144,10 +143,7 @@ export default function DraftCupTab() {
   const completedLeague = [...leagueSeasons].reverse().find(season => season.status === 'completed')
   const qualifiedIds = completedLeague?.standings?.slice(0, 4).map(row => row.club_id) || []
   const allClubs = useMemo(() => {
-    const existing = (saveData.teams || []).map(team => toClub(team))
-    const existingIds = new Set(existing.map(c => c.id))
-    const mockClubsToAdd = MOCK_CLUBS.filter(c => !existingIds.has(c.id))
-    return [...existing, ...mockClubsToAdd]
+    return (saveData.teams || []).map(team => toClub(team))
   }, [saveData.teams])
   const candidates = allClubs
   const cups = saveData.settings?.cups || []
@@ -255,10 +251,10 @@ export default function DraftCupTab() {
   if (!cup || cup.status === 'completed') return (
     <>
       {cup?.champion && <div className="mb-5 rounded-2xl border border-[#FD5461]/35 bg-[#FD5461]/[0.07] p-5"><div className="text-[10px] font-black uppercase tracking-widest text-[#FD5461]">Last cup champion</div><div className="mt-1 font-heading text-xl font-black uppercase text-[#0A1318]">{allClubs.find(club => club.id === cup.champion)?.name}</div></div>}
-      <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-[#FD5461]" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">Create the 8-team cup</h2><p className="mt-2 text-sm text-gray-500">Select any eight clubs. League qualifiers are preselected but can be changed before the unrestricted random draw.</p><div className="mt-7 flex flex-wrap justify-center gap-2"><Button variant="outline" onClick={() => { setPrizeDraft([...DEFAULT_CUP_PRIZES]); setPrizeOpen(true) }} className="flex items-center gap-2"><Settings2 size={16} />Set prizes</Button><Button onClick={openSetup}>Select 8 clubs</Button></div></div>
-      <Modal open={setupOpen} onClose={() => setSetupOpen(false)} title="Complete the field" width="max-w-3xl">
+      <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-[#FD5461]" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">Create the cup tournament</h2><p className="mt-2 text-sm text-gray-500">Select clubs for the cup tournament. League qualifiers are preselected but can be changed before the unrestricted random draw.</p><div className="mt-7 flex flex-wrap justify-center gap-2"><Button variant="outline" onClick={() => { setPrizeDraft([...DEFAULT_CUP_PRIZES]); setPrizeOpen(true) }} className="flex items-center gap-2"><Settings2 size={16} />Set prizes</Button><Button onClick={openSetup}>{`Select ${selectionTarget} clubs`}</Button></div></div>
+      <Modal open={setupOpen} onClose={() => setSetupOpen(false)} title="Select Cup Clubs" width="max-w-3xl">
         <div className="space-y-5">
-            <p className="type-body-sm text-gray-500">Select any 8 clubs · {selected.length}/8 selected · all pairings are random</p>
+            <p className="type-body-sm text-gray-500">Select clubs · {selected.length}/{selectionTarget} selected · all pairings are random</p>
             <div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {candidates.map((club, index) => {
