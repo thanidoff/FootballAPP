@@ -488,7 +488,29 @@ export default function DraftMatchesTab() {
     }
   }
 
-  const matchesConfig = seasonData?.matches || []
+  const matchesConfig = useMemo(() => {
+    const rawMatches = seasonData?.matches || []
+    if (!rawMatches.length) return []
+    // Ensure Week 11 Super Match is present for existing saves
+    if (rawMatches.length === 10) {
+      return [
+        ...rawMatches,
+        {
+          week: 11,
+          isSuperMatch: true,
+          matches: [{
+            home: 'place_1',
+            away: '__allstars__',
+            played: false,
+            homeScore: 0,
+            awayScore: 0,
+            isAllStarMatch: true,
+          }]
+        }
+      ]
+    }
+    return rawMatches
+  }, [seasonData?.matches])
   const currentWeek = saveData.currentWeek || 1
   
   const [selectedWeek, setSelectedWeek] = useState(currentWeek)
