@@ -341,10 +341,10 @@ function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
     const payout = payouts.find(item => item.type === 'player_award' && String(item.playerId) === String(playerId) && item.label === definition.label)
     return { ...definition, playerId, count, player, amount: payout?.amount ?? season?.prizeSettings?.awards?.[definition.key] ?? 0 }
   }).filter(Boolean)
-  const finalMatch = cup?.rounds?.[3]?.[0]
+  const finalMatch = cup?.rounds?.[3]?.[0] || cup?.rounds?.['3']?.[0]
   const cupRows = (cup?.prizePayouts || []).map(row => ({ ...row, club: teamById(row.clubId) || row }))
-  const homeClub = finalMatch ? teamById(finalMatch.home) : null
-  const awayClub = finalMatch ? teamById(finalMatch.away) : null
+  const homeClub = finalMatch ? (teamById(finalMatch.home) || { club_name: finalMatch.homeName || finalMatch.home }) : null
+  const awayClub = finalMatch ? (teamById(finalMatch.away) || { club_name: finalMatch.awayName || finalMatch.away }) : null
   const championPayout = cupRows.find(row => row.position === 1)
 
   return (
