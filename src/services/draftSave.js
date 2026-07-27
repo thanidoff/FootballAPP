@@ -381,25 +381,62 @@ export async function completeDraftMatch(saveId, currentWeek, matchIndex, payloa
     aStats.GD = aStats.GF - aStats.GA
 
     const prizeConfig = normalizeLeaguePrizes(season.prizeSettings).matchPrizes
-    if (homeScore > awayScore) {
-      hStats.PTS += 3; hStats.W += 1
-      aStats.L += 1
-      newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.win
-      newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.loss
-    } else if (homeScore < awayScore) {
-      aStats.PTS += 3; aStats.W += 1
-      hStats.L += 1
-      newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.win
-      newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.loss
-    } else {
-      hStats.PTS += 1; hStats.D += 1
-      aStats.PTS += 1; aStats.D += 1
-      newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.draw
-      newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.draw
-    }
+    const isAllStarMatch = match.home === 'place_1' || match.away === '__allstars__' || match.isAllStarMatch
 
-    newTeams[homeIdx].stats = hStats
-    newTeams[awayIdx].stats = aStats
+    if (isAllStarMatch) {
+      // Determine 1st Place team and 2nd-5th Place teams from standings
+      const standings = [...newTeams].sort((a, b) => (b.stats?.PTS || 0) - (a.stats?.PTS || 0) || (b.stats?.GD || 0) - (a.stats?.GD || 0) || (b.stats?.GF || 0) - (a.stats?.GF || 0))
+      const firstPlaceTeam = standings[0]
+      const otherTeams = standings.slice(1, 5)
+
+      let firstPlacePrize = 0
+      let allStarTeamPrize = 0
+
+      if (homeScore > awayScore) {
+        firstPlacePrize = prizeConfig.win
+        allStarTeamPrize = prizeConfig.loss
+      } else if (homeScore < awayScore) {
+        firstPlacePrize = prizeConfig.loss
+        allStarTeamPrize = prizeConfig.win
+      } else {
+        firstPlacePrize = prizeConfig.draw
+        allStarTeamPrize = prizeConfig.draw
+      }
+
+      // Payout 1st Place Team
+      if (firstPlaceTeam) {
+        const idx = newTeams.findIndex(t => t.club_id === firstPlaceTeam.club_id)
+        if (idx !== -1) newTeams[idx].budget = (newTeams[idx].budget || 0) + firstPlacePrize
+      }
+
+      // Payout All-Stars teams (ranked 2nd to 5th)
+      if (otherTeams.length > 0) {
+        otherTeams.forEach(team => {
+          const idx = newTeams.findIndex(t => t.club_id === team.club_id)
+          if (idx !== -1) newTeams[idx].budget = (newTeams[idx].budget || 0) + allStarTeamPrize
+        })
+      }
+    } else if (homeIdx !== -1 && awayIdx !== -1) {
+      if (homeScore > awayScore) {
+        hStats.PTS += 3; hStats.W += 1
+        aStats.L += 1
+        newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.win
+        newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.loss
+      } else if (homeScore < awayScore) {
+        aStats.PTS += 3; aStats.W += 1
+        hStats.L += 1
+        newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.win
+        newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.loss
+      } else {
+        hStats.PTS += 1; hStats.D += 1
+        aStats.PTS += 1; aStats.D += 1
+        newTeams[homeIdx].budget = (newTeams[homeIdx].budget || 0) + prizeConfig.draw
+        newTeams[awayIdx].budget = (newTeams[awayIdx].budget || 0) + prizeConfig.draw
+      }
+
+      newTeams[homeIdx].stats = hStats
+      newTeams[awayIdx].stats = aStats
+    }
   }
   
   saveData.settings.seasons[activeSeasonIdx] = season
