@@ -230,6 +230,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
                             <span className="mr-1 text-sm font-medium text-gray-600">Budget</span>
+                            <button type="button" onClick={() => adjustBudget(club.id, -100_000_000)} aria-label={`Decrease ${club.name} budget by 100M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-100</button>
                             <button type="button" onClick={() => adjustBudget(club.id, -10_000_000)} aria-label={`Decrease ${club.name} budget by 10M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-10</button>
                             <button type="button" onClick={() => adjustBudget(club.id, -1_000_000)} aria-label={`Decrease ${club.name} budget by 1M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-1</button>
                             <span className="relative flex h-9 w-24 items-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461] focus-within:ring-2 focus-within:ring-red-50">
@@ -251,6 +252,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                             </span>
                             <button type="button" onClick={() => adjustBudget(club.id, 1_000_000)} aria-label={`Increase ${club.name} budget by 1M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+1</button>
                             <button type="button" onClick={() => adjustBudget(club.id, 10_000_000)} aria-label={`Increase ${club.name} budget by 10M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+10</button>
+                            <button type="button" onClick={() => adjustBudget(club.id, 100_000_000)} aria-label={`Increase ${club.name} budget by 100M`} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+100</button>
                           </div>
                           <button
                             disabled={roster.length === 0}
