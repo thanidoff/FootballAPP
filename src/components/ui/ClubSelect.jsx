@@ -183,7 +183,7 @@ export default function ClubSelect({ label, value, onChange, clubs = [], error }
                       ${isDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50/50' : isSelected ? 'bg-gray-900' : 'hover:bg-gray-50'}`}
                   >
                     <ClubBadge club={club} isSelected={isSelected} />
-                    <span className={`flex-1 truncate ${isSelected ? 'text-white font-medium' : isDisabled ? 'text-gray-400 line-through decoration-gray-300' : 'text-gray-700'}`}>
+                    <span className={`flex-1 truncate ${isSelected ? 'text-white font-medium' : isDisabled ? 'text-gray-400' : 'text-gray-700'}`}>
                       {club.name}
                     </span>
                     {isSelected && (
