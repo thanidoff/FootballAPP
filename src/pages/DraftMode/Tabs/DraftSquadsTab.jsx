@@ -39,6 +39,7 @@ export default function DraftSquadsTab() {
   const [editPlayer, setEditPlayer] = useState(null)
   const [profilePlayer, setProfilePlayer] = useState(null)
   const [activeSection, setActiveSection] = useState('roster')
+  const [financePage, setFinancePage] = useState(1)
   const [teamSelectorCollapsed, setTeamSelectorCollapsed] = useState(true)
   const [clubManagerOpen, setClubManagerOpen] = useState(false)
   const [masterClubs, setMasterClubs] = useState([])
@@ -598,16 +599,20 @@ export default function DraftSquadsTab() {
     if (!team) return []
     const logs = []
     const teamId = String(team.club_id)
+    const saveCreatedTime = saveData.created_at ? new Date(saveData.created_at).getTime() : Date.now()
 
     // 1. Initial starting budget
     logs.push({
       id: 'init-budget',
       title: 'Initial Club Budget',
       category: 'Starting Capital',
+      seasonLabel: 'Season 1',
+      seasonNum: 1,
       amount: 100_000_000,
       type: 'income',
       description: 'Default starting budget for new club',
-      date: null,
+      date: saveData.created_at || null,
+      timestamp: saveCreatedTime,
     })
 
     // 2. League matches (per-match prize)
@@ -624,6 +629,7 @@ export default function DraftSquadsTab() {
           const isHome = homeId === teamId
           const isAway = awayId === teamId
           const isAllStarMatch = match.home === 'place_1' || match.away === '__allstars__' || match.isAllStarMatch
+          const matchTimestamp = match.playedAt ? new Date(match.playedAt).getTime() : saveCreatedTime + (seasonIndex * 30 + (week.week || 1)) * 3600_000
 
           if (isAllStarMatch) {
             const standings = [...(saveData.teams || [])].sort((a, b) => (b.stats?.PTS || 0) - (a.stats?.PTS || 0) || (b.stats?.GD || 0) - (a.stats?.GD || 0))
@@ -652,10 +658,13 @@ export default function DraftSquadsTab() {
                   id: `super-match-${seasonIndex}-${week.week}-${matchIndex}`,
                   title: `Super Match Reward (${resultLabel})`,
                   category: 'League Prize',
+                  seasonLabel: `Season ${seasonIndex + 1}`,
+                  seasonNum: seasonIndex + 1,
                   amount,
                   type: 'income',
-                  description: `Season ${seasonIndex + 1} Super Match reward`,
-                  date: null,
+                  description: `Season ${seasonIndex + 1} Week ${week.week} Super Match`,
+                  date: match.playedAt || new Date(matchTimestamp).toISOString(),
+                  timestamp: matchTimestamp,
                 })
               }
             }
@@ -682,10 +691,13 @@ export default function DraftSquadsTab() {
                 id: `league-match-${seasonIndex}-${week.week}-${matchIndex}`,
                 title: `League Match Bonus (${resultLabel})`,
                 category: 'League Prize',
+                seasonLabel: `Season ${seasonIndex + 1}`,
+                seasonNum: seasonIndex + 1,
                 amount,
                 type: 'income',
                 description: `Season ${seasonIndex + 1} Week ${week.week} vs ${opponent?.club_name || 'Opponent'} (${myScore}-${oppScore})`,
-                date: null,
+                date: match.playedAt || new Date(matchTimestamp).toISOString(),
+                timestamp: matchTimestamp,
               })
             }
           }
@@ -696,14 +708,18 @@ export default function DraftSquadsTab() {
       if (season.prizePayouts) {
         const myPlacement = season.prizePayouts.find(p => String(p.clubId) === teamId && p.type !== 'player_award')
         if (myPlacement && myPlacement.amount > 0) {
+          const timestamp = saveCreatedTime + (seasonIndex * 30 + 12) * 3600_000
           logs.push({
             id: `season-placement-${seasonIndex}`,
             title: `Season ${seasonIndex + 1} Placement Prize`,
             category: 'Season End Reward',
+            seasonLabel: `Season ${seasonIndex + 1}`,
+            seasonNum: seasonIndex + 1,
             amount: myPlacement.amount,
             type: 'income',
             description: `Finished Position #${myPlacement.position || season.standings?.findIndex(s => String(s.club_id) === teamId) + 1} in Season ${seasonIndex + 1}`,
-            date: null,
+            date: season.endedAt || new Date(timestamp).toISOString(),
+            timestamp,
           })
         }
       }
@@ -722,14 +738,18 @@ export default function DraftSquadsTab() {
         if (amount > 0) {
           const opponentId = isHome ? match.away : match.home
           const opponent = saveData.teams.find(t => String(t.club_id) === String(opponentId))
+          const timestamp = match.playedAt ? new Date(match.playedAt).getTime() : saveCreatedTime + (cupIndex * 15 + matchIndex) * 1800_000
           logs.push({
             id: `cup-match-${cupIndex}-${matchIndex}`,
             title: `Cup Match Bonus (${isWinner ? 'Win' : 'Loss'})`,
             category: 'Cup Prize',
+            seasonLabel: `Season ${cup.number || cupIndex + 1}`,
+            seasonNum: cup.number || cupIndex + 1,
             amount,
             type: 'income',
             description: `Club Cup ${cup.number || cupIndex + 1} vs ${opponent?.club_name || 'Opponent'}`,
-            date: null,
+            date: match.playedAt || new Date(timestamp).toISOString(),
+            timestamp,
           })
         }
       })
@@ -737,14 +757,18 @@ export default function DraftSquadsTab() {
       if (cup.prizePayouts) {
         const myCupPayout = cup.prizePayouts.find(p => String(p.clubId) === teamId)
         if (myCupPayout && myCupPayout.amount > 0) {
+          const timestamp = saveCreatedTime + (cupIndex * 15 + 10) * 1800_000
           logs.push({
             id: `cup-placement-${cupIndex}`,
             title: `Club Cup ${cup.number || cupIndex + 1} Placement Prize`,
             category: 'Cup Final Reward',
+            seasonLabel: `Season ${cup.number || cupIndex + 1}`,
+            seasonNum: cup.number || cupIndex + 1,
             amount: myCupPayout.amount,
             type: 'income',
             description: `Finished Position #${myCupPayout.position} in Club Cup ${cup.number || cupIndex + 1}`,
-            date: null,
+            date: cup.endedAt || new Date(timestamp).toISOString(),
+            timestamp,
           })
         }
       }
@@ -756,14 +780,18 @@ export default function DraftSquadsTab() {
         season.prizePayouts.filter(p => p.type === 'player_award' && String(p.clubId) === teamId).forEach((award, index) => {
           if (award.amount > 0) {
             const player = (saveData.teams || []).flatMap(t => t.roster || []).find(p => String(p.id) === String(award.playerId))
+            const timestamp = saveCreatedTime + (seasonIndex * 30 + 13) * 3600_000
             logs.push({
               id: `award-${seasonIndex}-${index}`,
               title: `Player Award: ${award.label}`,
               category: 'Individual Award',
+              seasonLabel: `Season ${seasonIndex + 1}`,
+              seasonNum: seasonIndex + 1,
               amount: award.amount,
               type: 'income',
               description: `Awarded to ${player?.name || 'Player'} in Season ${seasonIndex + 1}`,
-              date: null,
+              date: season.endedAt || new Date(timestamp).toISOString(),
+              timestamp,
             })
           }
         })
@@ -775,16 +803,20 @@ export default function DraftSquadsTab() {
       const isSeller = String(t.fromClubId) === teamId
       const isBuyer = String(t.toClubId) === teamId
       if (!isSeller && !isBuyer) return
+      const timestamp = t.createdAt ? new Date(t.createdAt).getTime() : saveCreatedTime + index * 1000
 
       if (isBuyer) {
         logs.push({
           id: `transfer-buy-${index}`,
           title: `Signed Player: ${t.playerName}`,
           category: 'Transfer (Expense)',
+          seasonLabel: `Season ${t.season || saveData.settings?.currentSeasonIdx + 1 || 1}`,
+          seasonNum: t.season || saveData.settings?.currentSeasonIdx + 1 || 1,
           amount: t.fee || 0,
           type: 'expense',
           description: t.fromName ? `Bought from ${t.fromName}` : 'Signed player',
-          date: t.createdAt,
+          date: t.createdAt || new Date(timestamp).toISOString(),
+          timestamp,
         })
       }
       if (isSeller) {
@@ -792,29 +824,53 @@ export default function DraftSquadsTab() {
           id: `transfer-sell-${index}`,
           title: `Transferred Player: ${t.playerName}`,
           category: 'Transfer (Income)',
+          seasonLabel: `Season ${t.season || saveData.settings?.currentSeasonIdx + 1 || 1}`,
+          seasonNum: t.season || saveData.settings?.currentSeasonIdx + 1 || 1,
           amount: t.fee || 0,
           type: 'income',
           description: t.toName ? `Sold to ${t.toName}` : 'Released player (Refund)',
-          date: t.createdAt,
+          date: t.createdAt || new Date(timestamp).toISOString(),
+          timestamp,
         })
       }
     })
 
     // 7. Manual budget adjustments
     ;(team.financialHistory || []).forEach((adj, index) => {
+      const timestamp = adj.date ? new Date(adj.date).getTime() : saveCreatedTime + index * 500
       logs.push({
         id: adj.id || `manual-adj-${index}`,
         title: adj.title || 'Manual Budget Adjustment',
         category: adj.category || 'Admin Adjustment',
+        seasonLabel: `Season ${adj.season || saveData.settings?.currentSeasonIdx + 1 || 1}`,
+        seasonNum: adj.season || saveData.settings?.currentSeasonIdx + 1 || 1,
         amount: adj.amount || 0,
         type: adj.type || 'income',
         description: adj.description || 'Manual budget edit',
-        date: adj.date || null,
+        date: adj.date || new Date(timestamp).toISOString(),
+        timestamp,
       })
     })
 
-    // Sort logs descending (most recent / highest priority first)
-    return logs.reverse()
+    // Sort chronologically ascending to compute running balance from beginning
+    logs.sort((a, b) => a.timestamp - b.timestamp)
+
+    let currentBalance = 0
+    const logsWithBalance = logs.map((log) => {
+      if (log.id === 'init-budget') {
+        currentBalance = log.amount
+      } else {
+        if (log.type === 'expense') {
+          currentBalance -= log.amount
+        } else {
+          currentBalance += log.amount
+        }
+      }
+      return { ...log, runningBalance: currentBalance }
+    })
+
+    // Return logs in reverse chronological order (most recent first)
+    return logsWithBalance.reverse()
   }, [team, seasons, cups, saveData])
 
   const loadSavePlayerHistory = useCallback(async (playerId) => {
@@ -1208,66 +1264,123 @@ export default function DraftSquadsTab() {
               <div className="border-b border-gray-100 px-5 py-4 flex items-center justify-between">
                 <div>
                   <h2 className="font-heading text-base font-black uppercase text-[#0A1318]">Financial Ledger</h2>
-                  <p className="mt-0.5 text-xs text-gray-400">Complete transaction history of earnings, bonuses, transfers, and budget edits for {team.club_name}.</p>
+                  <p className="mt-0.5 text-xs text-gray-400">Complete transaction history, season info, and running balance for {team.club_name}.</p>
                 </div>
                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">{clubFinancialLogs.length} Records</span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/70 text-gray-500 font-semibold uppercase tracking-wider">
-                      <th className="py-3 px-4 w-36">Date & Time</th>
-                      <th className="py-3 px-4 w-36">Category</th>
-                      <th className="py-3 px-4 min-w-[200px]">Description & Details</th>
-                      <th className="py-3 px-4 w-24 text-center">Type</th>
-                      <th className="py-3 px-4 w-32 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {clubFinancialLogs.map(log => {
-                      const formattedDate = log.date
-                        ? new Date(log.date).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
-                        : '—'
-                      return (
-                        <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="py-3 px-4 text-gray-400 font-mono whitespace-nowrap">{formattedDate}</td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="inline-block rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">
-                              {log.category}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="font-semibold text-sm text-[#0A1318]">{log.title}</div>
-                            <div className="text-gray-400 text-xs mt-0.5">{log.description}</div>
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              log.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                            }`}>
-                              {log.type === 'expense' ? 'Expense' : 'Income'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right whitespace-nowrap">
-                            <span className={`font-heading text-sm font-bold tabular-nums ${
-                              log.type === 'expense' ? 'text-red-600' : 'text-emerald-600'
-                            }`}>
-                              {log.type === 'expense' ? '-' : '+'}${((log.amount || 0) / 1_000_000).toFixed(1)}M
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {!clubFinancialLogs.length && (
-                      <tr>
-                        <td colSpan={5} className="px-5 py-12 text-center text-sm text-gray-400">
-                          No financial transactions logged yet.
-                        </td>
-                      </tr>
+              {(() => {
+                const pageSize = 10
+                const totalPages = Math.ceil(clubFinancialLogs.length / pageSize) || 1
+                const currentPage = Math.min(financePage, totalPages)
+                const startIndex = (currentPage - 1) * pageSize
+                const paginatedLogs = clubFinancialLogs.slice(startIndex, startIndex + pageSize)
+
+                return (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-100 bg-gray-50/70 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="py-3 px-4 w-24">Season</th>
+                            <th className="py-3 px-4 w-32">Date & Time</th>
+                            <th className="py-3 px-4 w-32">Category</th>
+                            <th className="py-3 px-4 min-w-[180px]">Description & Details</th>
+                            <th className="py-3 px-4 w-20 text-center">Type</th>
+                            <th className="py-3 px-4 w-28 text-right">Amount</th>
+                            <th className="py-3 px-4 w-32 text-right">Balance After</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {paginatedLogs.map(log => {
+                            const formattedDate = log.date
+                              ? new Date(log.date).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+                              : '—'
+                            const balanceAfter = log.runningBalance
+                            return (
+                              <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="py-3 px-4 font-semibold text-gray-600 whitespace-nowrap">
+                                  <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                                    {log.seasonLabel || 'Season 1'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-gray-400 font-mono whitespace-nowrap">{formattedDate}</td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <span className="inline-block rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">
+                                    {log.category}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="font-semibold text-sm text-[#0A1318]">{log.title}</div>
+                                </td>
+                                <td className="py-3 px-4 text-center whitespace-nowrap">
+                                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                    log.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                                  }`}>
+                                    {log.type === 'expense' ? 'Expense' : 'Income'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap">
+                                  <span className={`font-heading text-sm font-bold tabular-nums ${
+                                    log.type === 'expense' ? 'text-red-600' : 'text-emerald-600'
+                                  }`}>
+                                    {log.type === 'expense' ? '-' : '+'}${((log.amount || 0) / 1_000_000).toFixed(1)}M
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap">
+                                  <span className={`font-heading text-sm font-black tabular-nums ${
+                                    balanceAfter < 0 ? 'text-red-600' : 'text-[#0A1318]'
+                                  }`}>
+                                    {balanceAfter < 0 ? `-$${(Math.abs(balanceAfter) / 1_000_000).toFixed(1)}M` : `$${(balanceAfter / 1_000_000).toFixed(1)}M`}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                          {!paginatedLogs.length && (
+                            <tr>
+                              <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-400">
+                                No financial transactions logged yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {totalPages > 1 && (
+                      <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex items-center justify-between">
+                        <span className="text-xs text-gray-500 font-medium">
+                          Showing {startIndex + 1} - {Math.min(startIndex + pageSize, clubFinancialLogs.length)} of {clubFinancialLogs.length} records
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={currentPage <= 1}
+                            onClick={() => setFinancePage(p => Math.max(1, p - 1))}
+                            className="rounded-lg text-xs"
+                          >
+                            Previous
+                          </Button>
+                          <span className="px-2 text-xs font-semibold text-gray-600">
+                            Page {currentPage} of {totalPages}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={currentPage >= totalPages}
+                            onClick={() => setFinancePage(p => Math.min(totalPages, p + 1))}
+                            className="rounded-lg text-xs"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </>
+                )
+              })()}
             </section>
           </div>
         )}
