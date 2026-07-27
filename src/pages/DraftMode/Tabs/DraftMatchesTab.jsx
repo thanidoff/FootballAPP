@@ -320,37 +320,36 @@ function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
     { key: 'topAssists', label: 'Top Assists', unit: 'assists' },
     { key: 'mostMvps', label: 'Most MVP', unit: 'MVP awards' },
   ]
-  const awardRows = awardDefinitions.flatMap(definition => {
+  const awardRows = awardDefinitions.map(definition => {
     const statEntries = Object.entries(season?.stats?.[definition.key] || {})
-    if (!statEntries.length) return []
+    if (!statEntries.length) return null
     let maxVal = -1
     statEntries.forEach(([, val]) => {
       const num = Number(val) || 0
       if (num > maxVal) maxVal = num
     })
-    if (maxVal <= 0) return []
+    if (maxVal <= 0) return null
 
     // Find all players tied for the max value
     const tiedLeaders = statEntries.filter(([, val]) => (Number(val) || 0) === maxVal)
-    const totalWinners = tiedLeaders.length
-
-    return tiedLeaders.map(([playerId, count]) => {
+    const playersList = tiedLeaders.map(([playerId]) => {
       const current = allPlayers.find(player => String(player.id) === String(playerId))
       const snapshot = snapshots[playerId]
-      const player = snapshot ? { ...current, ...snapshot, club: snapshot.club } : current
-      const payout = payouts.find(item => item.type === 'player_award' && String(item.playerId) === String(playerId) && item.label === definition.label)
-      const isTied = totalWinners > 1
-      return {
-        ...definition,
-        playerId,
-        count,
-        player,
-        amount: payout?.amount ?? season?.prizeSettings?.awards?.[definition.key] ?? 0,
-        isTied,
-        displayKey: `${definition.key}-${playerId}`
-      }
-    })
-  })
+      return snapshot ? { ...current, ...snapshot, club: snapshot.club } : current
+    }).filter(Boolean)
+
+    const firstPlayerId = tiedLeaders[0][0]
+    const payout = payouts.find(item => item.type === 'player_award' && String(item.playerId) === String(firstPlayerId) && item.label === definition.label)
+    const amount = payout?.amount ?? season?.prizeSettings?.awards?.[definition.key] ?? 0
+
+    return {
+      ...definition,
+      count: maxVal,
+      players: playersList,
+      amount,
+      isTied: playersList.length > 1,
+    }
+  }).filter(Boolean)
   const finalMatch = cup?.rounds?.[3]?.[0] || cup?.rounds?.['3']?.[0]
   const cupRows = (cup?.prizePayouts || []).map(row => ({ ...row, club: teamById(row.clubId) || row }))
   const homeClub = finalMatch ? (teamById(finalMatch.home) || { club_name: finalMatch.homeName || finalMatch.home }) : null
@@ -369,7 +368,54 @@ function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
       <section>
         <div className="mb-1 flex items-center gap-2"><Crown size={18} className="text-[#FD5461]" /><h3 className="text-base font-semibold text-[#0A1318]">Player awards</h3></div>
         <p className="mb-3 text-sm text-gray-500">Final totals from every league and cup match in this season.</p>
-        {awardRows.length ? <div className="space-y-2">{awardRows.map(row => <article key={row.displayKey} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100">{row.player?.photo_url ? <img src={row.player.photo_url} alt="" className="h-full w-full object-cover" /> : <span className="text-sm font-medium text-gray-400">{row.player?.name?.charAt(0) || '?'}</span>}</div><div className="min-w-0 flex-1"><div className="text-xs font-medium text-[#FD5461]">{row.label}{row.isTied ? ' (Joint Winner)' : ''}</div><div className="truncate text-sm font-semibold text-[#0A1318]">{row.player?.name || 'Unknown player'}</div><PlayerIdentity player={row.player} /></div><div className="shrink-0 text-right"><div className="text-sm font-semibold text-[#0A1318]">{row.count} {row.unit}</div><div className="mt-1 text-sm font-semibold text-[#FD5461]">{formatPrize(row.amount)}</div></div></article>)}</div> : <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm text-gray-500">No player awards were recorded.</div>}
+        {awardRows.length ? (
+          <div className="space-y-2">
+            {awardRows.map(row => (
+              <article key={row.key} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3">
+                {/* Stacked overlapping avatars if multiple tied winners */}
+                <div className="flex shrink-0 items-center -space-x-4">
+                  {row.players.map((p, idx) => (
+                    <div
+                      key={p.id || idx}
+                      className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-gray-100 ring-2 ring-white shadow-xs"
+                      style={{ zIndex: row.players.length - idx }}
+                    >
+                      {p?.photo_url ? (
+                        <img src={p.photo_url} alt={p.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-medium text-gray-400">{p?.name?.charAt(0) || '?'}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-[#FD5461]">
+                    {row.label} {row.isTied && <span className="font-normal text-gray-400">(Joint Winners)</span>}
+                  </div>
+                  <div className="truncate text-sm font-semibold text-[#0A1318]">
+                    {row.players.map(p => p.name).join(', ')}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    {row.players.map((p, idx) => (
+                      <span key={p.id || idx} className="inline-flex items-center gap-1">
+                        {idx > 0 && <span className="mr-1 text-gray-300">·</span>}
+                        <PlayerIdentity player={p} />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="shrink-0 text-right">
+                  <div className="text-sm font-semibold text-[#0A1318]">{row.count} {row.unit}</div>
+                  <div className="mt-1 text-sm font-semibold text-[#FD5461]">{formatPrize(row.amount)}</div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm text-gray-500">No player awards were recorded.</div>
+        )}
       </section>
 
       <section>
