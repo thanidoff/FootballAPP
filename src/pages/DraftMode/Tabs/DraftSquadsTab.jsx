@@ -12,7 +12,7 @@ import SegmentedControl from '../../../components/ui/SegmentedControl'
 import PositionBadge from '../../../components/ui/PositionBadge'
 import OvrBadge from '../../../components/ui/OvrBadge'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
-import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, GripVertical, History, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, Banknote, Check, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, GripVertical, History, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
 
 import ClubSelect from '../../../components/ui/ClubSelect'
 import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
