@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { loadDraftState } from '../../services/draftSave'
 import AnimatedTabs from '../../components/ui/AnimatedTabs'
@@ -19,25 +19,31 @@ export default function DraftDashboardPage() {
   const [saveData, setSaveData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let mounted = true
-    async function fetchSave() {
-      if (!saveData) setLoading(true)
-      try {
-        const data = await loadDraftState(saveId)
-        if (!mounted) return
-        if (!data) navigate('/draft')
-        else setSaveData(data)
-      } catch (err) {
-        console.error('Failed to load save', err)
-        if (mounted) navigate('/draft')
-      } finally {
-        if (mounted) setLoading(false)
-      }
+  const fetchSave = useCallback(async (silent = false) => {
+    if (!silent) setLoading(!saveData)
+    try {
+      const data = await loadDraftState(saveId)
+      if (!data) navigate('/draft')
+      else setSaveData(data)
+    } catch (err) {
+      console.error('Failed to load save', err)
+      navigate('/draft')
+    } finally {
+      setLoading(false)
     }
-    fetchSave()
-    return () => { mounted = false }
   }, [saveId])
+
+  // Initial load
+  useEffect(() => {
+    fetchSave()
+  }, [fetchSave])
+
+  // Listen for smooth refresh events from the RefreshButton in Layout
+  useEffect(() => {
+    function onRefetch() { fetchSave(true) }
+    window.addEventListener('app:refetch', onRefetch)
+    return () => window.removeEventListener('app:refetch', onRefetch)
+  }, [fetchSave])
 
   if (loading) {
     return <div className="max-w-7xl mx-auto py-16 text-center font-heading font-black text-gray-400 uppercase tracking-widest">Loading Career...</div>

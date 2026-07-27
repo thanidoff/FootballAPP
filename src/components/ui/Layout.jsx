@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { loadDraftState } from '../../services/draftSave'
 import { resetFriendlyData, resetWorldCupData, resetLeagueData, resetAllMatchData, releaseAllPlayers } from '../../services/admin'
@@ -143,6 +143,36 @@ function AdminDrawer({ open, onClose }) {
   )
 }
 
+/** Smooth refresh button — fires a custom event that DraftDashboardPage listens to */
+function RefreshButton() {
+  const [spinning, setSpinning] = useState(false)
+
+  function handleClick() {
+    if (spinning) return
+    setSpinning(true)
+    window.dispatchEvent(new CustomEvent('app:refetch'))
+    // Reset spin after animation completes
+    setTimeout(() => setSpinning(false), 700)
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      title="Refresh data"
+      className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition-colors hover:bg-slate-200 hover:text-[#FD5461] shrink-0"
+    >
+      <RefreshCw
+        size={15}
+        strokeWidth={2}
+        style={{
+          transition: 'transform 0.7s cubic-bezier(0.4,0,0.2,1)',
+          transform: spinning ? 'rotate(360deg)' : 'rotate(0deg)',
+        }}
+      />
+    </button>
+  )
+}
+
 export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
@@ -219,13 +249,7 @@ export default function Layout() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.location.reload()}
-                  title="Reload page"
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition-colors hover:bg-slate-200 hover:text-[#FD5461] shrink-0"
-                >
-                  <RefreshCw size={15} strokeWidth={2} />
-                </button>
+                <RefreshButton />
                 <button 
                   onClick={() => navigate('/draft')}
                   className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-gray-100 px-3.5 py-1.5 text-xs font-semibold text-[#0A1318] transition-colors hover:bg-slate-200 shrink-0"
