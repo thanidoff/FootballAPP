@@ -530,6 +530,10 @@ export default function DraftMatchesTab() {
   const isActiveSeason = seasonData?.status === 'active'
   const activeSeasonIdx = seasons.findIndex(season => season.status === 'active')
   const seasonCup = (saveData.settings?.cups || []).find(cup => String(cup.seasonId) === String(seasonData?.id))
+    || (saveData.settings?.cups || []).find(cup => Number(cup.number) === Number(seasonData?.id))
+    || (saveData.settings?.cups || [])[currentSeasonIdx]
+    || (saveData.settings?.cups || []).find(cup => cup.status === 'active')
+    || (saveData.settings?.cups || []).at(-1)
 
   function openPrizeSettings() {
     setPrizeDraft({
