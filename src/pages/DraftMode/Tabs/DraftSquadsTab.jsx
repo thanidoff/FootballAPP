@@ -227,7 +227,28 @@ export default function DraftSquadsTab() {
     setProcessing(true)
     try {
       const budgetValue = isNaN(Number(form.budget)) ? 0 : Number(form.budget)
-      const newTeams = saveData.teams.map(item => item.club_id === editTeam.club_id ? { ...item, budget: budgetValue } : item)
+      const oldBudget = editTeam.budget || 0
+      const diff = budgetValue - oldBudget
+
+      const newTeams = saveData.teams.map(item => {
+        if (item.club_id !== editTeam.club_id) return item
+        const existingLogs = item.financialHistory || []
+        const adjustmentLog = diff !== 0 ? [{
+          id: `adj-${Date.now()}`,
+          title: 'Manual Budget Adjustment',
+          category: 'Admin Adjustment',
+          amount: Math.abs(diff),
+          type: diff < 0 ? 'expense' : 'income',
+          description: `Budget manually adjusted from $${(oldBudget / 1_000_000).toFixed(1)}M to $${(budgetValue / 1_000_000).toFixed(1)}M`,
+          date: new Date().toISOString(),
+        }] : []
+
+        return {
+          ...item,
+          budget: budgetValue,
+          financialHistory: [...adjustmentLog, ...existingLogs],
+        }
+      })
       const newSaveData = { ...saveData, teams: newTeams }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
@@ -779,6 +800,19 @@ export default function DraftSquadsTab() {
       }
     })
 
+    // 7. Manual budget adjustments
+    ;(team.financialHistory || []).forEach((adj, index) => {
+      logs.push({
+        id: adj.id || `manual-adj-${index}`,
+        title: adj.title || 'Manual Budget Adjustment',
+        category: adj.category || 'Admin Adjustment',
+        amount: adj.amount || 0,
+        type: adj.type || 'income',
+        description: adj.description || 'Manual budget edit',
+        date: adj.date || null,
+      })
+    })
+
     // Sort logs descending (most recent / highest priority first)
     return logs.reverse()
   }, [team, seasons, cups, saveData])
@@ -1174,41 +1208,65 @@ export default function DraftSquadsTab() {
               <div className="border-b border-gray-100 px-5 py-4 flex items-center justify-between">
                 <div>
                   <h2 className="font-heading text-base font-black uppercase text-[#0A1318]">Financial Ledger</h2>
-                  <p className="mt-0.5 text-xs text-gray-400">Complete transaction history of earnings, bonuses, and transfer fees for {team.club_name}.</p>
+                  <p className="mt-0.5 text-xs text-gray-400">Complete transaction history of earnings, bonuses, transfers, and budget edits for {team.club_name}.</p>
                 </div>
                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">{clubFinancialLogs.length} Records</span>
               </div>
 
-              <div className="divide-y divide-gray-100">
-                {clubFinancialLogs.map(log => (
-                  <div key={log.id} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-xs ${
-                        log.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                      }`}>
-                        {log.type === 'expense' ? '-' : '+'}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm text-[#0A1318] truncate">{log.title}</span>
-                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500 shrink-0">{log.category}</span>
-                        </div>
-                        <div className="mt-0.5 text-xs text-gray-400 truncate">{log.description}</div>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <span className={`font-heading text-base font-bold tabular-nums ${
-                        log.type === 'expense' ? 'text-red-600' : 'text-emerald-600'
-                      }`}>
-                        {log.type === 'expense' ? '-' : '+'}${((log.amount || 0) / 1_000_000).toFixed(1)}M
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {!clubFinancialLogs.length && (
-                  <div className="px-5 py-12 text-center text-sm text-gray-400">No financial transactions logged yet.</div>
-                )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/70 text-gray-500 font-semibold uppercase tracking-wider">
+                      <th className="py-3 px-4 w-36">Date & Time</th>
+                      <th className="py-3 px-4 w-36">Category</th>
+                      <th className="py-3 px-4 min-w-[200px]">Description & Details</th>
+                      <th className="py-3 px-4 w-24 text-center">Type</th>
+                      <th className="py-3 px-4 w-32 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {clubFinancialLogs.map(log => {
+                      const formattedDate = log.date
+                        ? new Date(log.date).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+                        : '—'
+                      return (
+                        <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-3 px-4 text-gray-400 font-mono whitespace-nowrap">{formattedDate}</td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="inline-block rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">
+                              {log.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-sm text-[#0A1318]">{log.title}</div>
+                            <div className="text-gray-400 text-xs mt-0.5">{log.description}</div>
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              log.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                            }`}>
+                              {log.type === 'expense' ? 'Expense' : 'Income'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <span className={`font-heading text-sm font-bold tabular-nums ${
+                              log.type === 'expense' ? 'text-red-600' : 'text-emerald-600'
+                            }`}>
+                              {log.type === 'expense' ? '-' : '+'}${((log.amount || 0) / 1_000_000).toFixed(1)}M
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {!clubFinancialLogs.length && (
+                      <tr>
+                        <td colSpan={5} className="px-5 py-12 text-center text-sm text-gray-400">
+                          No financial transactions logged yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </section>
           </div>
