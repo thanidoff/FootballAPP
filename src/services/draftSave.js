@@ -589,26 +589,28 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
         const awardLabels = { topScorers: 'Top Scorer', topAssists: 'Top Assists', mostMvps: 'Most MVP' }
         const awardPayouts = []
         Object.entries(awardLabels).forEach(([key, label]) => {
-          const statEntries = Object.entries(combined[key])
-          const sorted = statEntries.sort((a, b) => {
-            const diff = Number(b[1]) - Number(a[1])
-            if (diff !== 0) return diff
-            if (key === 'topScorers') {
-              const aAssists = Number(combined.topAssists?.[a[0]] || 0)
-              const bAssists = Number(combined.topAssists?.[b[0]] || 0)
-              if (bAssists !== aAssists) return bAssists - aAssists
-            }
-            return String(a[0]).localeCompare(String(b[0]))
+          const statEntries = Object.entries(combined[key] || {})
+          if (!statEntries.length) return
+          let maxVal = -1
+          statEntries.forEach(([, val]) => {
+            const num = Number(val) || 0
+            if (num > maxVal) maxVal = num
           })
-          const leader = sorted[0]
-          if (!leader || leader[1] <= 0) return
-          const winnerId = leader[0]
-          const clubId = combined.playerSnapshots[winnerId]?.club?.id
-          const team = teams.find(item => String(item.club_id) === String(clubId))
+          if (maxVal <= 0) return
+
+          // Find all players tied for the max value
+          const winners = statEntries.filter(([, val]) => (Number(val) || 0) === maxVal)
           const amount = Math.max(0, Number(prizeSettings.awards[key]) || 0)
-          if (!team || amount <= 0) return
-          team.budget = (team.budget || 0) + amount
-          awardPayouts.push({ clubId: team.club_id, clubName: team.club_name, amount, type: 'player_award', label, playerId: winnerId, scope: 'all_competitions' })
+          if (amount <= 0) return
+
+          winners.forEach(([winnerId]) => {
+            const clubId = combined.playerSnapshots[winnerId]?.club?.id
+            const team = teams.find(item => String(item.club_id) === String(clubId))
+            if (team) {
+              team.budget = (team.budget || 0) + amount
+              awardPayouts.push({ clubId: team.club_id, clubName: team.club_name, amount, type: 'player_award', label, playerId: winnerId, scope: 'all_competitions' })
+            }
+          })
         })
         season.stats = combined
         season.prizePayouts = [...(season.prizePayouts || []), ...awardPayouts]

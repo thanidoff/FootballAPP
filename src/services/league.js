@@ -212,21 +212,39 @@ async function _saveLeagueAwards(seasonId) {
     if (!tally[e.player_id]) tally[e.player_id] = { goal: 0, assist: 0, mvp: 0, yellow_card: 0, red_card: 0, club_id: e.club_id }
     tally[e.player_id][e.event_type] = (tally[e.player_id][e.event_type] || 0) + 1
   }
-  const topOf = (type) => Object.entries(tally).filter(([, v]) => v[type] > 0).sort((a, b) => b[1][type] - a[1][type])[0]
-  const awards = [
-    { type: 'top_scorer', entry: topOf('goal') },
-    { type: 'top_assist', entry: topOf('assist') },
-    { type: 'most_mvp', entry: topOf('mvp') },
-    { type: 'most_yellow', entry: topOf('yellow_card') },
-    { type: 'most_red', entry: topOf('red_card') },
-  ].filter(a => a.entry)
-  if (!awards.length) return
-  const rows = awards.map(a => ({
-    player_id: a.entry[0], club_id: tally[a.entry[0]].club_id,
-    season_id: seasonId, award_type: a.type, season_name: season?.name ?? '',
-    competition_type: 'league', metric_value: a.entry[1][a.type === 'top_scorer' ? 'goal' : a.type === 'top_assist' ? 'assist' : a.type === 'most_mvp' ? 'mvp' : a.type === 'most_yellow' ? 'yellow_card' : 'red_card'],
-    owner_id: ownerId,
-  }))
+  const topAllOf = (type) => {
+    const entries = Object.entries(tally).filter(([, v]) => v[type] > 0)
+    if (!entries.length) return []
+    const maxVal = Math.max(...entries.map(([, v]) => v[type]))
+    return entries.filter(([, v]) => v[type] === maxVal)
+  }
+
+  const awardTypes = [
+    { type: 'top_scorer', metric: 'goal' },
+    { type: 'top_assist', metric: 'assist' },
+    { type: 'most_mvp', metric: 'mvp' },
+    { type: 'most_yellow', metric: 'yellow_card' },
+    { type: 'most_red', metric: 'red_card' },
+  ]
+
+  const rows = []
+  awardTypes.forEach(({ type, metric }) => {
+    const tiedLeaders = topAllOf(metric)
+    tiedLeaders.forEach(entry => {
+      rows.push({
+        player_id: entry[0],
+        club_id: entry[1].club_id,
+        season_id: seasonId,
+        award_type: type,
+        season_name: season?.name ?? '',
+        competition_type: 'league',
+        metric_value: entry[1][metric],
+        owner_id: ownerId,
+      })
+    })
+  })
+
+  if (!rows.length) return
   const { error } = await supabase.from('player_awards').upsert(rows, { onConflict: 'player_id,season_id,award_type,competition_type' })
   if (error) throw error
 }
