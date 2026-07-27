@@ -601,16 +601,26 @@ export default function DraftSquadsTab() {
     const teamId = String(team.club_id)
     const saveCreatedTime = saveData.created_at ? new Date(saveData.created_at).getTime() : Date.now()
 
-    // 1. Initial starting budget
+    // 1. Initial starting budget — use the value stored at save creation time, fall back to current budget
+    const initialBudget = (() => {
+      // startingBudgets is keyed by club_id (may be string or number)
+      const setupBudgets = saveData.settings?.startingBudgets || saveData.settings?.initialBudgets || saveData.settings?.teamBudgets || {}
+      const fromSetup = setupBudgets[teamId] ?? setupBudgets[team.club_id] ?? setupBudgets[Number(teamId)]
+      if (typeof fromSetup === 'number') return fromSetup
+      // Fall back: undo all recorded financialHistory adjustments to reconstruct original budget
+      const historyDelta = (team.financialHistory || []).reduce((sum, adj) => sum + (Number(adj.delta) || 0), 0)
+      const computed = (team.budget || 0) - historyDelta
+      return computed || team.budget || 0
+    })()
     logs.push({
       id: 'init-budget',
       title: 'Initial Club Budget',
       category: 'Starting Capital',
       seasonLabel: 'Season 1',
       seasonNum: 1,
-      amount: 100_000_000,
-      type: 'income',
-      description: 'Default starting budget for new club',
+      amount: Math.abs(initialBudget),
+      type: initialBudget >= 0 ? 'income' : 'expense',
+      description: 'Starting budget set when game was created',
       date: saveData.created_at || null,
       timestamp: saveCreatedTime,
     })
