@@ -901,7 +901,18 @@ export default function DraftMatchesTab() {
           value: 0
         }))
   )
-    .sort((a, b) => b.value - a.value || (a.player?.name || '').localeCompare(b.player?.name || ''))
+    .sort((a, b) => {
+      if (b.value !== a.value) return b.value - a.value
+      // Tie-breaker: sort by team position in activeStandings (higher placed team first)
+      const aClubId = String(a.player?.club?.id || a.player?.club_id || '')
+      const bClubId = String(b.player?.club?.id || b.player?.club_id || '')
+      const aRank = activeStandings.findIndex(s => String(s.club_id) === aClubId)
+      const bRank = activeStandings.findIndex(s => String(s.club_id) === bClubId)
+      const aPos = aRank >= 0 ? aRank : 999
+      const bPos = bRank >= 0 ? bRank : 999
+      if (aPos !== bPos) return aPos - bPos
+      return (a.player?.name || '').localeCompare(b.player?.name || '')
+    })
     .slice(0, 25)
   const priorRanks = previousPlayerRanks(seasonData, desktopStat)
 
