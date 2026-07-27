@@ -20,7 +20,7 @@ export default function ClubForm({ initialValues, onSubmit, loading, identityLoc
 
   function changeBudget(delta) {
     setForm(current => {
-      const budget = Math.max(0, (Number(current.budget) || 0) + delta)
+      const budget = (Number(current.budget) || 0) + delta
       setBudgetInput((budget / 1_000_000).toFixed(1))
       return { ...current, budget }
     })
@@ -75,7 +75,7 @@ export default function ClubForm({ initialValues, onSubmit, loading, identityLoc
         placeholder="FCB"
         maxLength={5}
         disabled={identityLocked}
-        className={identityLocked ? 'cursor-not-allowed bg-white text-gray-500 opacity-100' : ''}
+        className={identityLocked ? 'cursor-not-allowed bg-[#white] text-gray-500 opacity-100' : ''}
         required
       />
       {form.budget != null && (
@@ -85,7 +85,7 @@ export default function ClubForm({ initialValues, onSubmit, loading, identityLoc
             <button type="button" onClick={() => changeBudget(-10_000_000)} aria-label="Decrease budget by 10 million" className="flex min-h-11 items-center gap-1 border-r border-gray-100 px-3 type-label text-gray-500 transition-colors hover:bg-gray-50 hover:text-[#FD5461]"><Minus size={14} />10M</button>
             <button type="button" onClick={() => changeBudget(-1_000_000)} aria-label="Decrease budget by 1 million" className="min-h-11 border-r border-gray-100 px-3 type-label text-gray-500 transition-colors hover:bg-gray-50 hover:text-[#FD5461]">−1M</button>
             <label className="relative flex min-w-0 items-center justify-center">
-              <input type="number" min="0" step="0.1" value={budgetInput} onChange={(event) => { setBudgetInput(event.target.value); setForm(current => ({ ...current, budget: Math.max(0, Number(event.target.value) || 0) * 1_000_000 })) }} onBlur={() => setBudgetInput((Math.max(0, Number(budgetInput) || 0)).toFixed(1))} aria-label="Budget in millions" className="min-w-0 w-full bg-transparent px-2 py-2.5 text-center type-body font-medium text-gray-900 outline-none" />
+              <input type="number" step="0.1" value={budgetInput} onChange={(event) => { setBudgetInput(event.target.value); setForm(current => ({ ...current, budget: (Number(event.target.value) || 0) * 1_000_000 })) }} onBlur={() => setBudgetInput((Number(budgetInput) || 0).toFixed(1))} aria-label="Budget in millions" className="min-w-0 w-full bg-transparent px-2 py-2.5 text-center type-body font-medium text-gray-900 outline-none" />
               <span className="pointer-events-none pr-3 type-body-sm text-gray-400">M</span>
             </label>
             <button type="button" onClick={() => changeBudget(1_000_000)} aria-label="Increase budget by 1 million" className="min-h-11 border-l border-gray-100 px-3 type-label text-gray-500 transition-colors hover:bg-gray-50 hover:text-[#FD5461]">+1M</button>
