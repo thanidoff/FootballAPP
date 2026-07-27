@@ -171,18 +171,19 @@ export default function ClubSelect({ label, value, onChange, clubs = [], error }
 
               {displayed.map((club) => {
                 const isSelected = club.id === value
+                const isDisabled = Boolean(club.disabled)
                 return (
                   <button
                     key={club.id}
                     type="button"
-                    disabled={closing}
+                    disabled={closing || isDisabled}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleSelect(club.id)}
+                    onClick={() => !isDisabled && handleSelect(club.id)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors text-left
-                      ${isSelected ? 'bg-gray-900' : 'hover:bg-gray-50'}`}
+                      ${isDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50/50' : isSelected ? 'bg-gray-900' : 'hover:bg-gray-50'}`}
                   >
                     <ClubBadge club={club} isSelected={isSelected} />
-                    <span className={`flex-1 truncate ${isSelected ? 'text-white font-medium' : 'text-gray-700'}`}>
+                    <span className={`flex-1 truncate ${isSelected ? 'text-white font-medium' : isDisabled ? 'text-gray-400 line-through decoration-gray-300' : 'text-gray-700'}`}>
                       {club.name}
                     </span>
                     {isSelected && (

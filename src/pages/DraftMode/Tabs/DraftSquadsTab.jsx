@@ -1509,6 +1509,7 @@ export default function DraftSquadsTab() {
                   id: t.club_id,
                   name: `${t.club_name}  ·  $${formatCurrency(t.budget)}  ·  ${t.roster?.length || 0} players`,
                   short_name: t.short_name || t.club_name.slice(0, 3).toUpperCase(),
+                  disabled: t.budget < signingFee,
                 }))
               ]}
             />

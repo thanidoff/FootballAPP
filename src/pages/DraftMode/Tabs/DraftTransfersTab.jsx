@@ -427,6 +427,7 @@ export default function DraftTransfersTab() {
                   id: team.club_id,
                   name: `${team.club_name}  ·  $${formatCurrency(team.budget)}  ·  ${team.roster?.length || 0} players`,
                   short_name: team.short_name || team.club_name.slice(0, 3).toUpperCase(),
+                  disabled: team.budget < agreedFee,
                 }))
               ]}
             />
