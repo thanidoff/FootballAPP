@@ -45,13 +45,17 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
     setOvrSort('desc')
     if (teams) {
       setAllTeams(teams)
-      const map = {}, sums = {}, counts = {}
+      const map = {}
+      const playersByClub = {}
       ;(players || []).forEach(player => {
         if (!player.club_id) return
-        sums[player.club_id] = (sums[player.club_id] || 0) + (player.ovr || 0)
-        counts[player.club_id] = (counts[player.club_id] || 0) + 1
+        if (!playersByClub[player.club_id]) playersByClub[player.club_id] = []
+        playersByClub[player.club_id].push(player.ovr_v2 ?? player.ovr ?? 0)
       })
-      Object.keys(sums).forEach(id => { map[id] = Math.round(sums[id] / counts[id]) })
+      Object.keys(playersByClub).forEach(id => {
+        const top5 = playersByClub[id].sort((a, b) => b - a).slice(0, 5)
+        map[id] = top5.length ? Math.round(top5.reduce((sum, v) => sum + v, 0) / top5.length) : 0
+      })
       setOvrMap(map)
       setLoading(false)
       return
@@ -64,14 +68,15 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
       setAllTeams(clubs)
       const map = {}
       if (players) {
-        const sums = {}, counts = {}
+        const playersByClub = {}
         for (const p of players) {
           if (!p.club_id) continue
-          sums[p.club_id] = (sums[p.club_id] ?? 0) + (p.ovr_v2 ?? p.ovr ?? 0)
-          counts[p.club_id] = (counts[p.club_id] ?? 0) + 1
+          if (!playersByClub[p.club_id]) playersByClub[p.club_id] = []
+          playersByClub[p.club_id].push(p.ovr_v2 ?? p.ovr ?? 0)
         }
-        for (const k of Object.keys(sums)) {
-          map[k] = Math.round(sums[k] / counts[k])
+        for (const k of Object.keys(playersByClub)) {
+          const top5 = playersByClub[k].sort((a, b) => b - a).slice(0, 5)
+          map[k] = top5.length ? Math.round(top5.reduce((sum, v) => sum + v, 0) / top5.length) : 0
         }
       }
       setOvrMap(map)
