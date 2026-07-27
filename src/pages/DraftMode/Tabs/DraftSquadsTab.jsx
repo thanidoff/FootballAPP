@@ -909,6 +909,7 @@ export default function DraftSquadsTab() {
           </div>
         </div>
 
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <SegmentedControl className="w-full sm:w-fit" ariaLabel="Team details" value={activeSection} onChange={setActiveSection} items={[
               { id: 'roster', label: 'Roster', icon: Users },
               { id: 'lineup', label: 'Lineup', icon: ShieldCheck },
@@ -1423,6 +1424,7 @@ export default function DraftSquadsTab() {
           </div>
         )}
       </Modal>
+      </div>
     </>
   )
 }
