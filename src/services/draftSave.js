@@ -589,7 +589,18 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
         const awardLabels = { topScorers: 'Top Scorer', topAssists: 'Top Assists', mostMvps: 'Most MVP' }
         const awardPayouts = []
         Object.entries(awardLabels).forEach(([key, label]) => {
-          const leader = Object.entries(combined[key]).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]
+          const statEntries = Object.entries(combined[key])
+          const sorted = statEntries.sort((a, b) => {
+            const diff = Number(b[1]) - Number(a[1])
+            if (diff !== 0) return diff
+            if (key === 'topScorers') {
+              const aAssists = Number(combined.topAssists?.[a[0]] || 0)
+              const bAssists = Number(combined.topAssists?.[b[0]] || 0)
+              if (bAssists !== aAssists) return bAssists - aAssists
+            }
+            return String(a[0]).localeCompare(String(b[0]))
+          })
+          const leader = sorted[0]
           if (!leader || leader[1] <= 0) return
           const winnerId = leader[0]
           const clubId = combined.playerSnapshots[winnerId]?.club?.id

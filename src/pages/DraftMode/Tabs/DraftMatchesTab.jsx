@@ -321,7 +321,18 @@ function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
     { key: 'mostMvps', label: 'Most MVP', unit: 'MVP awards' },
   ]
   const awardRows = awardDefinitions.map(definition => {
-    const leader = Object.entries(season?.stats?.[definition.key] || {}).sort((a, b) => Number(b[1]) - Number(a[1]) || String(a[0]).localeCompare(String(b[0])))[0]
+    const statEntries = Object.entries(season?.stats?.[definition.key] || {})
+    const sorted = statEntries.sort((a, b) => {
+      const diff = Number(b[1]) - Number(a[1])
+      if (diff !== 0) return diff
+      if (definition.key === 'topScorers') {
+        const aAssists = Number(season?.stats?.topAssists?.[a[0]] || 0)
+        const bAssists = Number(season?.stats?.topAssists?.[b[0]] || 0)
+        if (bAssists !== aAssists) return bAssists - aAssists
+      }
+      return String(a[0]).localeCompare(String(b[0]))
+    })
+    const leader = sorted[0]
     if (!leader || Number(leader[1]) <= 0) return null
     const [playerId, count] = leader
     const current = allPlayers.find(player => String(player.id) === String(playerId))
