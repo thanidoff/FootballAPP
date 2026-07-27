@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { loadDraftState } from '../../services/draftSave'
 import { resetFriendlyData, resetWorldCupData, resetLeagueData, resetAllMatchData, releaseAllPlayers } from '../../services/admin'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
-import { LogOut } from 'lucide-react'
+import { LogOut, RefreshCw } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import ScrollToTop from './ScrollToTop'
 
@@ -219,6 +219,13 @@ export default function Layout() {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.location.reload()}
+                  title="Reload page"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition-colors hover:bg-slate-200 hover:text-[#FD5461] shrink-0"
+                >
+                  <RefreshCw size={15} strokeWidth={2} />
+                </button>
                 <button 
                   onClick={() => navigate('/draft')}
                   className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-gray-100 px-3.5 py-1.5 text-xs font-semibold text-[#0A1318] transition-colors hover:bg-slate-200 shrink-0"
