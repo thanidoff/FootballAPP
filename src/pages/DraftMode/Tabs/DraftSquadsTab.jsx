@@ -573,6 +573,216 @@ export default function DraftSquadsTab() {
     }).sort((a, b) => b.value - a.value || b.goals - a.goals || b.assists - a.assists || b.mvps - a.mvps || String(a.player.name).localeCompare(String(b.player.name))).slice(0, 5)
   })()
 
+  const clubFinancialLogs = useMemo(() => {
+    if (!team) return []
+    const logs = []
+    const teamId = String(team.club_id)
+
+    // 1. Initial starting budget
+    logs.push({
+      id: 'init-budget',
+      title: 'Initial Club Budget',
+      category: 'Starting Capital',
+      amount: 100_000_000,
+      type: 'income',
+      description: 'Default starting budget for new club',
+      date: null,
+    })
+
+    // 2. League matches (per-match prize)
+    seasons.forEach((season, seasonIndex) => {
+      const matchPrizes = season.prizeSettings?.matchPrizes || { win: 2_000_000, draw: 1_000_000, loss: 0 }
+      ;(season.matches || []).forEach(week => {
+        (week.matches || []).forEach((match, matchIndex) => {
+          if (!match.played) return
+          let homeId = String(match.home)
+          let awayId = String(match.away)
+          if (homeId === 'place_1' || homeId === '1st') homeId = String(season.standings?.[0]?.club_id || '')
+          if (awayId === 'place_1' || awayId === '1st') awayId = String(season.standings?.[0]?.club_id || '')
+
+          const isHome = homeId === teamId
+          const isAway = awayId === teamId
+          const isAllStarMatch = match.home === 'place_1' || match.away === '__allstars__' || match.isAllStarMatch
+
+          if (isAllStarMatch) {
+            const standings = [...(saveData.teams || [])].sort((a, b) => (b.stats?.PTS || 0) - (a.stats?.PTS || 0) || (b.stats?.GD || 0) - (a.stats?.GD || 0))
+            const isFirstPlace = String(standings[0]?.club_id) === teamId
+            const isAllStarClub = standings.slice(1, 5).some(t => String(t.club_id) === teamId)
+
+            if (isFirstPlace || isAllStarClub) {
+              const hScore = match.homeScore || 0
+              const aScore = match.awayScore || 0
+              let amount = 0
+              let resultLabel = ''
+
+              if (hScore > aScore) {
+                amount = isFirstPlace ? matchPrizes.win : matchPrizes.loss
+                resultLabel = isFirstPlace ? 'Won All-Stars Super Match' : 'All-Stars Loss Prize'
+              } else if (aScore > hScore) {
+                amount = isFirstPlace ? matchPrizes.loss : matchPrizes.win
+                resultLabel = isFirstPlace ? 'Lost All-Stars Super Match' : 'All-Stars Win Prize'
+              } else {
+                amount = matchPrizes.draw
+                resultLabel = 'All-Stars Match Draw'
+              }
+
+              if (amount > 0) {
+                logs.push({
+                  id: `super-match-${seasonIndex}-${week.week}-${matchIndex}`,
+                  title: `Super Match Reward (${resultLabel})`,
+                  category: 'League Prize',
+                  amount,
+                  type: 'income',
+                  description: `Season ${seasonIndex + 1} Super Match reward`,
+                  date: null,
+                })
+              }
+            }
+          } else if (isHome || isAway) {
+            const myScore = isHome ? match.homeScore : match.awayScore
+            const oppScore = isHome ? match.awayScore : match.homeScore
+            let amount = 0
+            let resultLabel = ''
+
+            if (myScore > oppScore) {
+              amount = matchPrizes.win
+              resultLabel = 'Match Win'
+            } else if (myScore < oppScore) {
+              amount = matchPrizes.loss
+              resultLabel = 'Match Loss'
+            } else {
+              amount = matchPrizes.draw
+              resultLabel = 'Match Draw'
+            }
+
+            if (amount > 0) {
+              const opponent = saveData.teams.find(t => String(t.club_id) === (isHome ? awayId : homeId))
+              logs.push({
+                id: `league-match-${seasonIndex}-${week.week}-${matchIndex}`,
+                title: `League Match Bonus (${resultLabel})`,
+                category: 'League Prize',
+                amount,
+                type: 'income',
+                description: `Season ${seasonIndex + 1} Week ${week.week} vs ${opponent?.club_name || 'Opponent'} (${myScore}-${oppScore})`,
+                date: null,
+              })
+            }
+          }
+        })
+      })
+
+      // 3. End-of-season placement payouts
+      if (season.prizePayouts) {
+        const myPlacement = season.prizePayouts.find(p => String(p.clubId) === teamId && p.type !== 'player_award')
+        if (myPlacement && myPlacement.amount > 0) {
+          logs.push({
+            id: `season-placement-${seasonIndex}`,
+            title: `Season ${seasonIndex + 1} Placement Prize`,
+            category: 'Season End Reward',
+            amount: myPlacement.amount,
+            type: 'income',
+            description: `Finished Position #${myPlacement.position || season.standings?.findIndex(s => String(s.club_id) === teamId) + 1} in Season ${seasonIndex + 1}`,
+            date: null,
+          })
+        }
+      }
+    })
+
+    // 4. Cup match bonuses & Tournament final placement prizes
+    cups.forEach((cup, cupIndex) => {
+      const matchPrizes = cup.matchPrizes || { win: 3_000_000, loss: 2_000_000 }
+      Object.values(cup.rounds || {}).flat().filter(m => m?.played).forEach((match, matchIndex) => {
+        const isHome = String(match.home) === teamId
+        const isAway = String(match.away) === teamId
+        if (!isHome && !isAway) return
+
+        const isWinner = String(match.winner) === teamId
+        const amount = isWinner ? matchPrizes.win : matchPrizes.loss
+        if (amount > 0) {
+          const opponentId = isHome ? match.away : match.home
+          const opponent = saveData.teams.find(t => String(t.club_id) === String(opponentId))
+          logs.push({
+            id: `cup-match-${cupIndex}-${matchIndex}`,
+            title: `Cup Match Bonus (${isWinner ? 'Win' : 'Loss'})`,
+            category: 'Cup Prize',
+            amount,
+            type: 'income',
+            description: `Club Cup ${cup.number || cupIndex + 1} vs ${opponent?.club_name || 'Opponent'}`,
+            date: null,
+          })
+        }
+      })
+
+      if (cup.prizePayouts) {
+        const myCupPayout = cup.prizePayouts.find(p => String(p.clubId) === teamId)
+        if (myCupPayout && myCupPayout.amount > 0) {
+          logs.push({
+            id: `cup-placement-${cupIndex}`,
+            title: `Club Cup ${cup.number || cupIndex + 1} Placement Prize`,
+            category: 'Cup Final Reward',
+            amount: myCupPayout.amount,
+            type: 'income',
+            description: `Finished Position #${myCupPayout.position} in Club Cup ${cup.number || cupIndex + 1}`,
+            date: null,
+          })
+        }
+      }
+    })
+
+    // 5. Player awards (Top Scorer, Top Assists, MVP)
+    seasons.forEach((season, seasonIndex) => {
+      if (season.prizePayouts) {
+        season.prizePayouts.filter(p => p.type === 'player_award' && String(p.clubId) === teamId).forEach((award, index) => {
+          if (award.amount > 0) {
+            const player = (saveData.teams || []).flatMap(t => t.roster || []).find(p => String(p.id) === String(award.playerId))
+            logs.push({
+              id: `award-${seasonIndex}-${index}`,
+              title: `Player Award: ${award.label}`,
+              category: 'Individual Award',
+              amount: award.amount,
+              type: 'income',
+              description: `Awarded to ${player?.name || 'Player'} in Season ${seasonIndex + 1}`,
+              date: null,
+            })
+          }
+        })
+      }
+    })
+
+    // 6. Transfer history (Buying = expense, Selling/Releasing = income)
+    ;(saveData.transferHistory || []).forEach((t, index) => {
+      const isSeller = String(t.fromClubId) === teamId
+      const isBuyer = String(t.toClubId) === teamId
+      if (!isSeller && !isBuyer) return
+
+      if (isBuyer) {
+        logs.push({
+          id: `transfer-buy-${index}`,
+          title: `Signed Player: ${t.playerName}`,
+          category: 'Transfer (Expense)',
+          amount: t.fee || 0,
+          type: 'expense',
+          description: t.fromName ? `Bought from ${t.fromName}` : 'Signed player',
+          date: t.createdAt,
+        })
+      }
+      if (isSeller) {
+        logs.push({
+          id: `transfer-sell-${index}`,
+          title: `Transferred Player: ${t.playerName}`,
+          category: 'Transfer (Income)',
+          amount: t.fee || 0,
+          type: 'income',
+          description: t.toName ? `Sold to ${t.toName}` : 'Released player (Refund)',
+          date: t.createdAt,
+        })
+      }
+    })
+
+    // Sort logs descending (most recent / highest priority first)
+    return logs.reverse()
+  }, [team, seasons, cups, saveData])
+
   const loadSavePlayerHistory = useCallback(async (playerId) => {
     const id = String(playerId)
     const historyByClub = new Map()
@@ -620,7 +830,8 @@ export default function DraftSquadsTab() {
   }, [selectedClubId])
 
   return (
-    <div className="flex flex-col items-start gap-6 md:flex-row">
+    <>
+      <div className="flex flex-col items-start gap-6 md:flex-row">
       {/* Team Selector Sidebar */}
       <div className={`w-full flex-shrink-0 transition-[width] duration-300 ease-out ${teamSelectorCollapsed ? 'md:w-14' : 'md:w-64'}`}>
         <div className={`mb-3 hidden h-9 items-center md:flex ${teamSelectorCollapsed ? 'justify-center' : 'justify-between'}`}>
@@ -698,10 +909,10 @@ export default function DraftSquadsTab() {
           </div>
         </div>
 
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <SegmentedControl className="w-full sm:w-fit" ariaLabel="Team details" value={activeSection} onChange={setActiveSection} items={[
               { id: 'roster', label: 'Roster', icon: Users },
               { id: 'lineup', label: 'Lineup', icon: ShieldCheck },
+              { id: 'finance', label: 'Finance', icon: Banknote },
               { id: 'history', label: 'History', icon: History },
             ]} />
 
@@ -945,6 +1156,64 @@ export default function DraftSquadsTab() {
           </div>
         )}
 
+        {activeSection === 'finance' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-xs">
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Current Club Balance</div>
+                <div className={`mt-1 font-heading text-2xl font-black ${team.budget < 0 ? 'text-red-600' : 'text-[#0A1318]'}`}>
+                  {team.budget < 0 ? `-$${(Math.abs(team.budget) / 1_000_000).toFixed(1)}M` : `$${(team.budget / 1_000_000).toFixed(1)}M`}
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setEditTeam(team)} className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider">
+                <Pencil size={14} /> Adjust Budget
+              </Button>
+            </div>
+
+            <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs">
+              <div className="border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+                <div>
+                  <h2 className="font-heading text-base font-black uppercase text-[#0A1318]">Financial Ledger</h2>
+                  <p className="mt-0.5 text-xs text-gray-400">Complete transaction history of earnings, bonuses, and transfer fees for {team.club_name}.</p>
+                </div>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">{clubFinancialLogs.length} Records</span>
+              </div>
+
+              <div className="divide-y divide-gray-100">
+                {clubFinancialLogs.map(log => (
+                  <div key={log.id} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-xs ${
+                        log.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        {log.type === 'expense' ? '-' : '+'}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-[#0A1318] truncate">{log.title}</span>
+                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500 shrink-0">{log.category}</span>
+                        </div>
+                        <div className="mt-0.5 text-xs text-gray-400 truncate">{log.description}</div>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <span className={`font-heading text-base font-bold tabular-nums ${
+                        log.type === 'expense' ? 'text-red-600' : 'text-emerald-600'
+                      }`}>
+                        {log.type === 'expense' ? '-' : '+'}${((log.amount || 0) / 1_000_000).toFixed(1)}M
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {!clubFinancialLogs.length && (
+                  <div className="px-5 py-12 text-center text-sm text-gray-400">No financial transactions logged yet.</div>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
         {activeSection === 'history' && (
           <div className="grid gap-6 lg:grid-cols-2">
             <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
@@ -1154,6 +1423,6 @@ export default function DraftSquadsTab() {
           </div>
         )}
       </Modal>
-    </div>
+    </>
   )
 }
