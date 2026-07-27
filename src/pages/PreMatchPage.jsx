@@ -1577,6 +1577,10 @@ export default function PreMatchPage() {
                 className="w-full h-full object-cover" 
               />
             </div>
+          ) : homeClub.id === '__allstars__' ? (
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-white ring-1 ring-gray-200 p-1 flex items-center justify-center flex-shrink-0">
+              <AllStarIcon size={36} badgeUrl={homeClub.badge_url} />
+            </div>
           ) : (
             homeClub.badge_url ? (
               <img src={homeClub.badge_url} alt={homeClub.name} className="w-10 h-10 object-contain flex-shrink-0" />
@@ -1636,6 +1640,10 @@ export default function PreMatchPage() {
                 alt={awayClub.name} 
                 className="w-full h-full object-cover" 
               />
+            </div>
+          ) : awayClub.id === '__allstars__' ? (
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-white ring-1 ring-gray-200 p-1 flex items-center justify-center flex-shrink-0">
+              <AllStarIcon size={36} badgeUrl={awayClub.badge_url} />
             </div>
           ) : (
             awayClub.badge_url ? (
