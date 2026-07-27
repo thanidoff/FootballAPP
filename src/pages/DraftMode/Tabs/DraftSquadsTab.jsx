@@ -19,7 +19,6 @@ import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
 import { formatCurrency } from '../../../utils/currency'
 import { transferDraftPlayer } from '../../../services/draftSave'
 import { useToast } from '../../../components/ui/Toast'
-import { calculateOVR } from '../../../utils/stats'
 
 function MatchRecordClub({ club, align = 'left' }) {
   return <span className={`flex min-w-0 flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>{club?.badge_url ? <img src={club.badge_url} alt="" className="h-8 w-8 shrink-0 object-contain" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[8px] font-semibold text-white" style={{ backgroundColor: club?.badge_color || '#34414A' }}>{(club?.short_name || club?.club_name || 'CLB').slice(0, 3).toUpperCase()}</span>}<span className="truncate text-xs font-medium">{club?.club_name || 'Unknown club'}</span></span>
@@ -830,8 +829,7 @@ export default function DraftSquadsTab() {
   }, [selectedClubId])
 
   return (
-    <>
-      <div className="flex flex-col items-start gap-6 md:flex-row">
+    <div className="flex flex-col items-start gap-6 md:flex-row">
       {/* Team Selector Sidebar */}
       <div className={`w-full flex-shrink-0 transition-[width] duration-300 ease-out ${teamSelectorCollapsed ? 'md:w-14' : 'md:w-64'}`}>
         <div className={`mb-3 hidden h-9 items-center md:flex ${teamSelectorCollapsed ? 'justify-center' : 'justify-between'}`}>
@@ -1424,7 +1422,6 @@ export default function DraftSquadsTab() {
           </div>
         )}
       </Modal>
-      </div>
-    </>
+    </div>
   )
 }
