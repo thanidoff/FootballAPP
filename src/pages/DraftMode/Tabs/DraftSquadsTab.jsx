@@ -226,7 +226,8 @@ export default function DraftSquadsTab() {
   async function handleBudgetUpdate(form) {
     setProcessing(true)
     try {
-      const newTeams = saveData.teams.map(item => item.club_id === editTeam.club_id ? { ...item, budget: Math.max(0, Number(form.budget) || 0) } : item)
+      const budgetValue = isNaN(Number(form.budget)) ? 0 : Number(form.budget)
+      const newTeams = saveData.teams.map(item => item.club_id === editTeam.club_id ? { ...item, budget: budgetValue } : item)
       const newSaveData = { ...saveData, teams: newTeams }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
