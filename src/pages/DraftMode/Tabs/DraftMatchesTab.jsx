@@ -735,7 +735,17 @@ export default function DraftMatchesTab() {
     if (teamId === '__allstars__' || teamId === 'allstars') {
       // Include ALL players from teams ranked 2nd to 5th
       const otherTeams = (standings || []).slice(1, 5).map(row => saveData.teams.find(t => t.club_id === row.club_id)).filter(Boolean)
-      const pool = otherTeams.flatMap(t => t.roster || [])
+      const pool = otherTeams.flatMap(t => (t.roster || []).map(p => ({
+        ...p,
+        club: p.club || {
+          id: t.club_id,
+          name: t.club_name,
+          club_name: t.club_name,
+          short_name: t.short_name || t.club_name?.slice(0, 3).toUpperCase(),
+          badge_url: t.badge_url || null,
+          badge_color: t.badge_color || null,
+        }
+      })))
       
       // Default Starting 5: Top 4 outfield players + Top 1 Goalkeeper
       const goalkeepers = pool.filter(p => p.position === 'GK').sort((a, b) => (b.ovr || 0) - (a.ovr || 0))

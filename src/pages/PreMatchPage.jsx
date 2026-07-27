@@ -288,16 +288,31 @@ function PlayerRow({ player, club, isDragging, isOver, canDrop, onPointerDown, o
           {isCaptain && <CaptainBadge />}
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
-          {/* Club Badge Leading */}
-          {club?.id === '__allstars__' ? (
-            <AllStarIcon size={14} badgeUrl={club?.badge_url} className="shrink-0" />
-          ) : club?.badge_url ? (
-            <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
-          ) : (
-            <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>
-              {(club?.short_name || club?.name || 'CLB').slice(0, 3)}
-            </span>
-          )}
+          {/* Club Badge Leading: Show player's original club badge if present, fallback to match club */}
+          {(() => {
+            const playerClub = player.club || (club?.id !== '__allstars__' ? club : null)
+            if (playerClub?.badge_url) {
+              return <img src={playerClub.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+            }
+            if (playerClub) {
+              return (
+                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: playerClub.badge_color || '#0A1318' }}>
+                  {(playerClub.short_name || playerClub.name || playerClub.club_name || 'CLB').slice(0, 3)}
+                </span>
+              )
+            }
+            if (club?.id === '__allstars__') {
+              return <AllStarIcon size={14} badgeUrl={club?.badge_url} className="shrink-0" />
+            }
+            if (club?.badge_url) {
+              return <img src={club.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+            }
+            return (
+              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-[#white]" style={{ backgroundColor: club?.badge_color || '#0A1318' }}>
+                {(club?.short_name || club?.name || 'CLB').slice(0, 3)}
+              </span>
+            )
+          })()}
           {/* Position Text without dot */}
           <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: POS_COLORS[player.position] ?? '#6b7280' }}>
             {POS_LABEL[player.position] ?? player.position}
