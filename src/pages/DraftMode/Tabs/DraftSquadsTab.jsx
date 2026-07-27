@@ -852,25 +852,26 @@ export default function DraftSquadsTab() {
       })
     })
 
-    // Sort chronologically ascending to compute running balance from beginning
+    // Sort chronologically ascending (oldest first)
     logs.sort((a, b) => a.timestamp - b.timestamp)
 
-    let currentBalance = 0
-    const logsWithBalance = logs.map((log) => {
-      if (log.id === 'init-budget') {
-        currentBalance = log.amount
+    // Compute Balance After by working BACKWARDS from the real team.budget
+    // team.budget is ground truth — the last entry's Balance After must equal it
+    // We go newest→oldest: each row's "Balance After" = next row's "Balance After" reversed
+    let balance = team.budget
+    const logsWithBalance = [...logs].reverse().map((log) => {
+      const logWithBal = { ...log, runningBalance: balance }
+      // undo this transaction to get balance before it
+      if (log.type === 'expense') {
+        balance += log.amount   // reverse: add back
       } else {
-        if (log.type === 'expense') {
-          currentBalance -= log.amount
-        } else {
-          currentBalance += log.amount
-        }
+        balance -= log.amount   // reverse: subtract
       }
-      return { ...log, runningBalance: currentBalance }
+      return logWithBal
     })
 
-    // Return logs in reverse chronological order (most recent first)
-    return logsWithBalance.reverse()
+    // logsWithBalance is newest-first — return as-is
+    return logsWithBalance
   }, [team, seasons, cups, saveData])
 
   const loadSavePlayerHistory = useCallback(async (playerId) => {
