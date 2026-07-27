@@ -422,7 +422,7 @@ export default function DraftTransfersTab() {
                   name: 'Free Agent',
                   short_name: 'FA',
                 }] : []),
-                ...saveData.teams.filter(team => (team.budget > 0 || team.club_id === selectedClubId) && team.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(team => ({
+                ...saveData.teams.filter(team => team.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(team => ({
                   ...team,
                   id: team.club_id,
                   name: `${team.club_name}  ·  $${formatCurrency(team.budget)}  ·  ${team.roster?.length || 0} players`,

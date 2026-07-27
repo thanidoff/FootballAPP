@@ -1504,7 +1504,7 @@ export default function DraftSquadsTab() {
                   name: 'Free Agent',
                   short_name: 'FA',
                 }] : []),
-                ...saveData.teams.filter(t => (t.budget > 0 || t.club_id === signingClubId) && t.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(t => ({
+                ...saveData.teams.filter(t => t.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(t => ({
                   ...t,
                   id: t.club_id,
                   name: `${t.club_name}  ·  $${formatCurrency(t.budget)}  ·  ${t.roster?.length || 0} players`,
