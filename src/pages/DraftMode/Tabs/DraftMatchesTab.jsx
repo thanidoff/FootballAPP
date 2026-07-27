@@ -330,13 +330,22 @@ function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
     })
     if (maxVal <= 0) return null
 
-    // Find all players tied for the max value
+    // Find all players tied for the max value and sort by team standings rank
     const tiedLeaders = statEntries.filter(([, val]) => (Number(val) || 0) === maxVal)
     const playersList = tiedLeaders.map(([playerId]) => {
       const current = allPlayers.find(player => String(player.id) === String(playerId))
       const snapshot = snapshots[playerId]
       return snapshot ? { ...current, ...snapshot, club: snapshot.club } : current
-    }).filter(Boolean)
+    }).filter(Boolean).sort((a, b) => {
+      const aClubId = String(a.club?.id || a.club_id || '')
+      const bClubId = String(b.club?.id || b.club_id || '')
+      const aRank = standings.findIndex(s => String(s.club_id) === aClubId)
+      const bRank = standings.findIndex(s => String(s.club_id) === bClubId)
+      const aPos = aRank >= 0 ? aRank : 999
+      const bPos = bRank >= 0 ? bRank : 999
+      if (aPos !== bPos) return aPos - bPos
+      return String(a.name || '').localeCompare(String(b.name || ''))
+    })
 
     const firstPlayerId = tiedLeaders[0][0]
     const payout = payouts.find(item => item.type === 'player_award' && String(item.playerId) === String(firstPlayerId) && item.label === definition.label)
