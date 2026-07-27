@@ -1063,7 +1063,7 @@ export default function DraftSquadsTab() {
                   {Array.from({ length: section.count }, (_, localIndex) => {
                     const playerIndex = section.start + localIndex
                     const player = displayRoster[playerIndex]
-                    if (!player) return <div key={`empty-${section.start}-${localIndex}`} onDragOver={event => event.preventDefault()} onDrop={() => playerIndex < team.roster.length && dropPlayerAt(playerIndex)} className="flex min-h-16 items-center rounded-2xl border border-dashed border-gray-200 px-4 text-sm text-gray-300">Empty</div>
+                    if (!player) return <div key={`empty-${section.start}-${localIndex}`} onDragOver={event => event.preventDefault()} onDrop={() => playerIndex < team.roster.length && dropPlayerAt(playerIndex)} className="flex min-h-10 items-center rounded-xl border border-dashed border-gray-200 px-4 text-sm text-gray-300">Empty</div>
                     const offset = animOffsets[player.id] || 0
                     return (
                       <div
@@ -1135,7 +1135,7 @@ export default function DraftSquadsTab() {
                           transform: `translate3d(0, ${offset}px, 0)`,
                           transition: offset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms, box-shadow 200ms',
                         }}
-                        className={`relative flex min-h-[52px] items-center rounded-xl border px-3 py-2.5 transition-all duration-300 ease-in-out cursor-grab active:cursor-grabbing hover:border-gray-200 ${
+                        className={`relative flex min-h-[40px] items-center rounded-xl border px-3 py-1.5 transition-all duration-300 ease-in-out cursor-grab active:cursor-grabbing hover:border-gray-200 ${
                           draggedPlayerIndex === playerIndex
                             ? 'scale-[0.98] border-[#FD5461] opacity-60 shadow-lg ring-2 ring-[#FD5461]/30 bg-white'
                             : dragTargetIndex === playerIndex
@@ -1175,12 +1175,12 @@ export default function DraftSquadsTab() {
                         <OvrBadge value={player.ovr} size="sm" />
                       </div>
 
-                      <button type="button" onClick={() => openRosterPlayer(player)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-3 pl-2 text-left">
+                      <button type="button" onClick={() => openRosterPlayer(player)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 py-1.5 pl-2 text-left">
                         {/* Avatar */}
-                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
                           {player.photo_url
                             ? <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" />
-                            : <div className="w-full h-full flex items-center justify-center font-medium text-gray-400 text-sm">{player.name?.charAt(0)}</div>
+                            : <div className="w-full h-full flex items-center justify-center font-medium text-gray-400 text-xs">{player.name?.charAt(0)}</div>
                           }
                         </div>
 
