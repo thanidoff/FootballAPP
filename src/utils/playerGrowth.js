@@ -35,7 +35,8 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
   const seasonAdjustments = []
 
   selectedEntries.forEach(entry => {
-    const { player } = entry
+    const { player, teamId, isFreeAgent } = entry
+    const team = teamId ? teams.find(t => t.club_id === teamId) : null
     const oldStats = normalizeStats(player.stats)
     const oldOvr = player.ovr || calculateOVR(player.position, oldStats)
 
@@ -84,8 +85,8 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
       deltaOvr: actualDeltaOvr,
       oldStats,
       newStats,
-      clubName: player.club?.name || player.club?.club_name || null,
-      clubBadge: player.club?.badge_url || null,
+      clubName: team?.club_name || team?.name || null,
+      clubBadge: team?.badge_url || null,
     }
 
     adjustmentsMap.set(player.id, { newStats, newOvr, adjustmentRecord })
