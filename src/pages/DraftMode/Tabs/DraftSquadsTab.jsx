@@ -13,7 +13,7 @@ import SegmentedControl from '../../../components/ui/SegmentedControl'
 import PositionBadge from '../../../components/ui/PositionBadge'
 import OvrBadge from '../../../components/ui/OvrBadge'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
-import { ArrowDown, ArrowUp, Banknote, Check, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, History, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, Banknote, Check, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, Dices, History, Pencil, Plus, ShieldCheck, Sparkles, Trash2, Users } from 'lucide-react'
 
 import ClubSelect from '../../../components/ui/ClubSelect'
 import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
@@ -21,6 +21,7 @@ import { formatCurrency } from '../../../utils/currency'
 import { transferDraftPlayer, transferDraftCoach } from '../../../services/draftSave'
 import CoachCard from '../../../components/ui/CoachCard'
 import { useToast } from '../../../components/ui/Toast'
+import { rollDraft } from '../../../utils/draftLogic'
 
 import { getOVRTier } from '../../../utils/stats'
 
@@ -1191,7 +1192,35 @@ export default function DraftSquadsTab() {
               </div>
             </div>
           </div>
-          <div className="shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
+            {(!team.roster || team.roster.length === 0) && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={processing}
+                onClick={async () => {
+                  try {
+                    setProcessing(true)
+                    const updatedTeams = rollDraft(saveData.teams, saveData.freeAgents || [], teamIndex)
+                    const draftedPlayers = updatedTeams[teamIndex].roster || []
+                    const draftedIds = new Set(draftedPlayers.map(p => String(p.id)))
+                    const updatedFreeAgents = (saveData.freeAgents || []).filter(p => !draftedIds.has(String(p.id)))
+                    const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
+                    await updateDraftState(saveId, nextSave)
+                    setSaveData(nextSave)
+                    toast.success(`Drafted ${draftedPlayers.length} players for ${team.club_name}!`)
+                  } catch (err) {
+                    console.error('Failed to auto draft players', err)
+                    toast.error('Failed to auto draft players')
+                  } finally {
+                    setProcessing(false)
+                  }
+                }}
+                className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-[#FD5461] border-[#FD5461]/30 hover:bg-red-50/50"
+              >
+                <Dices size={16} /> Auto Draft Squad
+              </Button>
+            )}
             <OvrBadge value={averageOvr} size="lg" />
           </div>
         </div>
