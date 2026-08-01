@@ -1159,7 +1159,7 @@ export default function DraftSquadsTab() {
                   )}
                   <div className={`hidden min-w-0 overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200 md:block ${teamSelectorCollapsed ? 'w-0 flex-none opacity-0' : 'w-auto flex-1 opacity-100'}`}>
                     <div className="font-bold text-sm text-[#0A1318] truncate">{t.club_name}</div>
-                    <div className="text-xs font-normal text-gray-500">{t.roster.length} players</div>
+                    <div className="text-xs font-normal text-gray-500">{(t.roster?.length || 0)} players</div>
                   </div>
                 </div>
 

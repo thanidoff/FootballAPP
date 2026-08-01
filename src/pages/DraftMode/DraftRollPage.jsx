@@ -126,7 +126,7 @@ export default function DraftRollPage() {
             </div>
             
             <div className="p-4 space-y-3 bg-gray-50/50">
-              {team.roster.map(p => {
+              {(team.roster || []).map(p => {
                 const player = {
                   ...p,
                   club: {
