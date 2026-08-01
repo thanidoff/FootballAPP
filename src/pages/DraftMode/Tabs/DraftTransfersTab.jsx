@@ -55,6 +55,50 @@ export default function DraftTransfersTab() {
     fetchCoaches().then(setFallbackCoaches).catch(() => {})
   }, [])
 
+  const [growthModalOpen, setGrowthModalOpen] = useState(false)
+  const [previewGrowthData, setPreviewGrowthData] = useState(null)
+
+  const activeSeason = (saveData?.settings?.seasons || []).find(s => s.status === 'active') || saveData?.settings?.seasons?.[0]
+  const seasonAdjustments = activeSeason?.seasonAdjustments || []
+  const isGrowthLocked = activeSeason?.seasonAdjustmentsLocked || false
+
+  function handleReshufflePreview(customCount) {
+    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], customCount)
+    setPreviewGrowthData(result)
+  }
+
+  async function handleConfirmSaveRatings() {
+    const target = previewGrowthData || (seasonAdjustments.length === 0 ? applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || []) : null)
+    if (!target) return
+
+    try {
+      const nextSettings = { ...saveData.settings }
+      if (nextSettings.seasons && nextSettings.seasons.length > 0) {
+        const idx = nextSettings.seasons.findIndex(s => String(s.id) === String(activeSeason?.id))
+        const targetIdx = idx >= 0 ? idx : nextSettings.seasons.length - 1
+        nextSettings.seasons[targetIdx] = {
+          ...nextSettings.seasons[targetIdx],
+          seasonAdjustments: target.seasonAdjustments,
+          seasonAdjustmentsLocked: true,
+        }
+      }
+      const newSaveData = {
+        ...saveData,
+        teams: target.updatedTeams,
+        freeAgents: target.updatedFreeAgents,
+        settings: nextSettings,
+      }
+      await updateDraftState(saveId, newSaveData)
+      setSaveData(newSaveData)
+      setPreviewGrowthData(null)
+      setGrowthModalOpen(false)
+      toast.success('Player ratings updated successfully!')
+    } catch (err) {
+      console.error('Failed to confirm seasonal player adjustments:', err)
+      toast.error('Failed to save rating changes')
+    }
+  }
+
   const freeAgents = saveData?.freeAgents || []
   const freeAgentsCoaches = (saveData?.freeAgentsCoaches && saveData.freeAgentsCoaches.length > 0)
     ? saveData.freeAgentsCoaches
@@ -264,6 +308,17 @@ export default function DraftTransfersTab() {
         />
         {!isCoachMarket && (
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                handleReshufflePreview(30)
+                setGrowthModalOpen(true)
+              }}
+              className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-[#FD5461] border-[#FD5461]/30 hover:bg-red-50/50"
+            >
+              <Sparkles size={16} /> Player Ratings
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -482,6 +537,20 @@ export default function DraftTransfersTab() {
           </div>
         )}
       </Modal>
+
+      {/* Modal: Seasonal Player Growth & Form */}
+      <SeasonalGrowthModal
+        open={growthModalOpen}
+        onClose={() => {
+          setGrowthModalOpen(false)
+          setPreviewGrowthData(null)
+        }}
+        seasonName={activeSeason?.name || `Season ${activeSeason?.season_number || 1}`}
+        adjustments={previewGrowthData ? previewGrowthData.seasonAdjustments : seasonAdjustments}
+        isLocked={isGrowthLocked}
+        onReshuffle={handleReshufflePreview}
+        onConfirm={handleConfirmSaveRatings}
+      />
 
       <ScrollToTop />
     </div>
