@@ -489,8 +489,8 @@ export default function DraftTransfersTab() {
                   const coachCount = (team.coaches || []).length
                   const playerCount = (team.roster || []).length
                   const isDisabled = isCoach
-                    ? coachCount >= 2 || (team.budget || 0) < agreedFee
-                    : team.budget < 0
+                    ? coachCount >= 2 || ((team.budget || 0) - agreedFee) < 0
+                    : ((team.budget || 0) - agreedFee) < 0
                   
                   return {
                     ...team,
