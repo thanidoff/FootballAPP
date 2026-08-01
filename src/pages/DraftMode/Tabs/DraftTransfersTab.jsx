@@ -530,7 +530,7 @@ export default function DraftTransfersTab() {
               className="w-full justify-center"
               onClick={handleSign}
               loading={processing}
-              disabled={!selectedClubId || (saveData.teams.find(t => t.club_id === selectedClubId)?.budget || 0) < agreedFee}
+              disabled={!selectedClubId || (selectedClubId !== 'free_agent' && ((saveData.teams.find(t => t.club_id === selectedClubId)?.budget || 0) - agreedFee) < 0)}
             >
               Confirm Signing
             </Button>
