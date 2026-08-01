@@ -548,8 +548,8 @@ export default function DraftTransfersTab() {
         seasonName={activeSeason?.name || `Season ${activeSeason?.season_number || 1}`}
         adjustments={previewGrowthData ? previewGrowthData.seasonAdjustments : seasonAdjustments}
         isLocked={isGrowthLocked}
-        onReshuffle={handleReshufflePreview}
-        onConfirm={handleConfirmSaveRatings}
+        onReshufflePreview={handleReshufflePreview}
+        onConfirmSave={handleConfirmSaveRatings}
       />
 
       <ScrollToTop />
