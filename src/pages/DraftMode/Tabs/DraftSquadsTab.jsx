@@ -1210,10 +1210,10 @@ export default function DraftSquadsTab() {
                       availablePool = allMaster.filter(p => !assignedIds.has(String(p.id)))
                     }
 
-                    const updatedTeams = rollDraft(saveData.teams, availablePool, teamIndex)
-                    const draftedPlayers = updatedTeams[teamIndex].roster || []
+                    const { newTeams: updatedTeams, remainingPlayers } = rollDraft(saveData.teams, availablePool, teamIndex)
+                    const draftedPlayers = updatedTeams?.[teamIndex]?.roster || []
                     const draftedIds = new Set(draftedPlayers.map(p => String(p.id)))
-                    const updatedFreeAgents = availablePool.filter(p => !draftedIds.has(String(p.id)))
+                    const updatedFreeAgents = (remainingPlayers || availablePool).filter(p => !draftedIds.has(String(p.id)))
                     const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
                     await updateDraftState(saveId, nextSave)
                     setSaveData(nextSave)
