@@ -701,7 +701,7 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
   let player = (saveData.freeAgents || []).find(item => item.id === playerId)
   let sourceIndex = -1
   if (!player) {
-    sourceIndex = teams.findIndex(team => team.roster.some(item => item.id === playerId))
+    sourceIndex = teams.findIndex(team => (team.roster || []).some(item => item.id === playerId))
     player = sourceIndex >= 0 ? teams[sourceIndex].roster.find(item => item.id === playerId) : null
   }
   if (!player) throw new Error('Player not found')

@@ -1285,7 +1285,7 @@ export default function DraftSquadsTab() {
         )}
 
         {activeSection === 'roster' && <div className={`player-card-grid transition-opacity ${processing ? 'opacity-50' : 'opacity-100'}`}>
-          {[...team.roster].sort((a,b) => b.ovr - a.ovr).map(p => {
+          {[...(team.roster || [])].sort((a,b) => b.ovr - a.ovr).map(p => {
             const player = {
               ...p,
               club: {
