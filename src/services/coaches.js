@@ -228,6 +228,7 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
   // Fallback to local mock state
   const idx = mockCoachesState.findIndex(c => String(c.id) === String(id))
   if (idx !== -1) {
+    const newPhotoUrl = photo?.preview || photo?.src || (typeof photo === 'string' ? photo : null)
     mockCoachesState[idx] = {
       ...mockCoachesState[idx],
       ...(name !== undefined ? { name } : {}),
@@ -235,7 +236,7 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
       ...(age !== undefined ? { age: Number(age) } : {}),
       ...(market_value !== undefined ? { market_value: Number(market_value) } : {}),
       ...(club_id !== undefined ? { club_id: club_id || null } : {}),
-      ...(photo?.preview ? { photo_url: photo.preview } : {}),
+      ...(newPhotoUrl ? { photo_url: newPhotoUrl } : {}),
       ...(stats ? {
         stat_tac: Number(stats.TAC ?? 70),
         stat_mgt: Number(stats.MGT ?? 70),
