@@ -488,9 +488,7 @@ export default function DraftTransfersTab() {
                   const isCoach = signingItem.position === 'COACH'
                   const coachCount = (team.coaches || []).length
                   const playerCount = (team.roster || []).length
-                  const isDisabled = isCoach
-                    ? coachCount >= 2 || ((team.budget || 0) - agreedFee) < 0
-                    : ((team.budget || 0) - agreedFee) < 0
+                  const isDisabled = isCoach ? coachCount >= 2 : false
                   
                   return {
                     ...team,
@@ -530,7 +528,7 @@ export default function DraftTransfersTab() {
               className="w-full justify-center"
               onClick={handleSign}
               loading={processing}
-              disabled={!selectedClubId || (selectedClubId !== 'free_agent' && ((saveData.teams.find(t => t.club_id === selectedClubId)?.budget || 0) - agreedFee) < 0)}
+              disabled={!selectedClubId}
             >
               Confirm Signing
             </Button>
