@@ -20,42 +20,52 @@ const COACH_STAT_LABELS = {
 const COACH_STAT_KEYS = ['TAC', 'MGT', 'MOT', 'ATT', 'DEF', 'PHY']
 
 export default function CoachForm({ initialValues, onSubmit, loading, clubs = [], onDirtyChange }) {
-  const [form, setForm] = useState(() => {
-    if (initialValues) {
-      const nameParts = (initialValues.name || '').split(' ')
+  const parseFormState = (vals) => {
+    if (!vals) {
       return {
-        first_name: nameParts[0] || '',
-        last_name: nameParts.slice(1).join(' ') || '',
-        nationality: initialValues.nationality || 'Thailand',
-        age: initialValues.age || 45,
-        market_value: initialValues.market_value || 2000000,
-        club_id: initialValues.club_id || '',
-        photo: initialValues.photo || (initialValues.photo_url ? { preview: initialValues.photo_url } : null),
-        stats: {
-          TAC: initialValues.stats?.TAC ?? 70,
-          MGT: initialValues.stats?.MGT ?? 70,
-          MOT: initialValues.stats?.MOT ?? 70,
-          ATT: initialValues.stats?.ATT ?? 70,
-          DEF: initialValues.stats?.DEF ?? 70,
-          PHY: initialValues.stats?.PHY ?? 70,
-        },
+        first_name: '',
+        last_name: '',
+        nationality: 'Thailand',
+        age: 45,
+        market_value: 2000000,
+        club_id: '',
+        photo: null,
+        stats: { TAC: 70, MGT: 70, MOT: 70, ATT: 70, DEF: 70, PHY: 70 },
       }
     }
-    return {
-      first_name: '',
-      last_name: '',
-      nationality: 'Thailand',
-      age: 45,
-      market_value: 2000000,
-      club_id: '',
-      photo: null,
-      stats: { TAC: 70, MGT: 70, MOT: 70, ATT: 70, DEF: 70, PHY: 70 },
+    const nameParts = (vals.name || '').split(' ')
+    const statsObj = {
+      TAC: vals.stats?.TAC ?? vals.stat_tac ?? 70,
+      MGT: vals.stats?.MGT ?? vals.stat_mgt ?? 70,
+      MOT: vals.stats?.MOT ?? vals.stat_mot ?? 70,
+      ATT: vals.stats?.ATT ?? vals.stat_att ?? 70,
+      DEF: vals.stats?.DEF ?? vals.stat_def ?? 70,
+      PHY: vals.stats?.PHY ?? vals.stat_phy ?? 70,
     }
-  })
+    const mv = Number(vals.market_value) || 2000000
+    return {
+      first_name: nameParts[0] || '',
+      last_name: nameParts.slice(1).join(' ') || '',
+      nationality: vals.nationality || 'Thailand',
+      age: Number(vals.age) || 45,
+      market_value: mv,
+      club_id: vals.club_id || '',
+      photo: vals.photo || (vals.photo_url ? { preview: vals.photo_url } : null),
+      stats: statsObj,
+    }
+  }
 
+  const [form, setForm] = useState(() => parseFormState(initialValues))
   const [mvDisplay, setMvDisplay] = useState(() =>
-    initialValues ? (initialValues.market_value / 1_000_000).toFixed(1) : '2.0'
+    ((Number(initialValues?.market_value) || 2000000) / 1_000_000).toFixed(1)
   )
+
+  useEffect(() => {
+    const nextForm = parseFormState(initialValues)
+    setForm(nextForm)
+    setMvDisplay(((Number(initialValues?.market_value) || 2000000) / 1_000_000).toFixed(1))
+    initialSnapshot.current = JSON.stringify(nextForm)
+  }, [initialValues])
 
   const initialSnapshot = useRef(JSON.stringify(form))
 
