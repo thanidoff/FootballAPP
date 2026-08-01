@@ -76,7 +76,7 @@ export default function CoachForm({ initialValues, onSubmit, loading, clubs = []
   const ovr = calculateCoachOVR(form.stats)
 
   function handleStatChange(key, raw) {
-    const val = Math.max(1, Math.min(99, parseInt(raw) || 1))
+    const val = Math.max(1, Math.min(140, parseInt(raw) || 1))
     setForm((f) => ({ ...f, stats: { ...f.stats, [key]: val } }))
   }
 
@@ -228,14 +228,14 @@ export default function CoachForm({ initialValues, onSubmit, loading, clubs = []
                 <label className="block text-xs font-heading font-bold tracking-wider uppercase text-gray-400">
                   {key} <span className="text-gray-300">· {COACH_STAT_LABELS[key]}</span>
                 </label>
-                <span className="text-xs font-heading font-bold text-gray-800 tabular-nums">
+                <span className="text-xs font-heading font-bold text-[#FD5461] tabular-nums">
                   {form.stats[key] ?? 70}
                 </span>
               </div>
               <input
                 type="range"
                 min={1}
-                max={99}
+                max={140}
                 value={form.stats[key] ?? 70}
                 onChange={(e) => handleStatChange(key, e.target.value)}
                 className="w-full h-2 appearance-none bg-gray-200 rounded-full accent-[#FD5461] cursor-pointer"
