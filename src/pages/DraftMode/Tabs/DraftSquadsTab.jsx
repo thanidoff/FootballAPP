@@ -21,6 +21,7 @@ import { formatCurrency } from '../../../utils/currency'
 import { transferDraftPlayer, transferDraftCoach } from '../../../services/draftSave'
 import CoachCard from '../../../components/ui/CoachCard'
 import { useToast } from '../../../components/ui/Toast'
+import { fetchPlayers } from '../../../services/players'
 import { rollDraft } from '../../../utils/draftLogic'
 
 import { getOVRTier } from '../../../utils/stats'
@@ -1201,17 +1202,25 @@ export default function DraftSquadsTab() {
                 onClick={async () => {
                   try {
                     setProcessing(true)
-                    const updatedTeams = rollDraft(saveData.teams, saveData.freeAgents || [], teamIndex)
+                    let availablePool = saveData.freeAgents || []
+                    if (!availablePool.length) {
+                      const allMaster = await fetchPlayers()
+                      const assignedIds = new Set()
+                      saveData.teams.forEach(t => (t.roster || []).forEach(p => assignedIds.add(String(p.id))))
+                      availablePool = allMaster.filter(p => !assignedIds.has(String(p.id)))
+                    }
+
+                    const updatedTeams = rollDraft(saveData.teams, availablePool, teamIndex)
                     const draftedPlayers = updatedTeams[teamIndex].roster || []
                     const draftedIds = new Set(draftedPlayers.map(p => String(p.id)))
-                    const updatedFreeAgents = (saveData.freeAgents || []).filter(p => !draftedIds.has(String(p.id)))
+                    const updatedFreeAgents = availablePool.filter(p => !draftedIds.has(String(p.id)))
                     const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
                     await updateDraftState(saveId, nextSave)
                     setSaveData(nextSave)
                     toast.success(`Drafted ${draftedPlayers.length} players for ${team.club_name}!`)
                   } catch (err) {
                     console.error('Failed to auto draft players', err)
-                    toast.error('Failed to auto draft players')
+                    toast.error(err.message || 'Failed to auto draft players')
                   } finally {
                     setProcessing(false)
                   }
