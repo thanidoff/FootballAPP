@@ -1310,7 +1310,7 @@ export default function DraftSquadsTab() {
           })}
         </div>}
         
-        {activeSection === 'roster' && team.roster.length === 0 && (
+        {activeSection === 'roster' && (team.roster?.length || 0) === 0 && (
           <div className="text-center py-16 text-gray-400 font-heading font-bold uppercase tracking-wider text-sm">
             No players in roster.
           </div>
@@ -1415,7 +1415,7 @@ export default function DraftSquadsTab() {
                   {Array.from({ length: section.count }, (_, localIndex) => {
                     const playerIndex = section.start + localIndex
                     const player = displayRoster[playerIndex]
-                    if (!player) return <div key={`empty-${section.start}-${localIndex}`} onDragOver={event => event.preventDefault()} onDrop={() => playerIndex < team.roster.length && dropPlayerAt(playerIndex)} className="flex min-h-10 items-center rounded-xl border border-dashed border-gray-200 px-4 text-sm text-gray-300">Empty</div>
+                    if (!player) return <div key={`empty-${section.start}-${localIndex}`} onDragOver={event => event.preventDefault()} onDrop={() => playerIndex < (team.roster?.length || 0) && dropPlayerAt(playerIndex)} className="flex min-h-10 items-center rounded-xl border border-dashed border-gray-200 px-4 text-sm text-gray-300">Empty</div>
                     const offset = animOffsets[player.id] || 0
                     return (
                       <div
@@ -1513,7 +1513,7 @@ export default function DraftSquadsTab() {
                         </button>
                         <button
                           type="button"
-                          disabled={playerIndex >= team.roster.length - 1}
+                          disabled={playerIndex >= (team.roster?.length || 0) - 1}
                           onClick={(e) => { e.stopPropagation(); movePlayer(playerIndex, playerIndex + 1) }}
                           aria-label={`Move ${player.name} down`}
                           className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
@@ -1556,7 +1556,7 @@ export default function DraftSquadsTab() {
                       </button>
                       <div className="hidden sm:flex ml-3 shrink-0 items-center gap-1.5">
                         {sectionIndex === 0
-                          ? <Button variant="outline" size="sm" disabled={team.roster.length <= 5} onClick={() => movePlayer(playerIndex, 5)}>To bench</Button>
+                          ? <Button variant="outline" size="sm" disabled={(team.roster?.length || 0) <= 5} onClick={() => movePlayer(playerIndex, 5)}>To bench</Button>
                           : <Button variant="outline" size="sm" onClick={() => movePlayer(playerIndex, 4)}>Make starter</Button>}
                         <Button variant="ghost" size="sm" aria-label={`Edit ${player.name}`} title="Edit player" onClick={() => openPlayerEditor(player)}><Pencil size={16} /></Button>
                       </div>
