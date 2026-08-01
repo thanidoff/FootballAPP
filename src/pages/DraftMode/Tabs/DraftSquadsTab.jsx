@@ -1230,6 +1230,67 @@ export default function DraftSquadsTab() {
                 <Dices size={16} /> Auto Draft Squad
               </Button>
             )}
+
+            {(team.roster?.length || 0) > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={processing || team.budget < 0}
+                title={team.budget < 0 ? 'Cannot draft player while in debt' : 'Draft a random player for $40M'}
+                onClick={async () => {
+                  if (team.budget < 0) {
+                    toast.error('Cannot draft player while in debt!')
+                    return
+                  }
+                  try {
+                    setProcessing(true)
+                    let availablePool = saveData.freeAgents || []
+                    if (!availablePool.length) {
+                      const allMaster = await fetchPlayers()
+                      const assignedIds = new Set()
+                      saveData.teams.forEach(t => (t.roster || []).forEach(p => assignedIds.add(String(p.id))))
+                      availablePool = allMaster.filter(p => !assignedIds.has(String(p.id)))
+                    }
+
+                    if (!availablePool.length) {
+                      toast.error('No available players in pool!')
+                      return
+                    }
+
+                    const randomIndex = Math.floor(Math.random() * availablePool.length)
+                    const randomPlayer = availablePool[randomIndex]
+
+                    const updatedTeams = saveData.teams.map((t, idx) => {
+                      if (idx !== teamIndex) return t
+                      return {
+                        ...t,
+                        budget: (t.budget || 0) - 40000000,
+                        roster: [...(t.roster || []), { ...randomPlayer, club_id: t.club_id }]
+                      }
+                    })
+
+                    const updatedFreeAgents = availablePool.filter(p => String(p.id) !== String(randomPlayer.id))
+                    const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
+                    
+                    await updateDraftState(saveId, nextSave)
+                    setSaveData(nextSave)
+                    toast.success(`Drafted ${randomPlayer.name} (${randomPlayer.position} OVR ${randomPlayer.ovr}) for $40M!`)
+                  } catch (err) {
+                    console.error('Failed to draft random player', err)
+                    toast.error(err.message || 'Failed to draft random player')
+                  } finally {
+                    setProcessing(false)
+                  }
+                }}
+                className={`flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider ${
+                  team.budget < 0 
+                    ? 'opacity-40 border-gray-300 text-gray-400 cursor-not-allowed' 
+                    : 'text-[#FD5461] border-[#FD5461]/30 hover:bg-red-50/50'
+                }`}
+              >
+                <Dices size={16} /> Draft Player ($40M)
+              </Button>
+            )}
             <OvrBadge value={averageOvr} size="lg" />
           </div>
         </div>
