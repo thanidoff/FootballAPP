@@ -2,8 +2,32 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { uploadDataUrl } from './storage'
 import { MOCK_COACHES, MOCK_CLUBS } from '../data/mockGameData'
 
-// In-memory fallback state for mock / offline mode
-let mockCoachesState = [...MOCK_COACHES]
+const COACHES_STORAGE_KEY = 'football_app_mock_coaches_v1'
+
+function loadSavedMockCoaches() {
+  try {
+    const raw = localStorage.getItem(COACHES_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load mock coaches from localStorage', err)
+  }
+  return [...MOCK_COACHES]
+}
+
+let mockCoachesState = loadSavedMockCoaches()
+
+function saveMockCoachesState() {
+  try {
+    localStorage.setItem(COACHES_STORAGE_KEY, JSON.stringify(mockCoachesState))
+  } catch (err) {
+    console.warn('Failed to save mock coaches to localStorage', err)
+  }
+}
 
 export function calculateCoachOVR(stats) {
   const tac = Number(stats?.stat_tac ?? stats?.TAC ?? 70)
@@ -163,6 +187,7 @@ export async function createCoach({ name, nationality, age, market_value, stats,
     created_at: new Date().toISOString(),
   }
   mockCoachesState.push(newCoach)
+  saveMockCoachesState()
   return mapRowToCoach(newCoach)
 }
 
@@ -220,6 +245,7 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
         stat_phy: Number(stats.PHY ?? 70),
       } : {}),
     }
+    saveMockCoachesState()
     return mapRowToCoach(mockCoachesState[idx])
   }
 }
@@ -234,6 +260,7 @@ export async function deleteCoach(id) {
     }
   }
   mockCoachesState = mockCoachesState.filter(c => String(c.id) !== String(id))
+  saveMockCoachesState()
 }
 
 export async function signCoach(coachId, targetClubId) {
