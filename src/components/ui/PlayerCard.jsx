@@ -147,10 +147,10 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
       {/* Footer */}
       <div className="mt-auto flex items-center justify-between pt-1">
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          {onEdit && <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>}
-          {onDelete && <Button variant="ghost" size="sm" onClick={onDelete}>{deleteLabel}</Button>}
-          {onRelease && player.club_id && <Button variant="ghost" size="sm" onClick={onRelease}>Release</Button>}
-          {onSign && <Button size="sm" onClick={onSign}>Sign</Button>}
+          {onEdit && <Button variant="ghost" size="sm" onClick={() => onEdit(player)}>Edit</Button>}
+          {onDelete && <Button variant="ghost" size="sm" onClick={() => onDelete(player.id || player)}>{deleteLabel}</Button>}
+          {onRelease && player.club_id && <Button variant="ghost" size="sm" onClick={() => onRelease(player)}>Release</Button>}
+          {onSign && <Button size="sm" onClick={() => onSign(player)}>Sign</Button>}
         </div>
         <span className="text-sm font-semibold text-gray-700">${formatCurrency(player.market_value)}</span>
       </div>

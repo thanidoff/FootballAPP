@@ -214,6 +214,7 @@ export default function CoachesPage() {
       >
         {formModal && (
           <CoachForm
+            key={formModal.coach?.id || formModal.type}
             initialValues={formModal.type === 'edit' ? formModal.coach : null}
             onSubmit={handleSaveCoachForm}
             loading={saving}
