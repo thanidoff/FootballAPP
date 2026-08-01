@@ -211,8 +211,8 @@ export default function DraftOverviewTab() {
     const home = teamById(match.home), away = teamById(match.away)
     if (!home || !away || activeSeason?.status !== 'active' || match.week !== (saveData.currentWeek || 1)) return
     navigate('/matches/draft/prematch', { state: {
-      homeClub: { id: home.club_id, name: home.club_name, short_name: home.short_name || home.club_name, badge_url: home.badge_url, badge_color: home.badge_color, roster: home.roster },
-      awayClub: { id: away.club_id, name: away.club_name, short_name: away.short_name || away.club_name, badge_url: away.badge_url, badge_color: away.badge_color, roster: away.roster },
+      homeClub: { id: home.club_id, name: home.club_name, short_name: home.short_name || home.club_name, badge_url: home.badge_url, badge_color: home.badge_color, roster: home.roster, coaches: home.coaches || [] },
+      awayClub: { id: away.club_id, name: away.club_name, short_name: away.short_name || away.club_name, badge_url: away.badge_url, badge_color: away.badge_color, roster: away.roster, coaches: away.coaches || [] },
       duration: 5, returnPath: `/draft/${saveId}/matches`, saveId, matchIndex: match.matchIndex, currentWeek: match.week,
     } })
   }
@@ -223,8 +223,8 @@ export default function DraftOverviewTab() {
 
   const [previewGrowthData, setPreviewGrowthData] = useState(null)
 
-  function handleReshufflePreview() {
-    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [])
+  function handleReshufflePreview(customCount) {
+    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], customCount)
     setPreviewGrowthData(result)
   }
 

@@ -28,8 +28,14 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     return { updatedTeams: teams, updatedFreeAgents: freeAgents, seasonAdjustments: [] }
   }
 
-  // Adjust count random players (default 30)
-  const selectedEntries = count ? [...allPlayers].sort(() => Math.random() - 0.5).slice(0, Math.min(count, allPlayers.length)) : allPlayers
+  // Adjust count random players ('all', number, or default 30)
+  let selectedEntries = []
+  if (count === 'all' || count === null || count === undefined || count >= allPlayers.length) {
+    selectedEntries = [...allPlayers]
+  } else {
+    const numCount = Number(count) || 30
+    selectedEntries = [...allPlayers].sort(() => Math.random() - 0.5).slice(0, Math.min(numCount, allPlayers.length))
+  }
 
   const adjustmentsMap = new Map() // playerId -> adjustment record
   const seasonAdjustments = []
@@ -121,6 +127,9 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     }
     return player
   })
+
+  // Sort adjustments by old OVR descending
+  seasonAdjustments.sort((a, b) => b.oldOvr - a.oldOvr || b.newOvr - a.newOvr)
 
   return {
     updatedTeams,

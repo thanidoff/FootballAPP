@@ -53,3 +53,32 @@ export const MOCK_PLAYERS = PLAYER_BLUEPRINTS.map(([name, nationality, age, posi
   created_at: '2026-07-22T00:00:00.000Z',
   ...makeStats(position, ovr),
 }))
+
+export const MOCK_COACHES = [
+  { id: 'mock-coach-1', name: 'Pep Guardiola', nationality: 'Spain', age: 53, market_value: 15000000, club_id: null, photo_url: null, stat_tac: 96, stat_mgt: 94, stat_mot: 90, stat_att: 95, stat_def: 88, stat_phy: 85 },
+  { id: 'mock-coach-2', name: 'Jurgen Klopp', nationality: 'Germany', age: 56, market_value: 14000000, club_id: null, photo_url: null, stat_tac: 92, stat_mgt: 96, stat_mot: 98, stat_att: 94, stat_def: 86, stat_phy: 90 },
+  { id: 'mock-coach-3', name: 'Carlo Ancelotti', nationality: 'Italy', age: 64, market_value: 12000000, club_id: null, photo_url: null, stat_tac: 93, stat_mgt: 97, stat_mot: 92, stat_att: 90, stat_def: 89, stat_phy: 82 },
+  { id: 'mock-coach-4', name: 'Zinedine Zidane', nationality: 'France', age: 51, market_value: 11000000, club_id: null, photo_url: null, stat_tac: 89, stat_mgt: 95, stat_mot: 93, stat_att: 91, stat_def: 87, stat_phy: 84 },
+  { id: 'mock-coach-5', name: 'Sir Alex Ferguson', nationality: 'Scotland', age: 82, market_value: 20000000, club_id: null, photo_url: null, stat_tac: 97, stat_mgt: 99, stat_mot: 99, stat_att: 93, stat_def: 91, stat_phy: 88 },
+  { id: 'mock-coach-6', name: 'Kiatisuk Senamuang', nationality: 'Thailand', age: 50, market_value: 5000000, club_id: null, photo_url: null, stat_tac: 82, stat_mgt: 85, stat_mot: 88, stat_att: 84, stat_def: 80, stat_phy: 81 },
+  { id: 'mock-coach-7', name: 'Mikel Arteta', nationality: 'Spain', age: 42, market_value: 10000000, club_id: null, photo_url: null, stat_tac: 91, stat_mgt: 89, stat_mot: 92, stat_att: 89, stat_def: 88, stat_phy: 85 },
+  { id: 'mock-coach-8', name: 'Jose Mourinho', nationality: 'Portugal', age: 61, market_value: 11000000, club_id: null, photo_url: null, stat_tac: 94, stat_mgt: 92, stat_mot: 95, stat_att: 84, stat_def: 96, stat_phy: 83 },
+  { id: 'mock-coach-9', name: 'Xabi Alonso', nationality: 'Spain', age: 42, market_value: 12500000, club_id: null, photo_url: null, stat_tac: 93, stat_mgt: 90, stat_mot: 91, stat_att: 92, stat_def: 89, stat_phy: 86 },
+  { id: 'mock-coach-10', name: 'Luis Enrique', nationality: 'Spain', age: 54, market_value: 9500000, club_id: null, photo_url: null, stat_tac: 88, stat_mgt: 89, stat_mot: 91, stat_att: 92, stat_def: 83, stat_phy: 85 },
+  { id: 'mock-coach-11', name: 'Arne Slot', nationality: 'Netherlands', age: 45, market_value: 9000000, club_id: null, photo_url: null, stat_tac: 89, stat_mgt: 87, stat_mot: 88, stat_att: 90, stat_def: 84, stat_phy: 83 },
+  { id: 'mock-coach-12', name: 'Simone Inzaghi', nationality: 'Italy', age: 48, market_value: 9800000, club_id: null, photo_url: null, stat_tac: 92, stat_mgt: 88, stat_mot: 89, stat_att: 88, stat_def: 93, stat_phy: 85 },
+  { id: 'mock-coach-13', name: 'Unai Emery', nationality: 'Spain', age: 52, market_value: 8500000, club_id: null, photo_url: null, stat_tac: 90, stat_mgt: 86, stat_mot: 87, stat_att: 87, stat_def: 88, stat_phy: 82 },
+  { id: 'mock-coach-14', name: 'Hans-Dieter Flick', nationality: 'Germany', age: 59, market_value: 10500000, club_id: null, photo_url: null, stat_tac: 91, stat_mgt: 90, stat_mot: 93, stat_att: 95, stat_def: 82, stat_phy: 89 },
+  { id: 'mock-coach-15', name: 'Julian Nagelsmann', nationality: 'Germany', age: 36, market_value: 9500000, club_id: null, photo_url: null, stat_tac: 92, stat_mgt: 85, stat_mot: 86, stat_att: 91, stat_def: 85, stat_phy: 84 },
+  { id: 'mock-coach-16', name: 'Diego Simeone', nationality: 'Argentina', age: 54, market_value: 11500000, club_id: null, photo_url: null, stat_tac: 89, stat_mgt: 94, stat_mot: 98, stat_att: 82, stat_def: 97, stat_phy: 92 },
+  { id: 'mock-coach-17', name: 'Roberto De Zerbi', nationality: 'Italy', age: 44, market_value: 8000000, club_id: null, photo_url: null, stat_tac: 90, stat_mgt: 84, stat_mot: 86, stat_att: 92, stat_def: 78, stat_phy: 80 },
+  { id: 'mock-coach-18', name: 'Arsene Wenger', nationality: 'France', age: 74, market_value: 13000000, club_id: null, photo_url: null, stat_tac: 94, stat_mgt: 96, stat_mot: 92, stat_att: 96, stat_def: 83, stat_phy: 81 },
+  { id: 'mock-coach-19', name: 'Antonio Conte', nationality: 'Italy', age: 54, market_value: 10000000, club_id: null, photo_url: null, stat_tac: 91, stat_mgt: 90, stat_mot: 96, stat_att: 86, stat_def: 92, stat_phy: 91 },
+  { id: 'mock-coach-20', name: 'Erik ten Hag', nationality: 'Netherlands', age: 54, market_value: 7500000, club_id: null, photo_url: null, stat_tac: 86, stat_mgt: 82, stat_mot: 83, stat_att: 85, stat_def: 84, stat_phy: 80 },
+  { id: 'mock-coach-21', name: 'Ishii Masatada', nationality: 'Japan', age: 57, market_value: 6000000, club_id: null, photo_url: null, stat_tac: 84, stat_mgt: 87, stat_mot: 86, stat_att: 81, stat_def: 85, stat_phy: 83 },
+  { id: 'mock-coach-22', name: 'Totchtawan Sripan', nationality: 'Thailand', age: 52, market_value: 4500000, club_id: null, photo_url: null, stat_tac: 80, stat_mgt: 83, stat_mot: 85, stat_att: 82, stat_def: 79, stat_phy: 80 },
+].map(coach => ({
+  ...coach,
+  ovr: Math.round((coach.stat_tac + coach.stat_mgt + coach.stat_mot + coach.stat_att + coach.stat_def + coach.stat_phy) / 6),
+}))
+

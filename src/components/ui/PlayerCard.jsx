@@ -7,11 +7,14 @@ import FreeAgentIcon from './FreeAgentIcon'
 import OvrBadge from './OvrBadge'
 
 const POS_COLORS = {
-  GK:  '#f59e0b',
-  DEF: '#3b82f6',
-  MF:  '#22c55e',
-  FWD: '#FD5461',
+  GK:    '#f59e0b',
+  DEF:   '#3b82f6',
+  MF:    '#22c55e',
+  FWD:   '#FD5461',
+  COACH: '#FD5461',
 }
+
+const COACH_STAT_KEYS = ['TAC', 'MGT', 'MOT', 'ATT', 'DEF', 'PHY']
 
 function getFlagCode(nationality) {
   return FIFA_NATIONS.find(n => n.name === nationality)?.code ?? null
@@ -56,11 +59,14 @@ function ClubBadge({ club }) {
   )
 }
 
-export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, deleteLabel = 'Del', compact = false }) {
+export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, onRelease, deleteLabel = 'Del', compact = false }) {
+  const isCoach = player.position === 'COACH'
   const posColor = POS_COLORS[player.position] ?? '#6b7280'
-  const statKeys = STATS_BY_POSITION[player.position]
-  const normalizedStats = normalizeStats(player.stats)
+  const statKeys = isCoach ? COACH_STAT_KEYS : STATS_BY_POSITION[player.position]
+  const normalizedStats = isCoach ? (player.stats || {}) : normalizeStats(player.stats)
   const flagCode = getFlagCode(player.nationality)
+
+  const posLabel = isCoach ? 'HC' : (player.position === 'GK' ? 'GK' : player.position === 'DEF' ? 'DF' : player.position === 'MF' ? 'MF' : 'FW')
 
   if (compact) {
     return (
@@ -83,7 +89,7 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
           <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
             <OvrBadge value={player.ovr} size="sm" />
             <span className="text-[9px] font-semibold tracking-wider uppercase" style={{ color: posColor }}>
-              {player.position === 'GK' ? 'GK' : player.position === 'DEF' ? 'DF' : player.position === 'MF' ? 'MF' : 'FW'}
+              {posLabel}
             </span>
           </div>
         </div>
@@ -125,7 +131,7 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
           <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
             <OvrBadge value={player.ovr} size="md" />
             <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: posColor }}>
-              {player.position === 'GK' ? 'GK' : player.position === 'DEF' ? 'DF' : player.position === 'MF' ? 'MF' : 'FW'}
+              {posLabel}
             </span>
           </div>
         </div>
@@ -133,8 +139,8 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
 
       {/* Stats */}
       <div className="my-4 space-y-2">
-        {statKeys.map((key) => (
-          <StatBar key={key} label={key} value={normalizedStats[key]} dense />
+        {statKeys?.map((key) => (
+          <StatBar key={key} label={key} value={normalizedStats[key] ?? 70} dense />
         ))}
       </div>
 
@@ -143,6 +149,7 @@ export default function PlayerCard({ player, onClick, onEdit, onDelete, onSign, 
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
           {onEdit && <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>}
           {onDelete && <Button variant="ghost" size="sm" onClick={onDelete}>{deleteLabel}</Button>}
+          {onRelease && player.club_id && <Button variant="ghost" size="sm" onClick={onRelease}>Release</Button>}
           {onSign && <Button size="sm" onClick={onSign}>Sign</Button>}
         </div>
         <span className="text-sm font-semibold text-gray-700">${formatCurrency(player.market_value)}</span>

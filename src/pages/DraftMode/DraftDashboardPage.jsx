@@ -7,7 +7,8 @@ import { LogOut } from 'lucide-react'
 const TABS = [
   { id: 'overview', label: 'Dashboard' },
   { id: 'squads', label: 'Squads' },
-  { id: 'transfers', label: 'Transfer Market' },
+  { id: 'transfers', label: 'Player Market' },
+  { id: 'coach-transfers', label: 'Coach Market' },
   { id: 'matches', label: 'League' },
   { id: 'cup', label: 'Cup' }
 ]

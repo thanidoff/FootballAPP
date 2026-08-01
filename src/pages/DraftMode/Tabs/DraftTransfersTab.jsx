@@ -1,11 +1,13 @@
-import { useState, useMemo } from 'react'
-import { useOutletContext } from 'react-router-dom'
-import { transferDraftPlayer, updateDraftState } from '../../../services/draftSave'
+import { useState, useMemo, useEffect } from 'react'
+import { useOutletContext, useLocation } from 'react-router-dom'
+import { transferDraftPlayer, transferDraftCoach, updateDraftState } from '../../../services/draftSave'
 import PlayerCard from '../../../components/ui/PlayerCard'
+import CoachCard from '../../../components/ui/CoachCard'
 import Modal from '../../../components/ui/Modal'
 import Button from '../../../components/ui/Button'
 import ClubSelect from '../../../components/ui/ClubSelect'
 import PlayerForm from '../../../components/players/PlayerForm'
+import CoachForm from '../../../components/coaches/CoachForm'
 import SegmentedControl from '../../../components/ui/SegmentedControl'
 import Select from '../../../components/ui/Select'
 import { formatCurrency } from '../../../utils/currency'
@@ -19,6 +21,7 @@ import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
 
 import { fetchPlayers } from '../../../services/players'
+import { fetchCoaches } from '../../../services/coaches'
 import { Check, Plus, Search, Sparkles, Users, UserCheck } from 'lucide-react'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
@@ -34,31 +37,46 @@ export default function DraftTransfersTab() {
   const [search, setSearch] = useState('')
   const [ovrSort, setOvrSort] = useState('desc')
   const [tab, setTab] = useState('all') // 'all' or 'free'
-  const [signingPlayer, setSigningPlayer] = useState(null)
+  const [signingItem, setSigningItem] = useState(null)
   const [selectedClubId, setSelectedClubId] = useState('')
   const [agreedFee, setAgreedFee] = useState(0)
   const [feeDisplay, setFeeDisplay] = useState('0.0')
   const [editPlayer, setEditPlayer] = useState(null)
+  const [editCoach, setEditCoach] = useState(null)
 
   const [playerManagerOpen, setPlayerManagerOpen] = useState(false)
   const [masterPlayers, setMasterPlayers] = useState([])
   const [managedPlayerIds, setManagedPlayerIds] = useState([])
   const [loadingPlayers, setLoadingPlayers] = useState(false)
-  const [playerManagerSearch, setPlayerManagerSearch] = useState('')
-  const [playerManagerPosFilter, setPlayerManagerPosFilter] = useState('ALL')
-  const [playerManagerStatusFilter, setPlayerManagerStatusFilter] = useState('all') // 'all' | 'added' | 'not_added'
+
+  const [fallbackCoaches, setFallbackCoaches] = useState([])
+
+  useEffect(() => {
+    fetchCoaches().then(setFallbackCoaches).catch(() => {})
+  }, [])
 
   const freeAgents = saveData?.freeAgents || []
+  const freeAgentsCoaches = (saveData?.freeAgentsCoaches && saveData.freeAgentsCoaches.length > 0)
+    ? saveData.freeAgentsCoaches
+    : fallbackCoaches
   
   const cleanFreeAgents = useMemo(() => {
     return freeAgents.map(p => ({ ...p, club: null, club_id: null }))
   }, [freeAgents])
 
+  const cleanFreeCoaches = useMemo(() => {
+    const assignedIds = new Set()
+    saveData?.teams?.forEach(t => (t.coaches || []).forEach(c => assignedIds.add(String(c.id))))
+    return freeAgentsCoaches
+      .filter(c => !assignedIds.has(String(c.id)))
+      .map(c => ({ ...c, position: 'COACH', club: null, club_id: null }))
+  }, [freeAgentsCoaches, saveData])
+
   const allPlayers = useMemo(() => {
     if (!saveData) return []
     const list = [...cleanFreeAgents]
     saveData.teams.forEach(team => {
-      team.roster.forEach(p => {
+      (team.roster || []).forEach(p => {
         list.push({
           ...p,
           club: {
@@ -73,6 +91,27 @@ export default function DraftTransfersTab() {
     })
     return list
   }, [cleanFreeAgents, saveData])
+
+  const allCoaches = useMemo(() => {
+    if (!saveData) return []
+    const list = [...cleanFreeCoaches]
+    saveData.teams.forEach(team => {
+      (team.coaches || []).forEach(c => {
+        list.push({
+          ...c,
+          position: 'COACH',
+          club: {
+            id: team.club_id,
+            name: team.club_name,
+            short_name: team.club_name,
+            badge_url: team.badge_url,
+            badge_color: team.badge_color
+          }
+        })
+      })
+    })
+    return list
+  }, [cleanFreeCoaches, saveData])
 
   const filteredPlayers = useMemo(() => {
     const list = tab === 'free' ? cleanFreeAgents : allPlayers
@@ -91,66 +130,93 @@ export default function DraftTransfersTab() {
       })
   }, [allPlayers, cleanFreeAgents, ovrSort, posFilter, search, tab])
 
-  const openSigning = (player) => {
-    setSigningPlayer(player)
+  const filteredCoaches = useMemo(() => {
+    const list = tab === 'free' ? cleanFreeCoaches : allCoaches
+    return list
+      .filter((c) => {
+        const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
+          c.nationality.toLowerCase().includes(search.toLowerCase())
+        return matchSearch
+      })
+      .sort((a, b) => {
+        if (b.ovr !== a.ovr) {
+          return ovrSort === 'desc' ? b.ovr - a.ovr : a.ovr - b.ovr
+        }
+        return String(a.id).localeCompare(String(b.id))
+      })
+  }, [allCoaches, cleanFreeCoaches, ovrSort, search, tab])
+
+  const openSigning = (item) => {
+    setSigningItem(item)
     setSelectedClubId('')
-    setAgreedFee(player.market_value)
-    setFeeDisplay(((player.market_value || 0) / 1_000_000).toFixed(1))
+    setAgreedFee(item.market_value || 0)
+    setFeeDisplay(((item.market_value || 0) / 1_000_000).toFixed(1))
   }
 
   const handleSign = async () => {
-    if (!signingPlayer || !selectedClubId) return
+    if (!signingItem || !selectedClubId) return
     try {
       setProcessing(true)
-      const nextSaveData = await transferDraftPlayer(saveId, signingPlayer.id, selectedClubId, agreedFee)
+      const isCoach = signingItem.position === 'COACH'
+      const nextSaveData = isCoach
+        ? await transferDraftCoach(saveId, signingItem.id, selectedClubId, agreedFee)
+        : await transferDraftPlayer(saveId, signingItem.id, selectedClubId, agreedFee)
+      
       setSaveData(nextSaveData)
-      setSigningPlayer(null)
+      setSigningItem(null)
       setSelectedClubId('')
-      toast.success(`${signingPlayer.name} transferred successfully`)
+      toast.success(`${signingItem.name} transferred successfully`)
     } catch (e) {
-      toast.error(e.message || 'Failed to transfer player')
+      toast.error(e.message || 'Failed to transfer')
     } finally {
       setProcessing(false)
     }
   }
 
-  async function handlePlayerUpdate(form) {
-    if (!editPlayer) return
+  async function handleCoachUpdate(form) {
+    if (!editCoach) return
     setProcessing(true)
     try {
-      const name = form.name || `${form.first_name || ''} ${form.last_name || ''}`.trim() || editPlayer.name
-      const updatedPlayer = {
-        ...editPlayer,
+      const name = `${form.first_name || ''} ${form.last_name || ''}`.trim() || editCoach.name
+      const statVals = Object.values(form.stats || {})
+      const ovr = statVals.length > 0 ? Math.round(statVals.reduce((a, b) => a + b, 0) / statVals.length) : editCoach.ovr
+
+      const updatedCoach = {
+        ...editCoach,
         name,
         nationality: form.nationality,
         age: form.age,
-        position: form.position,
         market_value: form.market_value,
         stats: form.stats,
-        ovr: calculateOVR(form.position, form.stats),
-        photo_url: form.photo?.preview || editPlayer.photo_url || null,
-        club_id: editPlayer.club?.id || null,
+        ovr,
+        photo_url: form.photo?.preview || editCoach.photo_url || null,
+        club_id: editCoach.club?.id || editCoach.club_id || null,
       }
 
-      let newTeams = saveData.teams
-      let newFreeAgents = saveData.freeAgents || []
+      let newTeams = saveData.teams || []
+      let newFreeCoaches = saveData.freeAgentsCoaches || saveData.coaches || []
 
-      if (editPlayer.club?.id) {
-        newTeams = saveData.teams.map(item => item.club_id === editPlayer.club.id
-          ? { ...item, roster: (item.roster || []).map(player => player.id === editPlayer.id ? updatedPlayer : player) }
+      const targetClubId = editCoach.club?.id || editCoach.club_id
+      if (targetClubId) {
+        newTeams = newTeams.map(item => item.club_id === targetClubId
+          ? { ...item, coaches: (item.coaches || []).map(c => String(c.id) === String(editCoach.id) ? updatedCoach : c) }
           : item)
       } else {
-        newFreeAgents = newFreeAgents.map(player => player.id === editPlayer.id ? updatedPlayer : player)
+        newFreeCoaches = newFreeCoaches.map(c => String(c.id) === String(editCoach.id) ? updatedCoach : c)
       }
 
-      const newSaveData = { ...saveData, teams: newTeams, freeAgents: newFreeAgents }
-      await updateDraftState(saveId, newSaveData)
-      setSaveData(newSaveData)
-      setEditPlayer(null)
-      toast.success(`${updatedPlayer.name} updated`)
-    } catch (error) {
-      console.error('Failed to update player', error)
-      toast.error(error.message || 'Failed to update player')
+      const nextState = {
+        ...saveData,
+        teams: newTeams,
+        freeAgentsCoaches: newFreeCoaches
+      }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      setEditCoach(null)
+      toast.success('Coach updated in this save')
+    } catch (err) {
+      console.error('Failed to update coach in save', err)
+      toast.error(err.message || 'Failed to update coach')
     } finally {
       setProcessing(false)
     }
@@ -158,157 +224,56 @@ export default function DraftTransfersTab() {
 
   async function openPlayerManager() {
     setPlayerManagerOpen(true)
-    setPlayerManagerSearch('')
-    setPlayerManagerPosFilter('ALL')
-    setPlayerManagerStatusFilter('all')
-    setManagedPlayerIds(allPlayers.map(p => String(p.id)))
-    setLoadingPlayers(true)
+    if (masterPlayers.length > 0) {
+      const activeIds = (saveData.freeAgents || []).map(p => String(p.id))
+      saveData.teams.forEach(t => (t.roster || []).forEach(p => activeIds.push(String(p.id))))
+      setManagedPlayerIds(activeIds)
+      return
+    }
     try {
+      setLoadingPlayers(true)
       const players = await fetchPlayers()
       setMasterPlayers(players)
+      const activeIds = (saveData.freeAgents || []).map(p => String(p.id))
+      saveData.teams.forEach(t => (t.roster || []).forEach(p => activeIds.push(String(p.id))))
+      setManagedPlayerIds(activeIds)
     } catch (error) {
       console.error('Failed to load master players', error)
-      toast.error('Failed to load master players')
+      toast.error('Failed to load player database')
     } finally {
       setLoadingPlayers(false)
     }
   }
 
-  function toggleManagedPlayer(playerId) {
-    const id = String(playerId)
-    setManagedPlayerIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
-  }
-
-  async function saveManagedPlayers() {
-    setProcessing(true)
-    try {
-      const selectedIds = new Set(managedPlayerIds.map(String))
-      
-      // Kept & added free agents
-      const existingInSave = new Map()
-      allPlayers.forEach(p => existingInSave.set(String(p.id), p))
-      
-      // Update roster for each team (keep only selected)
-      const updatedTeams = saveData.teams.map(team => ({
-        ...team,
-        roster: (team.roster || []).filter(p => selectedIds.has(String(p.id)))
-      }))
-
-      // Free agents: keep current free agents that are selected + add new master players that are selected and not in any team/free agent
-      const newMasterToAdd = masterPlayers.filter(p => selectedIds.has(String(p.id)) && !existingInSave.has(String(p.id)))
-        .map(p => ({
-          ...p,
-          club_id: null,
-          club: null
-        }))
-
-      const updatedFreeAgents = [
-        ...cleanFreeAgents.filter(p => selectedIds.has(String(p.id))),
-        ...newMasterToAdd
-      ]
-
-      const nextState = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
-      await updateDraftState(saveId, nextState)
-      setSaveData(nextState)
-      setPlayerManagerOpen(false)
-      toast.success('Save players updated')
-    } catch (error) {
-      console.error('Failed to manage save players', error)
-      toast.error('Failed to update players in this save')
-    } finally {
-      setProcessing(false)
-    }
-  }
-
-  const editPlayerInitial = editPlayer ? {
-    first_name: editPlayer.name.split(' ').slice(0, -1).join(' ') || editPlayer.name,
-    last_name: editPlayer.name.split(' ').slice(-1).join('') || '',
-    nationality: editPlayer.nationality,
-    age: editPlayer.age,
-    position: editPlayer.position,
-    market_value: editPlayer.market_value,
-    stats: editPlayer.stats,
-    photo: editPlayer.photo_url ? { preview: editPlayer.photo_url } : null,
-    club_id: editPlayer.club?.id || '',
-  } : null
-
-  const signingTeam = saveData.teams.find(t => t.club_id === selectedClubId)
-  const canAfford = signingTeam && signingPlayer ? signingTeam.budget >= agreedFee : false
-
-  const [growthModalOpen, setGrowthModalOpen] = useState(false)
-  const seasons = saveData.settings?.seasons || []
-  const activeSeason = seasons.find(season => season.status === 'active') || seasons[seasons.length - 1]
-  const seasonAdjustments = activeSeason?.seasonAdjustments || []
-  const isGrowthLocked = activeSeason?.seasonAdjustmentsLocked || false
-
-  const [previewGrowthData, setPreviewGrowthData] = useState(null)
-
-  function handleReshufflePreview() {
-    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [])
-    setPreviewGrowthData(result)
-  }
-
-  async function handleConfirmSaveRatings() {
-    const target = previewGrowthData || (seasonAdjustments.length === 0 ? applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || []) : null)
-    if (!target) return
-
-    try {
-      const nextSettings = { ...saveData.settings }
-      if (nextSettings.seasons && nextSettings.seasons.length > 0) {
-        const idx = nextSettings.seasons.findIndex(s => String(s.id) === String(activeSeason?.id))
-        const targetIdx = idx >= 0 ? idx : nextSettings.seasons.length - 1
-        nextSettings.seasons[targetIdx] = {
-          ...nextSettings.seasons[targetIdx],
-          seasonAdjustments: target.seasonAdjustments,
-          seasonAdjustmentsLocked: true,
-        }
-      }
-      const newSaveData = {
-        ...saveData,
-        teams: target.updatedTeams,
-        freeAgents: target.updatedFreeAgents,
-        settings: nextSettings,
-      }
-      await updateDraftState(saveId, newSaveData)
-      setSaveData(newSaveData)
-      setPreviewGrowthData(null)
-    } catch (err) {
-      console.error('Failed to confirm seasonal player adjustments:', err)
-    }
-  }
+  const location = useLocation()
+  const isCoachMarket = location.pathname.includes('coach-transfers')
 
   return (
     <div className="space-y-6">
       {/* Header & Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <SegmentedControl
-          ariaLabel="Transfer player groups"
+          ariaLabel="Transfer groups"
           value={tab}
           onChange={setTab}
           className="w-full sm:w-auto"
           items={[
-            { id: 'all', label: `All Players (${allPlayers.length})` },
-            { id: 'free', label: `Free Agents (${freeAgents.length})` },
+            { id: 'all', label: isCoachMarket ? `All Coaches (${allCoaches.length})` : `All Players (${allPlayers.length})` },
+            { id: 'free', label: isCoachMarket ? `Free Agents (${cleanFreeCoaches.length})` : `Free Agents (${freeAgents.length})` },
           ]}
         />
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setGrowthModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
-          >
-            <Sparkles size={15} className="shrink-0" /> Season Ratings
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={openPlayerManager}
-            className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
-          >
-            <Plus size={16} /> Manage Players
-          </Button>
-        </div>
+        {!isCoachMarket && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openPlayerManager}
+              className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
+            >
+              <Plus size={16} /> Manage Players
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -324,7 +289,7 @@ export default function DraftTransfersTab() {
           />
         </div>
         <div className="flex gap-1.5 overflow-x-auto hide-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
-          {POS_FILTERS.map((pos) => (
+          {!isCoachMarket && POS_FILTERS.map((pos) => (
             <button
               key={pos}
               onClick={() => setPosFilter(pos)}
@@ -347,67 +312,109 @@ export default function DraftTransfersTab() {
       </div>
 
       {/* Grid */}
-      {filteredPlayers.length === 0 ? (
-        <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-100 shadow-inner">
-          <div className="text-4xl mb-4">🛒</div>
-          <h2 className="font-heading font-black text-lg text-gray-400 uppercase tracking-wide">No Players Found</h2>
-          <p className="text-gray-400 text-sm mt-2">Try adjusting your filters or search term.</p>
-        </div>
+      {isCoachMarket ? (
+        filteredCoaches.length === 0 ? (
+          <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-100 shadow-inner">
+            <div className="text-4xl mb-4">🧢</div>
+            <h2 className="font-heading font-black text-lg text-gray-400 uppercase tracking-wide">No Coaches Found</h2>
+            <p className="text-gray-400 text-sm mt-2">Try adjusting your filters or search term.</p>
+          </div>
+        ) : (
+          <div key={`coaches-${tab}-${ovrSort}`} className="player-card-grid ui-content-refresh">
+            {filteredCoaches.map((coach) => (
+              <CoachCard
+                key={coach.id}
+                coach={coach}
+                onEdit={() => setEditCoach(coach)}
+                onSign={() => openSigning(coach)}
+              />
+            ))}
+          </div>
+        )
       ) : (
-        <div key={`${tab}-${posFilter}-${ovrSort}`} className="player-card-grid ui-content-refresh">
-          {filteredPlayers.map((player) => (
-            <PlayerCard
-              key={player.id}
-              player={player}
-              onEdit={() => setEditPlayer(player)}
-              onSign={() => openSigning(player)}
-            />
-          ))}
-        </div>
+        filteredPlayers.length === 0 ? (
+          <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-100 shadow-inner">
+            <div className="text-4xl mb-4">🛒</div>
+            <h2 className="font-heading font-black text-lg text-gray-400 uppercase tracking-wide">No Players Found</h2>
+            <p className="text-gray-400 text-sm mt-2">Try adjusting your filters or search term.</p>
+          </div>
+        ) : (
+          <div key={`${tab}-${posFilter}-${ovrSort}`} className="player-card-grid ui-content-refresh">
+            {filteredPlayers.map((player) => (
+              <PlayerCard
+                key={player.id}
+                player={player}
+                onEdit={() => setEditPlayer(player)}
+                onSign={() => openSigning(player)}
+              />
+            ))}
+          </div>
+        )
       )}
 
+      {/* Edit Coach Modal */}
+      <Modal
+        open={Boolean(editCoach)}
+        onClose={() => setEditCoach(null)}
+        title="Edit Coach"
+        width="max-w-xl"
+      >
+        {editCoach && (
+          <CoachForm
+            initialValues={editCoach}
+            onSubmit={handleCoachUpdate}
+            loading={processing}
+            clubs={saveData.teams.map(t => ({ id: t.club_id, name: t.club_name, badge_url: t.badge_url, badge_color: t.badge_color }))}
+          />
+        )}
+      </Modal>
+
       {/* Sign Modal */}
-      <Modal open={!!signingPlayer} onClose={() => { setSigningPlayer(null); setSelectedClubId('') }} title="Sign Player" width="max-w-md">
-        {signingPlayer && (
+      <Modal open={!!signingItem} onClose={() => { setSigningItem(null); setSelectedClubId('') }} title={signingItem?.position === 'COACH' ? "Sign Coach" : "Sign Player"} width="max-w-md">
+        {signingItem && (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl p-4 flex items-center justify-between gap-3 border border-gray-100">
               <div className="flex items-center gap-3.5 min-w-0">
                 {/* Photo avatar */}
                 <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
-                  {signingPlayer.photo_url ? (
-                    <img src={signingPlayer.photo_url} alt={signingPlayer.name} className="w-full h-full object-cover" />
+                  {signingItem.photo_url ? (
+                    <img src={signingItem.photo_url} alt={signingItem.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-bold text-gray-400 text-base">
-                      {signingPlayer.name.charAt(0)}
+                      {signingItem.name?.charAt(0) ?? 'C'}
                     </div>
                   )}
                 </div>
 
                 {/* Name + flag + club + position */}
                 <div className="min-w-0">
-                  <div className="text-base font-bold text-[#0A1318] truncate">{signingPlayer.name}</div>
+                  <div className="text-base font-bold text-[#0A1318] truncate">{signingItem.name}</div>
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
                     {(() => {
-                      const code = FIFA_NATIONS.find(n => n.name === signingPlayer.nationality)?.code
-                      return code ? <img src={`https://flagcdn.com/${code}.svg`} alt={signingPlayer.nationality} className="h-4 w-6 shrink-0 rounded-sm object-cover ring-1 ring-black/10" /> : null
+                      const code = FIFA_NATIONS.find(n => n.name === signingItem.nationality)?.code
+                      return code ? <img src={`https://flagcdn.com/${code}.svg`} alt={signingItem.nationality} className="h-4 w-6 shrink-0 rounded-sm object-cover ring-1 ring-black/10" /> : null
                     })()}
-                    {signingPlayer.club ? (
+                    {signingItem.club ? (
                       <span className="flex items-center gap-1.5 text-xs text-gray-600">
-                        {signingPlayer.club.badge_url ? (
-                          <img src={signingPlayer.club.badge_url} alt="" className="h-4 w-4 object-contain shrink-0" />
+                        {signingItem.club.badge_url ? (
+                          <img src={signingItem.club.badge_url} alt="" className="h-4 w-4 object-contain shrink-0" />
                         ) : null}
-                        <span>{signingPlayer.club.name}</span>
+                        <span>{signingItem.club.name}</span>
                       </span>
                     ) : <FreeAgentIcon size={20} />}
-                    {signingPlayer.age && <span className="text-xs text-gray-400">{signingPlayer.age} yrs</span>}
+                    {signingItem.age && <span className="text-xs text-gray-400">{signingItem.age} yrs</span>}
                   </div>
                 </div>
               </div>
 
-              {/* OVR & Position Badge */}
+              {/* OVR & Position / Role Badge */}
               <div className="flex flex-col items-center gap-1 shrink-0">
-                <OvrBadge value={signingPlayer.ovr} size="md" />
-                <PositionBadge position={signingPlayer.position} />
+                <OvrBadge value={signingItem.ovr} size="md" />
+                {signingItem.position === 'COACH' ? (
+                  <span className="text-[10px] font-semibold tracking-wider uppercase text-[#FD5461]">HC</span>
+                ) : (
+                  <PositionBadge position={signingItem.position} />
+                )}
               </div>
             </div>
 
@@ -416,19 +423,30 @@ export default function DraftTransfersTab() {
               value={selectedClubId}
               onChange={setSelectedClubId}
               clubs={[
-                ...(signingPlayer.club_id || signingPlayer.club?.id ? [{
+                ...(signingItem.club_id || signingItem.club?.id ? [{
                   id: 'free_agent',
                   club_id: 'free_agent',
                   name: 'Free Agent',
                   short_name: 'FA',
                 }] : []),
-                ...saveData.teams.filter(team => team.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(team => ({
-                  ...team,
-                  id: team.club_id,
-                  name: `${team.club_name}  ·  $${formatCurrency(team.budget)}  ·  ${team.roster?.length || 0} players`,
-                  short_name: team.short_name || team.club_name.slice(0, 3).toUpperCase(),
-                  disabled: team.budget < 0,
-                }))
+                ...saveData.teams.filter(team => team.club_id !== (signingItem.club_id || signingItem.club?.id)).map(team => {
+                  const isCoach = signingItem.position === 'COACH'
+                  const coachCount = (team.coaches || []).length
+                  const playerCount = (team.roster || []).length
+                  const isDisabled = isCoach
+                    ? coachCount >= 2 || (team.budget || 0) < agreedFee
+                    : team.budget < 0
+                  
+                  return {
+                    ...team,
+                    id: team.club_id,
+                    name: isCoach
+                      ? `${team.club_name}  ·  $${formatCurrency(team.budget)}  ·  ${coachCount}/2 coaches`
+                      : `${team.club_name}  ·  $${formatCurrency(team.budget)}  ·  ${playerCount} players`,
+                    short_name: team.short_name || team.club_name.slice(0, 3).toUpperCase(),
+                    disabled: isDisabled,
+                  }
+                })
               ]}
             />
 
@@ -453,148 +471,18 @@ export default function DraftTransfersTab() {
             })()}
 
             <Button
-              className="w-full justify-center py-4 text-base"
+              size="lg"
+              className="w-full justify-center"
               onClick={handleSign}
-              disabled={!selectedClubId || processing}
+              loading={processing}
+              disabled={!selectedClubId || (saveData.teams.find(t => t.club_id === selectedClubId)?.budget || 0) < agreedFee}
             >
-              {processing ? 'Processing...' : `Confirm Signing`}
+              Confirm Signing
             </Button>
           </div>
         )}
       </Modal>
 
-      <Modal open={!!editPlayer} onClose={() => setEditPlayer(null)} title="Edit Player" width="max-w-xl">
-        {editPlayer && (
-          <PlayerForm
-            key={editPlayer.id}
-            initialValues={editPlayerInitial}
-            onSubmit={handlePlayerUpdate}
-            loading={processing}
-            clubs={editPlayer.club ? [{
-              id: editPlayer.club.id,
-              name: editPlayer.club.name,
-              short_name: editPlayer.club.short_name,
-              badge_url: editPlayer.club.badge_url,
-              badge_color: editPlayer.club.badge_color,
-            }] : []}
-          />
-        )}
-      </Modal>
-
-      {/* Manage Players Modal */}
-      <Modal open={playerManagerOpen} onClose={() => !processing && setPlayerManagerOpen(false)} title="Manage Players">
-        <div className="flex h-[min(65dvh,560px)] min-h-0 flex-col space-y-3">
-          {/* Filters: Search + Status Dropdown + Position Dropdown */}
-          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-            <div className="flex-1 flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-gray-900/20 transition-all">
-              <Search size={16} className="text-gray-400 shrink-0" />
-              <input
-                type="search"
-                placeholder="Search master players..."
-                value={playerManagerSearch}
-                onChange={(e) => setPlayerManagerSearch(e.target.value)}
-                className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
-              />
-            </div>
-            <div className="w-36 shrink-0">
-              <Select
-                value={playerManagerStatusFilter}
-                onChange={(e) => setPlayerManagerStatusFilter(e.target.value)}
-                reserveErrorSpace={false}
-                className="min-h-9 rounded-xl py-1 text-xs"
-              >
-                <option value="all">All Players</option>
-                <option value="added">Added (In Save)</option>
-                <option value="not_added">Not Added</option>
-              </Select>
-            </div>
-            <div className="w-36 shrink-0">
-              <Select
-                value={playerManagerPosFilter}
-                onChange={(e) => setPlayerManagerPosFilter(e.target.value)}
-                reserveErrorSpace={false}
-                className="min-h-9 rounded-xl py-1 text-xs"
-              >
-                <option value="ALL">All Positions</option>
-                <option value="GK">GK</option>
-                <option value="DEF">DEF</option>
-                <option value="MF">MF</option>
-                <option value="FWD">FWD</option>
-              </Select>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 hide-scrollbar">
-            {loadingPlayers ? (
-              <div className="py-12 text-center text-sm text-gray-400">Loading players...</div>
-            ) : masterPlayers.filter(p => {
-              const selected = managedPlayerIds.includes(String(p.id))
-              const matchSearch = p.name.toLowerCase().includes(playerManagerSearch.toLowerCase()) || p.nationality.toLowerCase().includes(playerManagerSearch.toLowerCase())
-              const matchPos = playerManagerPosFilter === 'ALL' || p.position === playerManagerPosFilter
-              const matchStatus = playerManagerStatusFilter === 'all' || (playerManagerStatusFilter === 'added' && selected) || (playerManagerStatusFilter === 'not_added' && !selected)
-              return matchSearch && matchPos && matchStatus
-            }).map(player => {
-              const selected = managedPlayerIds.includes(String(player.id))
-              const inSavePlayer = allPlayers.find(p => String(p.id) === String(player.id))
-              return (
-                <button
-                  type="button"
-                  key={player.id}
-                  onClick={() => toggleManagedPlayer(player.id)}
-                  className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition-[background-color,border-color,transform] duration-200 active:scale-[0.99] ${selected ? 'border-[#FD5461] bg-[#FD5461]/5' : 'border-gray-200 hover:bg-slate-50'}`}
-                >
-                  <div className="shrink-0">
-                    <OvrBadge value={player.ovr} size="sm" />
-                  </div>
-
-                  <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
-                    {player.photo_url ? (
-                      <img src={player.photo_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center font-bold text-gray-400 text-sm">
-                        {player.name?.charAt(0)}
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-[#0A1318]">{player.name}</span>
-                    <span className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
-                      <PositionBadge position={player.position} />
-                      {(() => {
-                        const code = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
-                        return code ? <img src={`https://flagcdn.com/${code}.svg`} alt={player.nationality} className="h-3.5 w-5 shrink-0 rounded-[2px] object-cover ring-1 ring-black/10" title={player.nationality} /> : null
-                      })()}
-                      {player.age && <span className="text-xs text-gray-400">{player.age} yrs</span>}
-                    </span>
-                  </span>
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${selected ? 'bg-[#FD5461] text-white' : 'bg-gray-100 text-gray-400'}`}>
-                    {selected ? <Check size={17} strokeWidth={2.5} /> : <Plus size={17} />}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-          <div className="shrink-0 border-t border-gray-100 bg-white pt-4">
-            <Button className="w-full" onClick={saveManagedPlayers} disabled={processing || loadingPlayers}>
-              {processing ? 'Saving...' : `Save ${managedPlayerIds.length} players`}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <SeasonalGrowthModal
-        open={growthModalOpen}
-        onClose={() => {
-          setGrowthModalOpen(false)
-          setPreviewGrowthData(null)
-        }}
-        adjustments={previewGrowthData ? previewGrowthData.seasonAdjustments : seasonAdjustments}
-        seasonName={`Season ${activeSeason?.id || 1}`}
-        isLocked={isGrowthLocked}
-        onReshufflePreview={handleReshufflePreview}
-        onConfirmSave={handleConfirmSaveRatings}
-      />
       <ScrollToTop />
     </div>
   )

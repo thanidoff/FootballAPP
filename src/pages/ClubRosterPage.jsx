@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChartNoAxesColumn, Users } from 'lucide-react'
+import { ChartNoAxesColumn, Users, Briefcase } from 'lucide-react'
 import { fetchClub, fetchClubs } from '../services/clubs'
 import { fetchPlayers, updatePlayer, saveRosterOrder, saveNationalRosterOrder } from '../services/players'
+import { fetchCoaches, releaseCoach } from '../services/coaches'
+import CoachCard from '../components/ui/CoachCard'
 import { releasePlayer } from '../services/transfers'
 import { formatCurrency } from '../utils/currency'
 import { getOVRTier, STATS_BY_POSITION } from '../utils/stats'
@@ -220,7 +222,8 @@ export default function ClubRosterPage() {
   const [viewMode, setViewMode] = useState('list')
   const [saveStatus, setSaveStatus] = useState(null) // null | 'saving' | 'saved'
   const [profilePlayer, setProfilePlayer] = useState(null)
-  const [activeTab, setActiveTab] = useState('squad') // 'squad' | 'records'
+  const [clubCoaches, setClubCoaches] = useState([])
+  const [activeTab, setActiveTab] = useState('squad') // 'squad' | 'coaches' | 'records'
   const saveTimerRef = useRef(null)
   const toast = useToast()
 
@@ -234,9 +237,15 @@ export default function ClubRosterPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [clubData, allClubs] = await Promise.all([fetchClub(id), fetchClubs()])
+      const [clubData, allClubs, coachesData] = await Promise.all([
+        fetchClub(id),
+        fetchClubs(),
+        fetchCoaches({ clubId: id })
+      ])
       setClub(clubData)
       setClubs(allClubs)
+      setClubCoaches(coachesData)
+
       const playersData = clubData.is_national
         ? await fetchPlayers({ nationality: clubData.name })
         : await fetchPlayers({ clubId: id })
@@ -562,65 +571,109 @@ export default function ClubRosterPage() {
       </div>
 
       {/* Tab Switcher */}
-      <SegmentedControl className="mb-8 w-full sm:w-fit" ariaLabel="Club details" value={activeTab} onChange={setActiveTab} items={[{ id: 'squad', label: 'Squad', icon: Users }, { id: 'records', label: 'Records', icon: ChartNoAxesColumn }]} />
+      <SegmentedControl
+        className="mb-8 w-full sm:w-fit"
+        ariaLabel="Club details"
+        value={activeTab}
+        onChange={setActiveTab}
+        items={[
+          { id: 'squad', label: 'Squad', icon: Users },
+          { id: 'coaches', label: `Coaches (${clubCoaches.length}/2)`, icon: Briefcase },
+          { id: 'records', label: 'Records', icon: ChartNoAxesColumn },
+        ]}
+      />
 
-      <div className="relative overflow-hidden">
-        <div 
-          className="flex transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
-          style={{ transform: `translateX(${activeTab === 'squad' ? '0%' : '-100%'})` }}
-        >
-          {/* Squad View */}
-          <div className="w-full flex-shrink-0">
-            {/* Starting 5 */}
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-500">Starting 5</span>
-              <span className="text-xs text-gray-400">{starters.filter(Boolean).length} / 5</span>
-            </div>
-            <div className={isList
-              ? 'space-y-1.5 mb-6'
-              : 'player-card-grid mb-6'}>
-              {starters.map((player, i) => renderSlot(player, i))}
-            </div>
+      {activeTab === 'squad' && (
+        <div className="w-full">
+          {/* Starting 5 */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-500">Starting 5</span>
+            <span className="text-xs text-gray-400">{starters.filter(Boolean).length} / 5</span>
+          </div>
+          <div className={isList ? 'space-y-1.5 mb-6' : 'player-card-grid mb-6'}>
+            {starters.map((player, i) => renderSlot(player, i))}
+          </div>
 
-            {/* Substitutes */}
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
-                Substitutes · {subs.filter(Boolean).length}
-              </span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-            <div className={isList
-              ? 'space-y-1.5'
-              : 'player-card-grid'}>
-              {subs.map((player, i) => renderSlot(player, i + 5))}
-            </div>
+          {/* Substitutes */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
+              Substitutes · {subs.filter(Boolean).length}
+            </span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+          <div className={isList ? 'space-y-1.5' : 'player-card-grid'}>
+            {subs.map((player, i) => renderSlot(player, i + 5))}
+          </div>
 
-            {/* Extra squad — national teams only */}
-            {extra.length > 0 && (
-              <>
-                <div className="flex items-center gap-3 mt-6 mb-3">
-                  <div className="flex-1 h-px bg-gray-200" />
-                  <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
-                    Squad · {extra.filter(Boolean).length}
-                  </span>
-                  <div className="flex-1 h-px bg-gray-200" />
-                </div>
-                <div className={isList
-                  ? 'space-y-1.5'
-                  : 'player-card-grid'}>
-                  {extra.map((player, i) => renderSlot(player, i + 12))}
-                </div>
-              </>
+          {/* Extra squad — national teams only */}
+          {extra.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 mt-6 mb-3">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs font-heading font-black uppercase tracking-widest text-gray-400">
+                  Squad · {extra.filter(Boolean).length}
+                </span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+              <div className={isList ? 'space-y-1.5' : 'player-card-grid'}>
+                {extra.map((player, i) => renderSlot(player, i + 12))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'coaches' && (
+        <div className="w-full space-y-4">
+          <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <div>
+              <h3 className="font-bold text-gray-900 text-sm">Coaches ({clubCoaches.length}/2)</h3>
+              <p className="text-xs text-gray-500">Each club can hire up to 2 coaches maximum.</p>
+            </div>
+            {clubCoaches.length < 2 && (
+              <Button variant="primary" size="sm" onClick={() => navigate('/coaches')}>
+                + Hire Coach
+              </Button>
             )}
           </div>
 
-          {/* Records View */}
-          <div className="w-full flex-shrink-0 px-1">
-            <ClubRecordsContent club={club} />
-          </div>
+          {clubCoaches.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center">
+              <Briefcase className="mx-auto h-8 w-8 text-gray-300" />
+              <p className="mt-2 text-xs text-gray-500">This club currently has no coach.</p>
+              <Button variant="ghost" size="xs" className="mt-3 text-indigo-600" onClick={() => navigate('/coaches')}>
+                Go to Coaches Market &rarr;
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {clubCoaches.map((coach) => (
+                <CoachCard
+                  key={coach.id}
+                  coach={coach}
+                  onRelease={async (c) => {
+                    if (!window.confirm(`ยกเลิกสัญญากับ ${c.name} หรือไม่?`)) return
+                    try {
+                      await releaseCoach(c.id)
+                      toast.success(`ยกเลิกสัญญา ${c.name} เรียบร้อยแล้ว`)
+                      load()
+                    } catch (err) {
+                      toast.error(err.message)
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {activeTab === 'records' && (
+        <div className="w-full px-1">
+          <ClubRecordsContent club={club} />
+        </div>
+      )}
 
       {/* Ghost card — follows pointer during drag */}
       {ghostPlayer && (

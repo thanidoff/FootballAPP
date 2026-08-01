@@ -282,7 +282,12 @@ export default function DraftCupTab() {
   }
 
   function playMatch(match, index, round = cup.round) {
-    const home = allClubs.find(club => club.id === match.home), away = allClubs.find(club => club.id === match.away)
+    const homeTeam = (saveData.teams || []).find(t => t.club_id === match.home)
+    const awayTeam = (saveData.teams || []).find(t => t.club_id === match.away)
+    const homeBase = allClubs.find(club => club.id === match.home)
+    const awayBase = allClubs.find(club => club.id === match.away)
+    const home = homeTeam ? { ...homeBase, id: homeTeam.club_id, name: homeTeam.club_name, roster: homeTeam.roster, coaches: homeTeam.coaches || [] } : homeBase
+    const away = awayTeam ? { ...awayBase, id: awayTeam.club_id, name: awayTeam.club_name, roster: awayTeam.roster, coaches: awayTeam.coaches || [] } : awayBase
     navigate('/matches/draft/prematch', { state: { homeClub: home, awayClub: away, duration: 5, returnPath: `/draft/${saveId}/cup`, saveId, cupRound: round, matchIndex: index } })
   }
 

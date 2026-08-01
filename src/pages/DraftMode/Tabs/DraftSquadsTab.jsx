@@ -6,19 +6,30 @@ import PlayerCard from '../../../components/ui/PlayerCard'
 import Modal from '../../../components/ui/Modal'
 import ClubForm from '../../../components/clubs/ClubForm'
 import PlayerForm from '../../../components/players/PlayerForm'
+import CoachForm from '../../../components/coaches/CoachForm'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
 import Button from '../../../components/ui/Button'
 import SegmentedControl from '../../../components/ui/SegmentedControl'
 import PositionBadge from '../../../components/ui/PositionBadge'
 import OvrBadge from '../../../components/ui/OvrBadge'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
-import { ArrowDown, ArrowUp, Banknote, Check, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, GripVertical, History, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, Banknote, Check, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, History, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
 
 import ClubSelect from '../../../components/ui/ClubSelect'
 import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
 import { formatCurrency } from '../../../utils/currency'
-import { transferDraftPlayer } from '../../../services/draftSave'
+import { transferDraftPlayer, transferDraftCoach } from '../../../services/draftSave'
+import CoachCard from '../../../components/ui/CoachCard'
 import { useToast } from '../../../components/ui/Toast'
+
+import { getOVRTier } from '../../../utils/stats'
+
+const TIER_STYLES = {
+  special: 'bg-[#FD5461] text-white',
+  gold:    'bg-[#0A1318] text-white',
+  silver:  'bg-gray-600 text-white',
+  bronze:  'bg-gray-400 text-white',
+}
 
 function MatchRecordClub({ club, align = 'left' }) {
   return <span className={`flex min-w-0 flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>{club?.badge_url ? <img src={club.badge_url} alt="" className="h-8 w-8 shrink-0 object-contain" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[8px] font-semibold text-white" style={{ backgroundColor: club?.badge_color || '#34414A' }}>{(club?.short_name || club?.club_name || 'CLB').slice(0, 3).toUpperCase()}</span>}<span className="truncate text-xs font-medium">{club?.club_name || 'Unknown club'}</span></span>
@@ -37,6 +48,7 @@ export default function DraftSquadsTab() {
   const [processing, setProcessing] = useState(false)
   const [editTeam, setEditTeam] = useState(null)
   const [editPlayer, setEditPlayer] = useState(null)
+  const [editCoach, setEditCoach] = useState(null)
   const [profilePlayer, setProfilePlayer] = useState(null)
   const [activeSection, setActiveSection] = useState('roster')
   const [financePage, setFinancePage] = useState(1)
@@ -50,8 +62,20 @@ export default function DraftSquadsTab() {
   const [discardAction, setDiscardAction] = useState(null)
   const [draggedPlayerIndex, setDraggedPlayerIndex] = useState(null)
   const [dragTargetIndex, setDragTargetIndex] = useState(null)
+  const [draggedTeamId, setDraggedTeamId] = useState(null)
+  const [dragTargetTeamId, setDragTargetTeamId] = useState(null)
+  const [suppressTransition, setSuppressTransition] = useState(false)
   const [localDraftRoster, setLocalDraftRoster] = useState(null)
   const [savingLineup, setSavingLineup] = useState(false)
+
+  // Re-enable transition after drop snap
+  useEffect(() => {
+    if (suppressTransition) {
+      requestAnimationFrame(() => {
+        setSuppressTransition(false)
+      })
+    }
+  }, [suppressTransition])
 
   const [signingPlayer, setSigningPlayer] = useState(null)
   const [signingClubId, setSigningClubId] = useState('')
@@ -82,6 +106,110 @@ export default function DraftSquadsTab() {
     }
   }
 
+  async function handleReleaseCoach(coach) {
+    if (!window.confirm(`คุณต้องการยกเลิกสัญญากับ ${coach.name} หรือไม่?`)) return
+    try {
+      setProcessing(true)
+      const nextSaveData = await transferDraftCoach(saveId, coach.id, 'free_agent', 0)
+      setSaveData(nextSaveData)
+      toast.success(`ยกเลิกสัญญา ${coach.name} เรียบร้อยแล้ว`)
+    } catch (err) {
+      toast.error(err.message || 'Failed to release coach')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  async function handleCoachUpdate(form) {
+    if (!editCoach) return
+    setProcessing(true)
+    try {
+      const name = `${form.first_name || ''} ${form.last_name || ''}`.trim() || editCoach.name
+      const statVals = Object.values(form.stats || {})
+      const ovr = statVals.length > 0 ? Math.round(statVals.reduce((a, b) => a + b, 0) / statVals.length) : editCoach.ovr
+
+      const updatedCoach = {
+        ...editCoach,
+        name,
+        nationality: form.nationality,
+        age: form.age,
+        market_value: form.market_value,
+        stats: form.stats,
+        ovr,
+        photo_url: form.photo?.preview || editCoach.photo_url || null,
+        club_id: form.club_id || editCoach.club_id || null,
+      }
+
+      let newTeams = saveData.teams || []
+      let newFreeCoaches = saveData.freeAgentsCoaches || saveData.coaches || []
+
+      const targetClubId = updatedCoach.club_id
+      if (targetClubId) {
+        newTeams = newTeams.map(item => item.club_id === targetClubId
+          ? { ...item, coaches: (item.coaches || []).map(c => String(c.id) === String(editCoach.id) ? updatedCoach : c) }
+          : item)
+      } else {
+        newFreeCoaches = newFreeCoaches.map(c => String(c.id) === String(editCoach.id) ? updatedCoach : c)
+      }
+
+      const nextState = {
+        ...saveData,
+        teams: newTeams,
+        freeAgentsCoaches: newFreeCoaches
+      }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      setEditCoach(null)
+      toast.success('Coach updated in this save')
+    } catch (err) {
+      console.error('Failed to update coach in save', err)
+      toast.error(err.message || 'Failed to update coach')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  function moveCoach(fromIndex, toIndex) {
+    const coaches = team?.coaches || []
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= coaches.length || toIndex >= coaches.length) return
+    const newCoaches = [...coaches]
+    const temp = newCoaches[fromIndex]
+    newCoaches[fromIndex] = newCoaches[toIndex]
+    newCoaches[toIndex] = temp
+
+    const updatedTeams = saveData.teams.map(t => t.club_id === selectedClubId ? { ...t, coaches: newCoaches } : t)
+    const nextSaveData = { ...saveData, teams: updatedTeams }
+
+    // Instant local state update (0ms lag!)
+    setSaveData(nextSaveData)
+
+    // Silent background persistence
+    updateDraftState(saveId, nextSaveData).catch(err => {
+      console.error('Failed to save coach order', err)
+    })
+  }
+
+  function reorderTeams(draggedClubId, targetClubId) {
+    if (!draggedClubId || !targetClubId || draggedClubId === targetClubId) return
+    const fromIndex = saveData.teams.findIndex(t => t.club_id === draggedClubId)
+    const toIndex = saveData.teams.findIndex(t => t.club_id === targetClubId)
+    if (fromIndex === -1 || toIndex === -1) return
+
+    const newTeams = [...saveData.teams]
+    const [movedTeam] = newTeams.splice(fromIndex, 1)
+    newTeams.splice(toIndex, 0, movedTeam)
+
+    const nextSaveData = { ...saveData, teams: newTeams }
+
+    // Instant local state update (0ms lag!)
+    setSaveData(nextSaveData)
+
+    // Silent background persistence
+    updateDraftState(saveId, nextSaveData).catch(err => {
+      console.error('Failed to save team order', err)
+    })
+  }
+
   // Default to first team if none selected
   const selectedClubId = searchParams.get('team') || saveData.teams[0]?.club_id
 
@@ -93,6 +221,8 @@ export default function DraftSquadsTab() {
 
   const teamIndex = saveData.teams.findIndex(t => t.club_id === selectedClubId)
   const team = saveData.teams[teamIndex]
+  const draggedTeamIdx = saveData.teams.findIndex(t => t.club_id === draggedTeamId)
+  const dragTargetTeamIdx = saveData.teams.findIndex(t => t.club_id === dragTargetTeamId)
 
   // Keep local draft roster in sync with selected team roster
   useEffect(() => {
@@ -941,44 +1071,101 @@ export default function DraftSquadsTab() {
           </button>
         </div>
         <div className="relative flex gap-2 overflow-x-auto pb-2 hide-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:flex-col md:overflow-visible md:pb-0">
-          <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 hidden h-14 w-full rounded-xl border-2 border-[#FD5461] bg-[#FD5461]/5 shadow-sm shadow-[#FD5461]/10 transition-transform duration-300 ease-out md:block" style={{ transform: `translateY(${Math.max(0, teamIndex) * 64}px)` }} />
-          {saveData.teams.map(t => (
-            <div key={t.club_id} ref={node => node ? teamItemRefs.current.set(t.club_id, node) : teamItemRefs.current.delete(t.club_id)} className={`group relative z-10 flex h-14 flex-shrink-0 items-center rounded-xl border-2 transition-[background-color,border-color,color] duration-200 hover:z-50 md:w-full md:flex-shrink ${
-                selectedClubId === t.club_id 
-                  ? 'border-[#FD5461] bg-[#FD5461]/5 md:border-transparent md:bg-transparent'
-                  : 'border-transparent hover:bg-slate-100/80'
-              }`}>
-            <button
-              onClick={(e) => {
-                if (selectedClubId === t.club_id) {
-                  setEditTeam(t)
-                } else {
-                  setSearchParams({ team: t.club_id })
-                }
-                const btn = e.currentTarget
-                const container = btn.closest('.overflow-x-auto')
-                if (container && window.innerWidth < 768) {
-                  const targetScrollLeft = btn.offsetLeft - (container.clientWidth - btn.offsetWidth) / 2
-                  container.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
-                }
-              }}
-              title={teamSelectorCollapsed ? t.club_name : undefined}
-              className={`flex h-full min-w-0 flex-1 cursor-pointer items-center text-left transition-[padding,gap] duration-300 ${teamSelectorCollapsed ? 'justify-center gap-0 px-2' : 'gap-3 px-3'}`}
-            >
-              {t.badge_url ? (
-                <img src={t.badge_url} alt={t.club_name} className="h-8 w-8 shrink-0 object-contain" />
-              ) : (
-                <div className={`h-8 w-8 shrink-0 rounded-full transition-colors ${selectedClubId === t.club_id ? 'bg-[#FD5461]/20 ring-2 ring-[#FD5461]/20' : 'bg-slate-200 group-hover:bg-slate-300'}`} />
-              )}
-              <div className={`hidden min-w-0 overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200 md:block ${teamSelectorCollapsed ? 'w-0 flex-none opacity-0' : 'w-auto flex-1 opacity-100'}`}>
-                <div className="font-bold text-sm text-[#0A1318] truncate">{t.club_name}</div>
-                <div className="text-xs font-normal text-gray-500">{t.roster.length} players</div>
+          {saveData.teams.map((t, idx) => {
+            let translateY = 0
+            if (draggedTeamIdx !== -1 && dragTargetTeamIdx !== -1 && draggedTeamIdx !== dragTargetTeamIdx) {
+              if (draggedTeamIdx < dragTargetTeamIdx && idx > draggedTeamIdx && idx <= dragTargetTeamIdx) {
+                translateY = -64
+              } else if (draggedTeamIdx > dragTargetTeamIdx && idx < draggedTeamIdx && idx >= dragTargetTeamIdx) {
+                translateY = 64
+              }
+            }
+
+            const isBeingDragged = draggedTeamId === t.club_id
+
+            return (
+              <div
+                key={t.club_id}
+                ref={node => node ? teamItemRefs.current.set(t.club_id, node) : teamItemRefs.current.delete(t.club_id)}
+                draggable
+                onDragStart={(e) => {
+                  setDraggedTeamId(t.club_id)
+                  setDragTargetTeamId(t.club_id)
+                  e.dataTransfer.setData('text/plain', t.club_id)
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault()
+                  if (draggedTeamId) {
+                    setDragTargetTeamId(t.club_id)
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  if (draggedTeamId && dragTargetTeamId !== t.club_id) {
+                    setDragTargetTeamId(t.club_id)
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (draggedTeamId && dragTargetTeamId && draggedTeamId !== dragTargetTeamId) {
+                    reorderTeams(draggedTeamId, dragTargetTeamId)
+                  }
+                  setDraggedTeamId(null)
+                  setDragTargetTeamId(null)
+                }}
+                onDragEnd={() => {
+                  if (draggedTeamId && dragTargetTeamId && draggedTeamId !== dragTargetTeamId) {
+                    reorderTeams(draggedTeamId, dragTargetTeamId)
+                  }
+                  setDraggedTeamId(null)
+                  setDragTargetTeamId(null)
+                }}
+                style={{
+                  transform: !isBeingDragged && translateY ? `translateY(${translateY}px)` : undefined,
+                }}
+                className={`group relative z-10 flex h-14 flex-shrink-0 items-center rounded-xl border-2 transition-transform duration-200 ease-out md:w-full md:flex-shrink cursor-grab active:cursor-grabbing ${
+                  isBeingDragged
+                    ? 'opacity-0 border-transparent'
+                    : selectedClubId === t.club_id 
+                    ? 'border-[#FD5461] bg-[#FD5461]/10'
+                    : 'border-transparent hover:bg-slate-100/80'
+                }`}
+              >
+                {/* Team Click & View Area */}
+                <div
+                  onClick={(e) => {
+                    if (selectedClubId === t.club_id) {
+                      setEditTeam(t)
+                    } else {
+                      setSearchParams({ team: t.club_id })
+                    }
+                    const container = e.currentTarget.closest('.overflow-x-auto')
+                    if (container && window.innerWidth < 768) {
+                      const targetScrollLeft = e.currentTarget.offsetLeft - (container.clientWidth - e.currentTarget.offsetWidth) / 2
+                      container.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
+                    }
+                  }}
+                  title={teamSelectorCollapsed ? t.club_name : undefined}
+                  className={`flex h-full min-w-0 flex-1 cursor-pointer items-center text-left transition-[padding,gap] duration-300 ${teamSelectorCollapsed ? 'justify-center gap-0 px-2' : 'gap-3 px-3'}`}
+                >
+                  {t.badge_url ? (
+                    <img src={t.badge_url} alt={t.club_name} className="h-8 w-8 shrink-0 object-contain pointer-events-none" />
+                  ) : (
+                    <div className={`h-8 w-8 shrink-0 rounded-full transition-colors ${selectedClubId === t.club_id ? 'bg-[#FD5461]/20 ring-2 ring-[#FD5461]/20' : 'bg-slate-200 group-hover:bg-slate-300'}`} />
+                  )}
+                  <div className={`hidden min-w-0 overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200 md:block ${teamSelectorCollapsed ? 'w-0 flex-none opacity-0' : 'w-auto flex-1 opacity-100'}`}>
+                    <div className="font-bold text-sm text-[#0A1318] truncate">{t.club_name}</div>
+                    <div className="text-xs font-normal text-gray-500">{t.roster.length} players</div>
+                  </div>
+                </div>
+
+                <button onClick={() => setEditTeam(t)} aria-label={`Edit ${t.club_name} career budget`} tabIndex={teamSelectorCollapsed ? -1 : 0} className={`hidden md:flex h-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg text-gray-400 transition-[width,opacity,background-color,color,margin] duration-200 hover:bg-slate-100 hover:text-slate-800 ${teamSelectorCollapsed ? 'pointer-events-none m-0 w-0 opacity-0' : 'mr-2 w-9 opacity-100'}`}><Pencil size={16} strokeWidth={2.25} /></button>
+                {teamSelectorCollapsed && <span role="tooltip" className="pointer-events-none absolute left-[calc(100%+0.5rem)] top-1/2 z-50 hidden w-max -translate-x-2 -translate-y-1/2 overflow-hidden whitespace-nowrap rounded-xl bg-[#34414A] px-3 py-1.5 text-xs font-semibold text-white opacity-0 shadow-xl ring-1 ring-white/10 transition-[opacity,transform] duration-200 ease-out group-hover:translate-x-0 group-hover:opacity-100 md:block">{t.club_name}</span>}
               </div>
-            </button>
-            <button onClick={() => setEditTeam(t)} aria-label={`Edit ${t.club_name} career budget`} tabIndex={teamSelectorCollapsed ? -1 : 0} className={`hidden md:flex h-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg text-gray-400 transition-[width,opacity,background-color,color,margin] duration-200 hover:bg-slate-100 hover:text-slate-800 ${teamSelectorCollapsed ? 'pointer-events-none m-0 w-0 opacity-0' : 'mr-2 w-9 opacity-100'}`}><Pencil size={16} strokeWidth={2.25} /></button>
-            {teamSelectorCollapsed && <span role="tooltip" className="pointer-events-none absolute left-[calc(100%+0.5rem)] top-1/2 z-50 hidden w-max -translate-x-2 -translate-y-1/2 overflow-hidden whitespace-nowrap rounded-xl bg-[#34414A] px-3 py-1.5 text-xs font-semibold text-white opacity-0 shadow-xl ring-1 ring-white/10 transition-[opacity,transform] duration-200 ease-out group-hover:translate-x-0 group-hover:opacity-100 md:block">{t.club_name}</span>}
-            </div>
-          ))}
+            )
+          })}
           <button type="button" onClick={openClubManager} title="Manage clubs in this save" className={`relative z-10 flex h-12 cursor-pointer items-center rounded-xl border border-transparent text-sm font-medium text-gray-500 transition-[background-color,border-color,color,transform] duration-200 hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98] ${teamSelectorCollapsed ? 'justify-center px-0' : 'gap-3 px-3'}`}>
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100"><Plus size={17} /></span>
             <span className={`hidden md:block overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200 ${teamSelectorCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>Manage clubs</span>
@@ -1012,6 +1199,7 @@ export default function DraftSquadsTab() {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <SegmentedControl className="w-full sm:w-fit" ariaLabel="Team details" value={activeSection} onChange={setActiveSection} items={[
               { id: 'roster', label: 'Roster', icon: Users },
+              { id: 'coaches', label: `Coaches (${(team.coaches || []).length}/2)`, icon: Users },
               { id: 'lineup', label: 'Lineup', icon: ShieldCheck },
               { id: 'finance', label: 'Finance', icon: Banknote },
               { id: 'history', label: 'History', icon: History },
@@ -1028,6 +1216,35 @@ export default function DraftSquadsTab() {
             </Button>
           )}
         </div>
+
+        {activeSection === 'coaches' && (
+          <div className="space-y-4">
+            <div className={`player-card-grid transition-opacity ${processing ? 'opacity-50' : 'opacity-100'}`}>
+              {(team.coaches || []).map(coach => (
+                <CoachCard
+                  key={coach.id}
+                  coach={{
+                    ...coach,
+                    club: {
+                      id: team.club_id,
+                      name: team.club_name,
+                      short_name: team.club_name,
+                      badge_url: team.badge_url,
+                      badge_color: team.badge_color
+                    }
+                  }}
+                  onEdit={() => setEditCoach(coach)}
+                  onRelease={() => handleReleaseCoach(coach)}
+                />
+              ))}
+            </div>
+            {(team.coaches || []).length === 0 && (
+              <div className="text-center py-16 text-gray-400 font-heading font-bold uppercase tracking-wider text-sm">
+                No coaches in team.
+              </div>
+            )}
+          </div>
+        )}
 
         {activeSection === 'roster' && <div className={`player-card-grid transition-opacity ${processing ? 'opacity-50' : 'opacity-100'}`}>
           {[...team.roster].sort((a,b) => b.ovr - a.ovr).map(p => {
@@ -1063,6 +1280,93 @@ export default function DraftSquadsTab() {
 
         {activeSection === 'lineup' && (
           <div className={`transition-opacity ${processing ? 'pointer-events-none opacity-50' : ''}`}>
+            {/* Coaches Section */}
+            <div className="mb-6">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-500">Coaches</span>
+                <span className="text-sm text-gray-400">{(team.coaches || []).length} / 2</span>
+              </div>
+              {(team.coaches || []).length === 0 ? (
+                <div className="flex min-h-10 items-center justify-center rounded-xl border border-dashed border-gray-200 px-4 text-sm text-gray-300">
+                  No Coaches Assigned
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(team.coaches || []).map((coach, coachIndex) => {
+                    const roleLabel = coachIndex === 0 ? 'Head Coach' : 'Assistant Coach'
+                    const roleBadge = coachIndex === 0 ? 'HC' : 'AC'
+                    const flagCode = FIFA_NATIONS.find(n => n.name === coach.nationality)?.code
+                    const tier = getOVRTier(coach.ovr || 70)
+                    return (
+                      <div
+                        key={coach.id || coachIndex}
+                        className="flex items-center gap-3 px-3 py-1.5 rounded-xl border border-gray-100 bg-white shadow-xs hover:border-gray-200 transition-colors"
+                      >
+                        {/* Stacked Up/Down Reorder Control */}
+                        <div className="flex flex-col items-center justify-center gap-0.5 shrink-0 -ml-1 pr-0.5">
+                          <button
+                            type="button"
+                            disabled={coachIndex === 0}
+                            onClick={(e) => { e.stopPropagation(); moveCoach(coachIndex, coachIndex - 1) }}
+                            aria-label={`Move ${coach.name} up`}
+                            className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+                          >
+                            <ChevronUp size={15} strokeWidth={2.5} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={coachIndex === (team.coaches || []).length - 1}
+                            onClick={(e) => { e.stopPropagation(); moveCoach(coachIndex, coachIndex + 1) }}
+                            aria-label={`Move ${coach.name} down`}
+                            className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+                          >
+                            <ChevronDown size={15} strokeWidth={2.5} />
+                          </button>
+                        </div>
+
+                        {/* OVR Badge */}
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base flex-shrink-0 ${TIER_STYLES[tier]}`}>
+                          {coach.ovr}
+                        </div>
+
+                        {/* Photo Avatar */}
+                        <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-gray-200">
+                          {coach.photo_url ? (
+                            <img src={coach.photo_url} alt={coach.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center font-semibold text-gray-500 text-sm">
+                              {coach.name?.charAt(0) ?? 'C'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Coach Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-base font-semibold text-[#0A1318] truncate">{coach.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {team.badge_url ? (
+                              <img src={team.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+                            ) : (
+                              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: team.badge_color || '#0A1318' }}>
+                                {(team.short_name || team.club_name || 'CLB').slice(0, 3)}
+                              </span>
+                            )}
+                            <span className="text-xs font-semibold uppercase tracking-wide text-[#FD5461]">
+                              {roleBadge}
+                            </span>
+                            {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10 ml-0.5" alt="" />}
+                            {coach.age && <span className="text-xs text-gray-400">{coach.age} yrs</span>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
             {[{ title: 'Starting 5', start: 0, count: 5 }, { title: `Substitutes · ${Math.max(0, displayRoster.length - 5)}`, start: 5, count: Math.max(7, displayRoster.length - 5) }].map((section, sectionIndex) => (
               <div key={section.title} className={sectionIndex ? 'mt-6' : ''}>
                 <div className="mb-3 flex items-center justify-between">
@@ -1604,6 +1908,22 @@ export default function DraftSquadsTab() {
               </Button>
             </div>
           </div>
+        )}
+      </Modal>
+      {/* Edit Coach Modal */}
+      <Modal
+        open={Boolean(editCoach)}
+        onClose={() => setEditCoach(null)}
+        title="Edit Coach"
+        width="max-w-xl"
+      >
+        {editCoach && (
+          <CoachForm
+            initialValues={editCoach}
+            onSubmit={handleCoachUpdate}
+            loading={processing}
+            clubs={saveData.teams.map(t => ({ id: t.club_id, name: t.club_name, badge_url: t.badge_url, badge_color: t.badge_color }))}
+          />
         )}
       </Modal>
     </div>

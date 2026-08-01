@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchPlayers } from '../services/players'
+import { fetchCoaches } from '../services/coaches'
+import OvrBadge from '../components/ui/OvrBadge'
 import { completeMatch as completeMatchFriendly } from '../services/friendlyMatches'
 import { completeMatch as completeMatchWC } from '../services/worldCup'
 import { completeLeagueMatch } from '../services/league'
@@ -534,10 +536,125 @@ function SlotCell({ player, club, idx, totalCount = 12, onMovePlayer, activeDrag
   )
 }
 
+function CoachRow({ coach, club, isFirst, isLast, onSwap, roleLabel, roleBadge }) {
+  const tier = getOVRTier(coach?.ovr || 70)
+  const flagCode = FIFA_NATIONS.find(n => n.name === coach?.nationality)?.code
+  const playerClub = coach?.club || (club?.id !== '__allstars__' ? club : null)
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl border border-gray-100 bg-white shadow-xs">
+      {/* Stacked Up/Down Reorder Control */}
+      <div className="flex flex-col items-center justify-center gap-0.5 shrink-0 -ml-1 pr-0.5">
+        <button
+          type="button"
+          disabled={isFirst}
+          onClick={(e) => { e.stopPropagation(); onSwap?.() }}
+          aria-label={`Move ${coach?.name} up`}
+          className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+        >
+          <ChevronUp size={15} strokeWidth={2.5} />
+        </button>
+        <button
+          type="button"
+          disabled={isLast}
+          onClick={(e) => { e.stopPropagation(); onSwap?.() }}
+          aria-label={`Move ${coach?.name} down`}
+          className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-[#FD5461] disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors cursor-pointer"
+        >
+          <ChevronDown size={15} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* OVR Badge — Leading */}
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base flex-shrink-0 ${TIER_STYLES[tier]}`}>
+        {coach.ovr}
+      </div>
+
+      {/* Photo */}
+      <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
+        {coach.photo_url ? (
+          <img src={coach.photo_url} alt={coach.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center font-semibold text-gray-500 text-sm">
+            {coach.name?.charAt(0) ?? 'C'}
+          </div>
+        )}
+      </div>
+
+      {/* Name + Subtitle (Club Badge -> Role -> Flag) */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-base font-semibold text-[#0A1318] truncate">{coach.name}</span>
+        </div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {(() => {
+            if (playerClub?.badge_url) {
+              return <img src={playerClub.badge_url} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />
+            }
+            if (playerClub) {
+              return (
+                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm text-[5px] font-bold uppercase text-white" style={{ backgroundColor: playerClub.badge_color || '#0A1318' }}>
+                  {(playerClub.short_name || playerClub.name || playerClub.club_name || 'CLB').slice(0, 3)}
+                </span>
+              )
+            }
+            return null
+          })()}
+          <span className="text-xs font-semibold uppercase tracking-wide text-[#FD5461]">
+            {roleBadge}
+          </span>
+          {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-2.5 w-4 object-cover rounded-[2px] ring-1 ring-black/10 ml-0.5" alt="" />}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CoachSlotCell({ coaches = [], club, onSwapCoaches }) {
+  const coachList = Array.isArray(coaches) ? coaches : (coaches ? [coaches] : [])
+  if (coachList.length === 0) {
+    return (
+      <div className="flex items-center justify-center px-3 py-2.5 rounded-xl border-2 border-dashed border-gray-200 min-h-[52px]">
+        <span className="text-sm font-medium text-gray-400">No Head Coach</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {coachList.map((coach, idx) => {
+        const roleLabel = idx === 0 ? 'Head Coach' : 'Assistant Coach'
+        const roleBadge = idx === 0 ? 'HC' : 'AC'
+        return (
+          <CoachRow
+            key={coach.id || idx}
+            coach={coach}
+            club={club}
+            isFirst={idx === 0}
+            isLast={idx === coachList.length - 1}
+            onSwap={onSwapCoaches}
+            roleLabel={roleLabel}
+            roleBadge={roleBadge}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 // Desktop: shared rows so both columns align perfectly
-function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, awaySlots, setAwaySlots, goals, fouls, suspendedIds, onPlayerClick }) {
+function SharedLineupDesktop({ homeClub, awayClub, homeCoaches, awayCoaches, homeSlots, setHomeSlots, awaySlots, setAwaySlots, goals, fouls, suspendedIds, onPlayerClick }) {
   const home = useDrag(setHomeSlots, suspendedIds, (idx) => { const p = homeSlots[idx]; if (p) onPlayerClick(p) })
   const away = useDrag(setAwaySlots, suspendedIds, (idx) => { const p = awaySlots[idx]; if (p) onPlayerClick(p) })
+
+  const [homeCoachesList, setHomeCoachesList] = useState(homeCoaches)
+  const [awayCoachesList, setAwayCoachesList] = useState(awayCoaches)
+
+  useEffect(() => { setHomeCoachesList(homeCoaches) }, [homeCoaches])
+  useEffect(() => { setAwayCoachesList(awayCoaches) }, [awayCoaches])
+
+  const swapHomeCoaches = () => setHomeCoachesList(prev => prev.length >= 2 ? [prev[1], prev[0]] : prev)
+  const swapAwayCoaches = () => setAwayCoachesList(prev => prev.length >= 2 ? [prev[1], prev[0]] : prev)
 
   const [homeAnimOffsets, setHomeAnimOffsets] = useState({})
   const [awayAnimOffsets, setAwayAnimOffsets] = useState({})
@@ -587,6 +704,12 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
 
   return (
     <div>
+      {/* Head Coach Row */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <CoachSlotCell coaches={homeCoaches} club={homeClub} />
+        <CoachSlotCell coaches={awayCoaches} club={awayClub} />
+      </div>
+
       {/* Column headers */}
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div className="flex items-center justify-between">
@@ -640,7 +763,7 @@ function SharedLineupDesktop({ homeClub, awayClub, homeSlots, setHomeSlots, away
 }
 
 // Mobile: tab + slide
-function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlayerClick }) {
+function LineupPanel({ club, coaches, slots, setSlots, goals, fouls, suspendedIds, onPlayerClick }) {
   const { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate } = useDrag(setSlots, suspendedIds, (idx) => { const p = slots[idx]; if (p) onPlayerClick(p) })
   const starters = slots.slice(0, 5)
   const subs = slots.slice(5)
@@ -668,6 +791,7 @@ function LineupPanel({ club, slots, setSlots, goals, fouls, suspendedIds, onPlay
 
   return (
     <div className="space-y-4">
+      <CoachSlotCell coaches={coaches} club={club} />
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold text-gray-600">Starting 5</span>
@@ -1303,6 +1427,20 @@ export default function PreMatchPage() {
 
   const displayMatchSeconds = Math.round((elapsed / totalSeconds) * 90 * 60)
 
+  const [allCoaches, setAllCoaches] = useState([])
+
+  useEffect(() => {
+    fetchCoaches().then(setAllCoaches).catch(() => {})
+  }, [])
+
+  const homeCoaches = (homeClub?.coaches && homeClub.coaches.length > 0)
+    ? homeClub.coaches
+    : allCoaches.filter(c => String(c.club_id) === String(homeClub?.id) || String(c.club_id) === String(homeClub?.club_id))
+
+  const awayCoaches = (awayClub?.coaches && awayClub.coaches.length > 0)
+    ? awayClub.coaches
+    : allCoaches.filter(c => String(c.club_id) === String(awayClub?.id) || String(c.club_id) === String(awayClub?.club_id))
+
   useEffect(() => {
     if (!homeClub || !awayClub) { navigate(matchesPath); return }
     const awayFetch = isDraft
@@ -1809,6 +1947,7 @@ export default function PreMatchPage() {
           <div className="hidden sm:block">
             <SharedLineupDesktop
               homeClub={homeClub} awayClub={awayClub}
+              homeCoaches={homeCoaches} awayCoaches={awayCoaches}
               homeSlots={homeSlots} setHomeSlots={setHomeSlots}
               awaySlots={awaySlots} setAwaySlots={setAwaySlots}
               goals={goals} fouls={fouls} suspendedIds={suspendedIds}
@@ -1833,10 +1972,10 @@ export default function PreMatchPage() {
                 style={{ transform: activeTab === 'home' ? 'translateX(0%)' : 'translateX(-50%)', width: '200%' }}
               >
                 <div className="w-1/2 pr-3">
-                  <LineupPanel club={homeClub} slots={homeSlots} setSlots={setHomeSlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
+                  <LineupPanel club={homeClub} coaches={homeCoaches} slots={homeSlots} setSlots={setHomeSlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
                 </div>
                 <div className="w-1/2 pl-3">
-                  <LineupPanel club={awayClub} slots={awaySlots} setSlots={setAwaySlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
+                  <LineupPanel club={awayClub} coaches={awayCoaches} slots={awaySlots} setSlots={setAwaySlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
                 </div>
               </div>
             </div>

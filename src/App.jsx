@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/ui/Layout'
 
 const PlayersPage = lazy(() => import('./pages/PlayersPage'))
+const CoachesPage = lazy(() => import('./pages/CoachesPage'))
 const ClubsPage = lazy(() => import('./pages/ClubsPage'))
 const ClubRosterPage = lazy(() => import('./pages/ClubRosterPage'))
 const MatchesPage = lazy(() => import('./pages/MatchesPage'))
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Navigate to="/players" replace />} />
             <Route path="players" element={<PlayersPage />} />
+            <Route path="coaches" element={<CoachesPage />} />
             <Route path="clubs" element={<ClubsPage />} />
             <Route path="clubs/:id" element={<ClubRosterPage />} />
             <Route path="matches" element={<MatchesPage />} />
@@ -52,6 +54,7 @@ export default function App() {
               <Route path="overview" element={<DraftOverviewTab />} />
               <Route path="squads" element={<DraftSquadsTab />} />
               <Route path="transfers" element={<DraftTransfersTab />} />
+              <Route path="coach-transfers" element={<DraftTransfersTab />} />
               <Route path="matches" element={<DraftMatchesTab />} />
               <Route path="cup" element={<DraftCupTab />} />
             </Route>

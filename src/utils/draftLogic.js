@@ -1,4 +1,4 @@
-import { MOCK_PLAYERS } from '../data/mockGameData'
+import { MOCK_PLAYERS, MOCK_COACHES } from '../data/mockGameData'
 import { simulateMatchSequences } from './matchEngine'
 
 // Shuffle array using Fisher-Yates
@@ -11,10 +11,11 @@ function shuffle(array) {
   return arr
 }
 
-export function generateInitialDraft(clubs, allPlayers, startingBudget) {
+export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoaches = MOCK_COACHES) {
   const lockedIds = new Set(clubs.flatMap(club => (club.startingRoster || []).map(player => player.id)))
   const availablePlayers = allPlayers.filter(player => !lockedIds.has(player.id))
-  
+  const availableCoaches = [...allCoaches]
+
   const draftedTeams = clubs.map(club => {
     // Generate an isolated team state
     const teamState = {
@@ -25,49 +26,63 @@ export function generateInitialDraft(clubs, allPlayers, startingBudget) {
       badge_color: club.badge_color,
       budget: club.startingBudget ?? startingBudget ?? 0,
       roster: [...(club.startingRoster || [])],
+      coaches: [],
       locked_player_ids: (club.startingRoster || []).map(player => player.id),
     }
     return teamState
   })
 
-  return rollDraft(draftedTeams, availablePlayers)
+  return rollDraft(draftedTeams, availablePlayers, null, availableCoaches)
 }
 
-export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex = null) {
+export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex = null, currentAvailableCoaches = MOCK_COACHES) {
   let newTeams = JSON.parse(JSON.stringify(currentTeams))
   let availablePlayers = [...currentAvailablePlayers]
+  let coachPool = shuffle(currentAvailableCoaches)
 
-  // If rolling specific team, return its current roster to the available pool
+  // If rolling specific team, return its current roster and coaches to available pool
   if (targetTeamIndex !== null) {
     const teamToReset = newTeams[targetTeamIndex]
     const lockedIds = new Set(teamToReset.locked_player_ids || [])
     availablePlayers.push(...teamToReset.roster.filter(player => !lockedIds.has(player.id)))
     teamToReset.roster = teamToReset.roster.filter(player => lockedIds.has(player.id))
+
+    if (teamToReset.coaches && teamToReset.coaches.length > 0) {
+      coachPool.push(...teamToReset.coaches)
+      teamToReset.coaches = []
+    }
   } else {
-    // Re-roll all: Return all rosters to pool
+    // Re-roll all: Return all rosters and coaches to pool
     for (let team of newTeams) {
       const lockedIds = new Set(team.locked_player_ids || [])
       availablePlayers.push(...team.roster.filter(player => !lockedIds.has(player.id)))
       team.roster = team.roster.filter(player => lockedIds.has(player.id))
+
+      if (team.coaches && team.coaches.length > 0) {
+        coachPool.push(...team.coaches)
+        team.coaches = []
+      }
     }
   }
 
-  // Shuffle available pool to ensure randomness
+  // Shuffle pools to ensure randomness
   availablePlayers = shuffle(availablePlayers)
+  coachPool = shuffle(coachPool)
 
   // Determine which teams need drafting
   const teamsToDraft = targetTeamIndex !== null ? [targetTeamIndex] : newTeams.map((_, i) => i)
 
   for (let tIndex of teamsToDraft) {
     const team = newTeams[tIndex]
-    
+
+    // Draft Players
     const positionsNeeded = ['GK', 'DEF', 'MF', 'FWD']
     for (const player of team.roster) {
       const coveredIndex = positionsNeeded.indexOf(player.position)
       if (coveredIndex !== -1) positionsNeeded.splice(coveredIndex, 1)
     }
     while (positionsNeeded.length < Math.max(0, 5 - team.roster.length)) positionsNeeded.push('ANY')
-    
+
     for (const posReq of positionsNeeded) {
       let foundIndex = -1
       
@@ -77,19 +92,28 @@ export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex
         foundIndex = availablePlayers.findIndex(p => p.position === posReq)
       }
 
-      // Fallback: If not enough players for that position (rare), just pick a random one
       if (foundIndex === -1 && availablePlayers.length > 0) {
-         foundIndex = Math.floor(Math.random() * availablePlayers.length)
+        foundIndex = Math.floor(Math.random() * availablePlayers.length)
       }
 
       if (foundIndex !== -1) {
         team.roster.push(availablePlayers[foundIndex])
-        availablePlayers.splice(foundIndex, 1) // Remove from pool
+        availablePlayers.splice(foundIndex, 1)
+      }
+    }
+
+    // Draft Coaches (Assign 1 or 2 coaches to team)
+    const coachCountNeeded = Math.min(coachPool.length, Math.floor(Math.random() * 2) + 1) // 1 or 2
+    for (let c = 0; c < coachCountNeeded; c++) {
+      if (coachPool.length > 0) {
+        const assignedCoach = { ...coachPool.shift(), club_id: team.club_id }
+        if (!team.coaches) team.coaches = []
+        team.coaches.push(assignedCoach)
       }
     }
   }
 
-  return { newTeams, remainingPlayers: availablePlayers }
+  return { newTeams, remainingPlayers: availablePlayers, remainingCoaches: coachPool }
 }
 
 export function generateSchedule(teamIds) {

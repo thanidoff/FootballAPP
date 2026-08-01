@@ -1,5 +1,6 @@
 import { createSeededRandom } from '../utils/matchEngine'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { fetchCoaches } from './coaches'
 
 const STORAGE_KEY = 'football_manager_career_saves'
 export const MAX_CAREER_SAVES = 5
@@ -744,6 +745,92 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
     createdAt: new Date().toISOString(),
   }
   const nextState = { ...saveData, teams, freeAgents, transferHistory: [...(saveData.transferHistory || []), transfer] }
+  await updateDraftState(saveId, nextState)
+  return nextState
+}
+
+export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFee = null) {
+  const saveData = await loadDraftState(saveId)
+  const teams = (saveData.teams || []).map(team => ({
+    ...team,
+    coaches: [...(team.coaches || [])]
+  }))
+  const isFreeAgentTarget = !targetClubId || targetClubId === 'free' || targetClubId === 'free_agent'
+  const targetIndex = isFreeAgentTarget ? -1 : teams.findIndex(team => team.club_id === targetClubId)
+
+  if (!isFreeAgentTarget) {
+    if (targetIndex < 0) throw new Error('Target club not found')
+    if ((teams[targetIndex].coaches || []).length >= 2) {
+      throw new Error('สโมสรนี้มีโค้ชครบ 2 คนแล้ว (จำกัดสูงสุด 2 คน)')
+    }
+  }
+
+  let freeAgentsCoaches = saveData.freeAgentsCoaches || saveData.coaches
+  if (!freeAgentsCoaches || freeAgentsCoaches.length === 0) {
+    const masterCoaches = await fetchCoaches()
+    const assignedIds = new Set()
+    teams.forEach(t => (t.coaches || []).forEach(c => assignedIds.add(String(c.id))))
+    freeAgentsCoaches = masterCoaches.filter(c => !assignedIds.has(String(c.id)))
+  }
+
+  let coach = freeAgentsCoaches.find(item => String(item.id) === String(coachId))
+  let sourceIndex = -1
+  if (!coach) {
+    sourceIndex = teams.findIndex(team => (team.coaches || []).some(item => String(item.id) === String(coachId)))
+    coach = sourceIndex >= 0 ? teams[sourceIndex].coaches.find(item => String(item.id) === String(coachId)) : null
+  }
+  if (!coach) throw new Error('Coach not found')
+  if (sourceIndex === targetIndex && sourceIndex >= 0) throw new Error('Coach is already in this club')
+
+  const fee = agreedFee == null ? (coach.market_value || 0) : Number(agreedFee)
+  if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
+
+  if (!isFreeAgentTarget) {
+    if ((teams[targetIndex].budget || 0) < 0) {
+      throw new Error('Your budget is in debt! Earn funds before buying more.')
+    }
+    teams[targetIndex].budget -= fee
+  }
+
+  if (sourceIndex >= 0) {
+    teams[sourceIndex].budget = (teams[sourceIndex].budget || 0) + fee
+    teams[sourceIndex].coaches = teams[sourceIndex].coaches.filter(item => String(item.id) !== String(coachId))
+  }
+
+  let updatedFreeAgentsCoaches = [
+    ...freeAgentsCoaches.filter(item => String(item.id) !== String(coachId))
+  ]
+
+  if (isFreeAgentTarget) {
+    const releasedCoach = { ...coach, club_id: null, club: null }
+    updatedFreeAgentsCoaches.push(releasedCoach)
+  } else {
+    const storedCoach = { ...coach, club_id: targetClubId, market_value: fee }
+    delete storedCoach.club
+    teams[targetIndex].coaches.push(storedCoach)
+  }
+
+  const activeSeason = saveData.settings?.seasons?.find(season => season.status === 'active')
+  const transfer = {
+    id: globalThis.crypto?.randomUUID?.() || `transfer-${Date.now()}`,
+    playerId: coachId,
+    playerName: `${coach.name} (Coach)`,
+    fromClubId: sourceIndex >= 0 ? teams[sourceIndex].club_id : null,
+    fromName: sourceIndex >= 0 ? teams[sourceIndex].club_name : null,
+    toClubId: isFreeAgentTarget ? null : teams[targetIndex].club_id,
+    toName: isFreeAgentTarget ? 'Free Agent' : teams[targetIndex].club_name,
+    fee,
+    week: saveData.currentWeek || 1,
+    seasonId: activeSeason?.id || null,
+    createdAt: new Date().toISOString(),
+  }
+
+  const nextState = {
+    ...saveData,
+    teams,
+    freeAgentsCoaches: updatedFreeAgentsCoaches,
+    transferHistory: [...(saveData.transferHistory || []), transfer]
+  }
   await updateDraftState(saveId, nextState)
   return nextState
 }

@@ -13,6 +13,7 @@ export default function DraftRollPage() {
   
   const [teams, setTeams] = useState([])
   const [availablePool, setAvailablePool] = useState([])
+  const [availableCoachesPool, setAvailableCoachesPool] = useState([])
   const [loading, setLoading] = useState(true)
   const [isRolling, setIsRolling] = useState(false)
 
@@ -28,9 +29,10 @@ export default function DraftRollPage() {
     async function load() {
       try {
         const allPlayers = await fetchPlayers() // Get all global players
-        const { newTeams, remainingPlayers } = generateInitialDraft(clubs, allPlayers)
+        const { newTeams, remainingPlayers, remainingCoaches } = generateInitialDraft(clubs, allPlayers)
         setTeams(newTeams)
         setAvailablePool(remainingPlayers)
+        setAvailableCoachesPool(remainingCoaches || [])
       } catch (err) {
         console.error('Failed to load draft data', err)
       } finally {
@@ -43,9 +45,10 @@ export default function DraftRollPage() {
   function handleReroll(teamIndex = null) {
     setIsRolling(true)
     setTimeout(() => {
-      const { newTeams, remainingPlayers } = rollDraft(teams, availablePool, teamIndex)
+      const { newTeams, remainingPlayers, remainingCoaches } = rollDraft(teams, availablePool, teamIndex, availableCoachesPool)
       setTeams(newTeams)
       setAvailablePool(remainingPlayers)
+      setAvailableCoachesPool(remainingCoaches || [])
       setIsRolling(false)
     }, 400) // Small delay for visual feedback
   }
@@ -57,6 +60,7 @@ export default function DraftRollPage() {
       settings: { startingBudgets: Object.fromEntries(teams.map(team => [team.club_id, team.budget])) },
       teams: teams,
       freeAgents: availablePool,
+      freeAgentsCoaches: availableCoachesPool,
       currentWeek: 1
     }
     try {
@@ -135,6 +139,21 @@ export default function DraftRollPage() {
                 }
                 return <PlayerCard key={player.id} player={player} compact={true} />
               })}
+
+              {(team.coaches || []).length > 0 && (
+                <div className="pt-2 mt-2 border-t border-gray-100 space-y-1.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Coaches ({team.coaches.length})</div>
+                  {team.coaches.map((c, cIdx) => (
+                    <div key={c.id || cIdx} className="flex items-center justify-between text-xs font-semibold bg-white p-2 rounded-lg border border-gray-100">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-50 text-[#FD5461]">{cIdx === 0 ? 'HC' : 'AC'}</span>
+                        <span className="truncate text-gray-800">{c.name}</span>
+                      </div>
+                      <span className="font-bold text-gray-500 text-[11px]">{c.ovr} OVR</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}

@@ -9,6 +9,7 @@ import ScrollToTop from './ScrollToTop'
 
 const NAV_ITEMS = [
   { to: '/players', label: 'Players' },
+  { to: '/coaches', label: 'Coaches' },
   { to: '/clubs', label: 'Clubs' },
   { to: '/matches', label: 'Matches' },
 ]

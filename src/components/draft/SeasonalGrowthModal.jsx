@@ -18,16 +18,101 @@ export default function SeasonalGrowthModal({
   onConfirmSave,
 }) {
   const [selectedPlayer, setSelectedPlayer] = useState(null)
+  const [targetMode, setTargetMode] = useState('30') // '30', 'custom', 'all'
+  const [customCountInput, setCustomCountInput] = useState('30')
 
   if (!open) return null
 
-  const positiveCount = adjustments.filter(a => a.deltaOvr > 0).length
-  const negativeCount = adjustments.filter(a => a.deltaOvr < 0).length
+  // Ensure sorting by Old OVR descending
+  const sortedAdjustments = [...adjustments].sort((a, b) => (b.oldOvr || 0) - (a.oldOvr || 0) || (b.newOvr || 0) - (a.newOvr || 0))
+
+  const positiveCount = sortedAdjustments.filter(a => a.deltaOvr > 0).length
+  const negativeCount = sortedAdjustments.filter(a => a.deltaOvr < 0).length
+
+  function handleTriggerReshuffle(mode, countVal) {
+    if (!onReshufflePreview) return
+    if (mode === 'all') {
+      onReshufflePreview('all')
+    } else {
+      const num = Math.max(1, parseInt(countVal || '30', 10) || 30)
+      onReshufflePreview(num)
+    }
+  }
 
   return (
     <>
       <Modal open={open} onClose={onClose} title={`Seasonal Player Growth & Form (${seasonName})`} width="max-w-2xl">
         <div className="space-y-4">
+          {/* Rating Count Target Controls */}
+          {!isLocked && onReshufflePreview && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-black/5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target Players:</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetMode('30')
+                      handleTriggerReshuffle('custom', '30')
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                      targetMode === '30' ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    30 Players
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetMode('all')
+                      handleTriggerReshuffle('all')
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                      targetMode === 'all' ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    ALL Players
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetMode('custom')
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                      targetMode === 'custom' ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Custom #
+                  </button>
+                </div>
+              </div>
+
+              {targetMode === 'custom' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={customCountInput}
+                    onChange={(e) => setCustomCountInput(e.target.value)}
+                    placeholder="e.g. 50"
+                    className="w-20 px-2 py-1 text-xs font-bold rounded-lg border border-gray-200 bg-white text-center focus:outline-none focus:ring-2 focus:ring-[#FD5461]"
+                  />
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => handleTriggerReshuffle('custom', customCountInput)}
+                    className="rounded-lg font-bold"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Header Summary & Action Controls */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-[#0A1318]">
@@ -38,6 +123,10 @@ export default function SeasonalGrowthModal({
               <span className="flex items-center gap-1 text-rose-600">
                 <TrendingDown size={15} /> -{negativeCount} Decreased
               </span>
+              <span className="text-gray-300">·</span>
+              <span className="text-xs text-gray-500 font-normal">
+                (Total: {sortedAdjustments.length})
+              </span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -45,7 +134,7 @@ export default function SeasonalGrowthModal({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={onReshufflePreview}
+                  onClick={() => handleTriggerReshuffle(targetMode, customCountInput)}
                   className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
                 >
                   <RefreshCw size={14} /> Reshuffle
@@ -73,8 +162,8 @@ export default function SeasonalGrowthModal({
             </div>
           </div>
 
-          {/* List of Adjusted Players (Continuous Divided List) */}
-          {adjustments.length === 0 ? (
+          {/* List of Adjusted Players (Sorted by Old OVR Descending) */}
+          {sortedAdjustments.length === 0 ? (
             <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center">
               <Sparkles size={32} className="mb-2 text-[#FD5461]/60" />
               <p className="text-sm font-semibold text-gray-700">No seasonal rating adjustments generated yet</p>
@@ -85,7 +174,7 @@ export default function SeasonalGrowthModal({
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={onReshufflePreview}
+                  onClick={() => handleTriggerReshuffle(targetMode, customCountInput)}
                   className="mt-4 flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
                 >
                   <Sparkles size={16} /> Preview Rating Changes Now
@@ -95,7 +184,7 @@ export default function SeasonalGrowthModal({
           ) : (
             <div className="max-h-[420px] overflow-y-auto overflow-x-hidden rounded-2xl border border-gray-200 bg-white">
               <div className="divide-y divide-gray-100">
-                {adjustments.map((item) => {
+                {sortedAdjustments.map((item) => {
                   const flagCode = FIFA_NATIONS.find(n => n.name === item.nationality)?.code
 
                   return (
