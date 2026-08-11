@@ -6,6 +6,7 @@ import {
   completeDraftMatch,
   createDraftState,
   loadDraftState,
+  transferDraftCoach,
   transferDraftPlayer,
   updateDraftState,
 } from '../services/draftSave'
@@ -45,6 +46,13 @@ describe('complete career simulation', () => {
     const freeAgents = MOCK_PLAYERS.slice(25)
     const teamIds = leagueTeams.map(team => team.club_id)
     const schedule = generateSchedule(teamIds)
+    const customLeaguePrizes = {
+      placements: [111_000_000, 77_000_000, 55_000_000, 33_000_000, 22_000_000],
+      awards: { topScorers: 17_000_000, topAssists: 16_000_000, mostMvps: 18_000_000 },
+      matchPrizes: { win: 7_000_000, draw: 4_000_000, loss: 1_000_000 },
+    }
+    const customCupPrizes = [88_000_000, 66_000_000, 44_000_000, 33_000_000, 22_000_000, 16_000_000, 12_000_000, 10_000_000]
+    const customCupMatchPrizes = { win: 9_000_000, loss: 4_000_000 }
     const saveId = await createDraftState({
       name: 'Automated full-season QA',
       teams: [...leagueTeams, outsider],
@@ -56,6 +64,7 @@ describe('complete career simulation', () => {
           teamIds,
           matches: schedule,
           stats: { topScorers: {}, topAssists: {}, mostMvps: {}, mostFouls: {} },
+          prizeSettings: customLeaguePrizes,
           status: 'active',
         }],
         cups: [],
@@ -64,6 +73,8 @@ describe('complete career simulation', () => {
 
     const signing = freeAgents[0]
     const negotiatedFee = 60_500_000
+    await expect(transferDraftPlayer(saveId, signing.id, teamIds[0], 600_000_000))
+      .rejects.toThrow('Insufficient budget')
     let state = await transferDraftPlayer(saveId, signing.id, teamIds[0], negotiatedFee)
     expect(state.teams[0].roster.some(player => player.id === signing.id)).toBe(true)
     expect(state.teams[0].roster.find(player => player.id === signing.id).market_value).toBe(negotiatedFee)
@@ -79,10 +90,12 @@ describe('complete career simulation', () => {
         const match = matches[index]
         const home = state.teams.find(team => team.club_id === match.home) || state.teams[0]
         const away = state.teams.find(team => team.club_id === match.away) || state.teams[1]
+        const homeBudgetBefore = home.budget
+        const awayBudgetBefore = away.budget
         const scorer = home.roster[0]
         const assist = home.roster[1]
         const fouler = away.roster[0]
-        await completeDraftMatch(saveId, week, index, {
+        const completedMatchState = await completeDraftMatch(saveId, week, index, {
           homeScore: (week + index) % 4,
           awayScore: (week * 2 + index) % 3,
           events: [
@@ -91,6 +104,10 @@ describe('complete career simulation', () => {
           ],
           mvp: scorer,
         })
+        if (week === 1 && index === 0) {
+          expect(completedMatchState.teams.find(team => team.club_id === home.club_id).budget).toBe(homeBudgetBefore + customLeaguePrizes.matchPrizes.loss)
+          expect(completedMatchState.teams.find(team => team.club_id === away.club_id).budget).toBe(awayBudgetBefore + customLeaguePrizes.matchPrizes.win)
+        }
         if (week === 1 && index === 0) {
           await expect(completeDraftMatch(saveId, week, index, {
             homeScore: 9, awayScore: 0, events: [], mvp: null,
@@ -114,7 +131,7 @@ describe('complete career simulation', () => {
     expect(season.prizesPaidAt).toBeTruthy()
     expect(season.prizePayouts.filter(payout => payout.type === 'placement')).toHaveLength(5)
     expect(season.prizePayouts.filter(payout => payout.type === 'player_award')).toHaveLength(0)
-    expect(season.prizePayouts.find(payout => payout.label === 'League position 1').amount).toBe(50_000_000)
+    expect(season.prizePayouts.find(payout => payout.label === 'League position 1').amount).toBe(customLeaguePrizes.placements[0])
     expect(Object.values(season.stats.topScorers).reduce((sum, value) => sum + value, 0)).toBe(21)
     expect(Object.values(season.stats.topAssists).reduce((sum, value) => sum + value, 0)).toBe(21)
     const historicalPlayerId = Object.keys(season.stats.topScorers)[0]
@@ -138,7 +155,7 @@ describe('complete career simulation', () => {
       ...state,
       settings: {
         ...state.settings,
-        cups: [{ id: 1, seasonId: 1, teamIds: cupTeamIds, status: 'active', round: 1, rounds: { 1: qfMatches } }],
+        cups: [{ id: 1, seasonId: 1, teamIds: cupTeamIds, status: 'active', round: 1, rounds: { 1: qfMatches }, prizeSettings: customCupPrizes, matchPrizes: customCupMatchPrizes }],
       },
     })
 
@@ -148,13 +165,19 @@ describe('complete career simulation', () => {
       const roundMatches = cup.rounds[round]
       for (let index = 0; index < roundMatches.length; index += 1) {
         const isFinal = round === 3
+        const cupHomeBudgetBefore = state.teams.find(team => team.club_id === roundMatches[index].home)?.budget
+        const cupAwayBudgetBefore = state.teams.find(team => team.club_id === roundMatches[index].away)?.budget
         const cupStatPayload = round === 1 && index === 0 ? {
           events: [{ type: 'goal', player: leagueTeams[0].roster[0], assist: leagueTeams[0].roster[1], team: 'home' }],
           mvp: leagueTeams[0].roster[0],
         } : { events: [] }
-        await completeDraftCupMatch(saveId, round, index, isFinal
+        const completedCupMatchState = await completeDraftCupMatch(saveId, round, index, isFinal
           ? { homeScore: 1, awayScore: 1, penaltyWinner: roundMatches[index].away, ...cupStatPayload }
           : { homeScore: 2, awayScore: 1, ...cupStatPayload })
+        if (round === 1 && index === 0) {
+          expect(completedCupMatchState.teams.find(team => team.club_id === roundMatches[index].home).budget).toBe(cupHomeBudgetBefore + customCupMatchPrizes.win)
+          expect(completedCupMatchState.teams.find(team => team.club_id === roundMatches[index].away).budget).toBe(cupAwayBudgetBefore + customCupMatchPrizes.loss)
+        }
         if (round === 1 && index === 0) {
           await expect(completeDraftCupMatch(saveId, round, index, {
             homeScore: 4, awayScore: 0, events: [],
@@ -175,14 +198,44 @@ describe('complete career simulation', () => {
     expect(cup.prizesPaidAt).toBeTruthy()
     expect(cup.prizePayouts).toHaveLength(8)
     expect(cup.prizePayouts.map(payout => payout.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
-    expect(cup.prizePayouts[0].amount).toBe(30_000_000)
+    expect(cup.prizePayouts[0].amount).toBe(customCupPrizes[0])
     const completedSeason = state.settings.seasons[0]
     expect(completedSeason.prizePayouts.filter(payout => payout.type === 'player_award')).toHaveLength(3)
     expect(completedSeason.prizePayouts.filter(payout => payout.type === 'player_award').every(payout => payout.scope === 'all_competitions')).toBe(true)
     expect(completedSeason.awardsPaidAt).toBeTruthy()
+    expect(completedSeason.prizePayouts.find(payout => payout.label === 'Top Scorer').amount).toBe(customLeaguePrizes.awards.topScorers)
+    expect(completedSeason.prizePayouts.find(payout => payout.label === 'Top Assists').amount).toBe(customLeaguePrizes.awards.topAssists)
+    expect(completedSeason.prizePayouts.find(payout => payout.label === 'Most MVP').amount).toBe(customLeaguePrizes.awards.mostMvps)
     expect(Object.values(completedSeason.stats.topScorers).reduce((sum, value) => sum + value, 0)).toBe(22)
     expect(Object.values(completedSeason.stats.topAssists).reduce((sum, value) => sum + value, 0)).toBe(22)
     expect(Object.values(completedSeason.stats.mostMvps).reduce((sum, value) => sum + value, 0)).toBe(22)
+  })
+})
+
+describe('career transfer budget protection', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('moves coaches between the free-agent pool and clubs without allowing debt', async () => {
+    const teams = makeTeams(2)
+    const coach = { id: 'qa-coach', name: 'QA Coach', market_value: 25_000_000, club_id: null, stats: { TAC: 80, MGT: 80, MOT: 80, ATT: 80, DEF: 80, PHY: 80 } }
+    const saveId = await createDraftState({
+      name: 'Coach transfer QA',
+      teams,
+      freeAgents: [],
+      freeAgentsCoaches: [coach],
+    })
+
+    await expect(transferDraftCoach(saveId, coach.id, teams[0].club_id, 600_000_000))
+      .rejects.toThrow('Insufficient budget')
+
+    let state = await transferDraftCoach(saveId, coach.id, teams[0].club_id, 25_000_000)
+    expect(state.teams[0].coaches.map(item => item.id)).toContain(coach.id)
+    expect(state.teams[0].budget).toBe(475_000_000)
+    expect(state.freeAgentsCoaches).toHaveLength(0)
+
+    state = await transferDraftCoach(saveId, coach.id, 'free_agent', 0)
+    expect(state.teams[0].coaches).toHaveLength(0)
+    expect(state.freeAgentsCoaches.map(item => item.id)).toContain(coach.id)
   })
 })
 

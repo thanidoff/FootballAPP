@@ -11,13 +11,13 @@ create table if not exists coaches (
   market_value bigint not null default 2000000,
   photo_url    text,
 
-  -- Coach Stats (1 to 99)
-  stat_tac     smallint not null default 70 check (stat_tac between 1 and 99),
-  stat_mgt     smallint not null default 70 check (stat_mgt between 1 and 99),
-  stat_mot     smallint not null default 70 check (stat_mot between 1 and 99),
-  stat_att     smallint not null default 70 check (stat_att between 1 and 99),
-  stat_def     smallint not null default 70 check (stat_def between 1 and 99),
-  stat_phy     smallint not null default 70 check (stat_phy between 1 and 99),
+  -- Coach Stats (1 to 140)
+  stat_tac     smallint not null default 70 check (stat_tac between 1 and 140),
+  stat_mgt     smallint not null default 70 check (stat_mgt between 1 and 140),
+  stat_mot     smallint not null default 70 check (stat_mot between 1 and 140),
+  stat_att     smallint not null default 70 check (stat_att between 1 and 140),
+  stat_def     smallint not null default 70 check (stat_def between 1 and 140),
+  stat_phy     smallint not null default 70 check (stat_phy between 1 and 140),
 
   ovr          smallint generated always as (
     round((stat_tac + stat_mgt + stat_mot + stat_att + stat_def + stat_phy) / 6.0)
@@ -34,4 +34,4 @@ create index if not exists coaches_ovr_idx on coaches(ovr desc);
 alter table coaches enable row level security;
 
 create policy "public read coaches"  on coaches for select using (true);
-create policy "public write coaches" on coaches for all    using (true);
+create policy "authenticated write coaches" on coaches for all to authenticated using (true) with check (true);

@@ -14,13 +14,13 @@ function cloneCareerSnapshot(value) {
 }
 
 export const DEFAULT_LEAGUE_PRIZES = {
-  placements: [50_000_000, 30_000_000, 20_000_000, 10_000_000, 5_000_000],
-  awards: { topScorers: 5_000_000, topAssists: 5_000_000, mostMvps: 5_000_000 },
-  matchPrizes: { win: 2_000_000, draw: 1_000_000, loss: 1_000_000 },
+  placements: [100_000_000, 70_000_000, 50_000_000, 30_000_000, 20_000_000],
+  awards: { topScorers: 15_000_000, topAssists: 15_000_000, mostMvps: 15_000_000 },
+  matchPrizes: { win: 5_000_000, draw: 3_000_000, loss: 2_000_000 },
 }
 
-export const DEFAULT_CUP_PRIZES = [30_000_000, 20_000_000, 15_000_000, 10_000_000, 10_000_000, 5_000_000, 5_000_000, 5_000_000]
-export const DEFAULT_CUP_MATCH_PRIZES = { win: 3_000_000, loss: 2_000_000 }
+export const DEFAULT_CUP_PRIZES = [80_000_000, 50_000_000, 35_000_000, 25_000_000, 20_000_000, 15_000_000, 10_000_000, 10_000_000]
+export const DEFAULT_CUP_MATCH_PRIZES = { win: 6_000_000, loss: 3_000_000 }
 
 function normalizeLeaguePrizes(prizes) {
   return {
@@ -76,6 +76,7 @@ function toDatabaseRow(save, ownerId) {
   const settings = {
     ...(save.settings || {}),
     transferHistory: save.transferHistory ?? save.transfer_history ?? save.settings?.transferHistory ?? [],
+    freeAgentsCoaches: save.freeAgentsCoaches ?? save.settings?.freeAgentsCoaches ?? [],
   }
   return {
     id: save.id,
@@ -169,6 +170,7 @@ export async function createDraftState(saveObj) {
     settings: snapshot.settings || {},
     teams: snapshot.teams || [],
     free_agents: snapshot.freeAgents || [],
+    freeAgentsCoaches: snapshot.freeAgentsCoaches || [],
     transfer_history: snapshot.transferHistory || [],
     current_week: snapshot.currentWeek || 1,
     created_at: new Date().toISOString(),
@@ -186,6 +188,7 @@ export async function loadDraftState(saveId) {
   let saveData = {
     ...data,
     freeAgents: data.free_agents ?? data.freeAgents ?? [],
+    freeAgentsCoaches: data.freeAgentsCoaches ?? data.settings?.freeAgentsCoaches ?? [],
     transferHistory: data.settings?.transferHistory ?? data.transfer_history ?? data.transferHistory ?? [],
     currentWeek: data.current_week ?? data.currentWeek ?? 1
   }
@@ -234,6 +237,7 @@ export async function updateDraftState(saveId, saveObj) {
   if (index === -1) throw new Error('Career save not found')
   const snapshot = cloneCareerSnapshot(saveObj)
   const transferHistory = snapshot.transferHistory ?? snapshot.transfer_history ?? snapshot.settings?.transferHistory ?? saves[index].settings?.transferHistory ?? []
+  const freeAgentsCoaches = snapshot.freeAgentsCoaches ?? snapshot.settings?.freeAgentsCoaches ?? saves[index].settings?.freeAgentsCoaches ?? []
   
   saves[index] = {
     ...saves[index],
@@ -242,7 +246,9 @@ export async function updateDraftState(saveId, saveObj) {
       ...(saves[index].settings || {}),
       ...(snapshot.settings || {}),
       transferHistory,
+      freeAgentsCoaches,
     },
+    freeAgentsCoaches,
     free_agents: snapshot.freeAgents ?? snapshot.free_agents ?? saves[index].free_agents,
     current_week: snapshot.currentWeek ?? snapshot.current_week ?? saves[index].current_week,
     updated_at: new Date().toISOString(),
@@ -624,6 +630,7 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
 
   cups[cupIndex] = cup
   await updateDraftState(saveId, { ...saveData, settings: { ...saveData.settings, cups } })
+  return loadDraftState(saveId)
 }
 
 export async function advanceDraftLeagueWeek(saveId) {
@@ -711,8 +718,8 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
 
   if (!isFreeAgentTarget) {
-    if ((teams[targetIndex].budget || 0) < 0) {
-      throw new Error('Your budget is in debt! Sell players or earn funds before buying more.')
+    if ((teams[targetIndex].budget || 0) < fee) {
+      throw new Error('Insufficient budget for this player transfer.')
     }
     teams[targetIndex].budget -= fee
   }
@@ -765,19 +772,19 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
     }
   }
 
-  let freeAgentsCoaches = saveData.freeAgentsCoaches || saveData.coaches
-  if (!freeAgentsCoaches || freeAgentsCoaches.length === 0) {
+  let freeAgentsCoaches = saveData.freeAgentsCoaches || saveData.coaches || []
+  let coach = freeAgentsCoaches.find(item => String(item.id) === String(coachId))
+  let sourceIndex = teams.findIndex(team => (team.coaches || []).some(item => String(item.id) === String(coachId)))
+  if (!coach && sourceIndex >= 0) {
+    coach = teams[sourceIndex].coaches.find(item => String(item.id) === String(coachId))
+  }
+  if (!coach && freeAgentsCoaches.length === 0) {
     const masterCoaches = await fetchCoaches()
     const assignedIds = new Set()
     teams.forEach(t => (t.coaches || []).forEach(c => assignedIds.add(String(c.id))))
     freeAgentsCoaches = masterCoaches.filter(c => !assignedIds.has(String(c.id)))
-  }
-
-  let coach = freeAgentsCoaches.find(item => String(item.id) === String(coachId))
-  let sourceIndex = -1
-  if (!coach) {
-    sourceIndex = teams.findIndex(team => (team.coaches || []).some(item => String(item.id) === String(coachId)))
-    coach = sourceIndex >= 0 ? teams[sourceIndex].coaches.find(item => String(item.id) === String(coachId)) : null
+    coach = freeAgentsCoaches.find(item => String(item.id) === String(coachId))
+    sourceIndex = -1
   }
   if (!coach) throw new Error('Coach not found')
   if (sourceIndex === targetIndex && sourceIndex >= 0) throw new Error('Coach is already in this club')
@@ -786,8 +793,8 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
 
   if (!isFreeAgentTarget) {
-    if ((teams[targetIndex].budget || 0) < 0) {
-      throw new Error('Your budget is in debt! Earn funds before buying more.')
+    if ((teams[targetIndex].budget || 0) < fee) {
+      throw new Error('Insufficient budget for this coach transfer.')
     }
     teams[targetIndex].budget -= fee
   }

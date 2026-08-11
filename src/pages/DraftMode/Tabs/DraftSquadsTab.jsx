@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
-import { updateDraftState } from '../../../services/draftSave'
+import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftState } from '../../../services/draftSave'
 import { fetchClubs } from '../../../services/clubs'
 import PlayerCard from '../../../components/ui/PlayerCard'
 import Modal from '../../../components/ui/Modal'
@@ -24,7 +24,7 @@ import { useToast } from '../../../components/ui/Toast'
 import { fetchPlayers } from '../../../services/players'
 import { rollDraft } from '../../../utils/draftLogic'
 
-import { getOVRTier } from '../../../utils/stats'
+import { calculateOVR, getOVRTier } from '../../../utils/stats'
 
 const TIER_STYLES = {
   special: 'bg-[#FD5461] text-white',
@@ -350,7 +350,7 @@ export default function DraftSquadsTab() {
       setClubManagerOpen(false)
     } catch (error) {
       console.error('Failed to manage save clubs', error)
-      alert('Failed to update clubs in this save')
+      toast.error('Failed to update clubs in this save')
     } finally {
       setProcessing(false)
     }
@@ -447,7 +447,7 @@ export default function DraftSquadsTab() {
       setEditPlayer(null)
     } catch (error) {
       console.error('Failed to update player', error)
-      alert(error.message || 'Failed to update player')
+      toast.error(error.message || 'Failed to update player')
     } finally {
       setProcessing(false)
     }
@@ -495,7 +495,7 @@ export default function DraftSquadsTab() {
       setSaveData(newSaveData)
     } catch (error) {
       console.error('Failed to save lineup', error)
-      alert('Failed to save lineup')
+      toast.error('Failed to save lineup')
     } finally {
       setSavingLineup(false)
     }
@@ -759,7 +759,7 @@ export default function DraftSquadsTab() {
 
     // 2. League matches (per-match prize)
     seasons.forEach((season, seasonIndex) => {
-      const matchPrizes = season.prizeSettings?.matchPrizes || { win: 2_000_000, draw: 1_000_000, loss: 0 }
+      const matchPrizes = season.prizeSettings?.matchPrizes || DEFAULT_LEAGUE_PRIZES.matchPrizes
       ;(season.matches || []).forEach(week => {
         (week.matches || []).forEach((match, matchIndex) => {
           if (!match.played) return
@@ -869,7 +869,7 @@ export default function DraftSquadsTab() {
 
     // 4. Cup match bonuses & Tournament final placement prizes
     cups.forEach((cup, cupIndex) => {
-      const matchPrizes = cup.matchPrizes || { win: 3_000_000, loss: 2_000_000 }
+      const matchPrizes = cup.matchPrizes || DEFAULT_CUP_MATCH_PRIZES
       Object.values(cup.rounds || {}).flat().filter(m => m?.played).forEach((match, matchIndex) => {
         const isHome = String(match.home) === teamId
         const isAway = String(match.away) === teamId
@@ -1235,11 +1235,11 @@ export default function DraftSquadsTab() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={processing || team.budget < 0}
-                title={team.budget < 0 ? 'Cannot draft player while in debt' : 'Draft a random player for $40M'}
+                disabled={processing || team.budget < 40_000_000}
+                title={team.budget < 40_000_000 ? 'At least $40M is required to draft a player' : 'Draft a random player for $40M'}
                 onClick={async () => {
-                  if (team.budget < 0) {
-                    toast.error('Cannot draft player while in debt!')
+                  if (team.budget < 40_000_000) {
+                    toast.error('Insufficient budget. Drafting a player costs $40M.')
                     return
                   }
                   try {

@@ -601,24 +601,29 @@ export default function DraftMatchesTab() {
     || (saveData.settings?.cups || []).at(-1)
 
   function openPrizeSettings() {
+    const savedLeaguePrizes = seasonData?.prizeSettings || saveData.settings?.customPrizes || DEFAULT_LEAGUE_PRIZES
     setPrizeDraft({
-      placements: Array.isArray(seasonData?.prizeSettings?.placements)
-        ? [...seasonData.prizeSettings.placements]
+      placements: Array.isArray(savedLeaguePrizes?.placements)
+        ? [...savedLeaguePrizes.placements]
         : [...DEFAULT_LEAGUE_PRIZES.placements],
       awards: {
         ...DEFAULT_LEAGUE_PRIZES.awards,
-        ...(seasonData?.prizeSettings?.awards || {}),
+        ...(savedLeaguePrizes?.awards || {}),
       },
       matchPrizes: {
         ...DEFAULT_LEAGUE_PRIZES.matchPrizes,
-        ...(seasonData?.prizeSettings?.matchPrizes || {}),
+        ...(savedLeaguePrizes?.matchPrizes || {}),
       },
       cupMatchPrizes: {
         ...DEFAULT_CUP_MATCH_PRIZES,
         ...(seasonCup?.matchPrizes || seasonData?.cupMatchPrizes || {}),
       },
     })
-    setCupPrizeDraft(Array.isArray(seasonCup?.prizeSettings) ? [...seasonCup.prizeSettings] : [...DEFAULT_CUP_PRIZES])
+    setCupPrizeDraft(Array.isArray(seasonCup?.prizeSettings)
+      ? [...seasonCup.prizeSettings]
+      : Array.isArray(saveData.settings?.customCupPrizes)
+        ? [...saveData.settings.customCupPrizes]
+        : [...DEFAULT_CUP_PRIZES])
     setPrizeSettingsOpen(true)
   }
 
@@ -719,13 +724,20 @@ export default function DraftMatchesTab() {
       const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
 
       const newSettings = { ...saveData.settings }
+      const initialLeaguePrizes = saveData.settings?.customPrizes || DEFAULT_LEAGUE_PRIZES
       newSettings.seasons = [{
         id: 1,
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
         seasonAdjustments,
-        prizeSettings: { placements: [...DEFAULT_LEAGUE_PRIZES.placements], awards: { ...DEFAULT_LEAGUE_PRIZES.awards } },
+        prizeSettings: {
+          placements: [...(initialLeaguePrizes.placements || DEFAULT_LEAGUE_PRIZES.placements)],
+          awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(initialLeaguePrizes.awards || {}) },
+          matchPrizes: { ...DEFAULT_LEAGUE_PRIZES.matchPrizes, ...(initialLeaguePrizes.matchPrizes || {}) },
+        },
+        cupPrizeSettings: [...(saveData.settings?.customCupPrizes || DEFAULT_CUP_PRIZES)],
+        cupMatchPrizes: { ...DEFAULT_CUP_MATCH_PRIZES, ...(saveData.settings?.customCupMatchPrizes || {}) },
         status: 'active'
       }]
 
@@ -768,9 +780,14 @@ export default function DraftMatchesTab() {
       const inheritedLeaguePrizes = {
         placements: [...(previousSeason?.prizeSettings?.placements || DEFAULT_LEAGUE_PRIZES.placements)],
         awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(previousSeason?.prizeSettings?.awards || {}) },
+        matchPrizes: { ...DEFAULT_LEAGUE_PRIZES.matchPrizes, ...(previousSeason?.prizeSettings?.matchPrizes || {}) },
       }
       const previousCup = [...(newSettings.cups || [])].reverse().find(cup => cup.prizeSettings)
       const inheritedCupPrizes = [...(previousSeason?.cupPrizeSettings || previousCup?.prizeSettings || DEFAULT_CUP_PRIZES)]
+      const inheritedCupMatchPrizes = {
+        ...DEFAULT_CUP_MATCH_PRIZES,
+        ...(previousSeason?.cupMatchPrizes || previousCup?.matchPrizes || {}),
+      }
       
       const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
 
@@ -782,6 +799,7 @@ export default function DraftMatchesTab() {
         seasonAdjustments,
         prizeSettings: inheritedLeaguePrizes,
         cupPrizeSettings: inheritedCupPrizes,
+        cupMatchPrizes: inheritedCupMatchPrizes,
         status: 'active'
       })
 

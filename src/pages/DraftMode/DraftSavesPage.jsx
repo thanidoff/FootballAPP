@@ -39,7 +39,7 @@ export default function DraftSavesPage() {
 
   async function handleSetupComplete({ name, clubs, freeAgents, prizes }) {
     try {
-      const { newTeams, remainingPlayers } = generateInitialDraft(clubs, freeAgents)
+      const { newTeams, remainingPlayers, remainingCoaches } = generateInitialDraft(clubs, freeAgents)
       const teams = newTeams.map(team => {
         const originalClub = clubs.find(c => String(c.id) === String(team.club_id))
         return {
@@ -55,12 +55,14 @@ export default function DraftSavesPage() {
           ...(prizes ? {
             customPrizes: prizes.prizeSettings,
             customCupPrizes: prizes.cupPrizeSettings,
+            customCupMatchPrizes: prizes.cupMatchPrizes,
             hasLeague: prizes.hasLeague,
             hasCup: prizes.hasCup,
           } : {}),
         },
         teams,
         freeAgents: remainingPlayers,
+        freeAgentsCoaches: remainingCoaches,
         currentWeek: 1,
       })
       setCreateOpen(false)

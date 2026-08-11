@@ -95,25 +95,19 @@ function getMockCoachesFiltered({ clubId, freeAgentsOnly, nationality } = {}) {
 
 export async function fetchCoaches(params = {}) {
   if (isSupabaseConfigured) {
-    try {
-      let query = supabase
-        .from('coaches')
-        .select('*, clubs(id, name, short_name, badge_color, badge_url)')
+    let query = supabase
+      .from('coaches')
+      .select('*, clubs(id, name, short_name, badge_color, badge_url)')
 
-      if (params.clubId) query = query.eq('club_id', params.clubId)
-      if (params.nationality) query = query.eq('nationality', params.nationality)
-      if (params.freeAgentsOnly) query = query.is('club_id', null)
+    if (params.clubId) query = query.eq('club_id', params.clubId)
+    if (params.nationality) query = query.eq('nationality', params.nationality)
+    if (params.freeAgentsOnly) query = query.is('club_id', null)
 
-      query = query.order('ovr', { ascending: false })
+    query = query.order('ovr', { ascending: false })
 
-      const { data, error } = await query
-      if (!error && data) {
-        return data.map(c => mapRowToCoach(c))
-      }
-      console.warn('Supabase coaches table not found or error, falling back to mock coaches:', error?.message)
-    } catch (err) {
-      console.warn('Supabase query exception, falling back to mock coaches:', err.message)
-    }
+    const { data, error } = await query
+    if (error) throw error
+    return (data || []).map(c => mapRowToCoach(c))
   }
 
   return getMockCoachesFiltered(params)
@@ -121,16 +115,13 @@ export async function fetchCoaches(params = {}) {
 
 export async function fetchCoach(id) {
   if (isSupabaseConfigured) {
-    try {
-      const { data, error } = await supabase
-        .from('coaches')
-        .select('*, clubs(id, name, short_name, badge_color, badge_url)')
-        .eq('id', id)
-        .single()
-      if (!error && data) return mapRowToCoach(data)
-    } catch (err) {
-      console.warn('Supabase query exception for single coach:', err.message)
-    }
+    const { data, error } = await supabase
+      .from('coaches')
+      .select('*, clubs(id, name, short_name, badge_color, badge_url)')
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    return mapRowToCoach(data)
   }
 
   const coach = mockCoachesState.find(c => String(c.id) === String(id))
@@ -147,31 +138,27 @@ export async function createCoach({ name, nationality, age, market_value, stats,
   const stat_phy = Number(stats?.PHY ?? 70)
 
   if (isSupabaseConfigured) {
-    try {
-      const { data, error } = await supabase
-        .from('coaches')
-        .insert({
-          name,
-          nationality,
-          age: Number(age),
-          market_value: Number(market_value),
-          club_id: club_id || null,
-          stat_tac, stat_mgt, stat_mot, stat_att, stat_def, stat_phy,
-        })
-        .select('*, clubs(id, name, short_name, badge_color, badge_url)')
-        .single()
+    const { data, error } = await supabase
+      .from('coaches')
+      .insert({
+        name,
+        nationality,
+        age: Number(age),
+        market_value: Number(market_value),
+        club_id: club_id || null,
+        stat_tac, stat_mgt, stat_mot, stat_att, stat_def, stat_phy,
+      })
+      .select('*, clubs(id, name, short_name, badge_color, badge_url)')
+      .single()
+    if (error) throw error
 
-      if (!error && data) {
-        const photo_url = await resolvePhotoUrl(photo, data.id)
-        if (photo_url) {
-          await supabase.from('coaches').update({ photo_url }).eq('id', data.id)
-          data.photo_url = photo_url
-        }
-        return mapRowToCoach(data)
-      }
-    } catch (err) {
-      console.warn('Supabase create coach failed, using local mock:', err.message)
+    const photo_url = await resolvePhotoUrl(photo, data.id)
+    if (photo_url) {
+      const { error: photoError } = await supabase.from('coaches').update({ photo_url }).eq('id', data.id)
+      if (photoError) throw photoError
+      data.photo_url = photo_url
     }
+    return mapRowToCoach(data)
   }
 
   // Fallback to local mock state
@@ -193,9 +180,8 @@ export async function createCoach({ name, nationality, age, market_value, stats,
 
 export async function updateCoach(id, { name, nationality, age, market_value, stats, photo, club_id }) {
   if (isSupabaseConfigured) {
-    try {
-      const photo_url = await resolvePhotoUrl(photo, id)
-      const updates = {
+    const photo_url = await resolvePhotoUrl(photo, id)
+    const updates = {
         ...(name !== undefined ? { name } : {}),
         ...(nationality !== undefined ? { nationality } : {}),
         ...(age !== undefined ? { age: Number(age) } : {}),
@@ -212,17 +198,14 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
         ...(photo_url !== undefined ? { photo_url } : {}),
       }
 
-      const { data, error } = await supabase
-        .from('coaches')
-        .update(updates)
-        .eq('id', id)
-        .select('*, clubs(id, name, short_name, badge_color, badge_url)')
-        .single()
-
-      if (!error && data) return mapRowToCoach(data)
-    } catch (err) {
-      console.warn('Supabase update coach failed, using local mock:', err.message)
-    }
+    const { data, error } = await supabase
+      .from('coaches')
+      .update(updates)
+      .eq('id', id)
+      .select('*, clubs(id, name, short_name, badge_color, badge_url)')
+      .single()
+    if (error) throw error
+    return mapRowToCoach(data)
   }
 
   // Fallback to local mock state
@@ -253,12 +236,9 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
 
 export async function deleteCoach(id) {
   if (isSupabaseConfigured) {
-    try {
-      const { error } = await supabase.from('coaches').delete().eq('id', id)
-      if (!error) return
-    } catch (err) {
-      console.warn('Supabase delete coach failed, deleting from local mock:', err.message)
-    }
+    const { error } = await supabase.from('coaches').delete().eq('id', id)
+    if (error) throw error
+    return
   }
   mockCoachesState = mockCoachesState.filter(c => String(c.id) !== String(id))
   saveMockCoachesState()

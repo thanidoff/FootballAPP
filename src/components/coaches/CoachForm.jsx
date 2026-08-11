@@ -123,15 +123,17 @@ export default function CoachForm({ initialValues, onSubmit, loading, clubs = []
           <Input
             label="Age"
             type="number"
-            min={25}
-            max={90}
+            min={0}
             value={form.age}
-            onChange={(e) => setForm((f) => ({ ...f, age: parseInt(e.target.value) || 45 }))}
+            onChange={(e) => {
+              const parsed = Number.parseInt(e.target.value, 10)
+              setForm((f) => ({ ...f, age: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 }))
+            }}
             className="text-center px-9"
           />
           <button
             type="button"
-            onClick={() => setForm((f) => ({ ...f, age: Math.max(25, (f.age || 45) - 1) }))}
+            onClick={() => setForm((f) => ({ ...f, age: Math.max(0, Number(f.age || 0) - 1) }))}
             className="absolute left-1.5 top-[31px] flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
             title="Decrease Age"
           >
@@ -139,7 +141,7 @@ export default function CoachForm({ initialValues, onSubmit, loading, clubs = []
           </button>
           <button
             type="button"
-            onClick={() => setForm((f) => ({ ...f, age: Math.min(90, (f.age || 45) + 1) }))}
+            onClick={() => setForm((f) => ({ ...f, age: Number(f.age || 0) + 1 }))}
             className="absolute right-1.5 top-[31px] flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
             title="Increase Age"
           >
