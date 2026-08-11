@@ -225,14 +225,25 @@ export default function DraftCupTab() {
   const isActiveCup = cup?.status === 'active'
   const activeCupIdx = cups.findIndex(c => c.status === 'active')
   const isFirstCup = cups.length === 0 && !leagueSeasons.some(season => season.status === 'completed')
-  const selectionTarget = Math.min(8, candidates.length)
+  const selectionTarget = candidates.length >= 8 ? 8 : candidates.length >= 4 ? 4 : 2
 
   const canGoPrev = currentCupIdx > 0
   const canGoNext = currentCupIdx < cups.length - 1
 
   useEffect(() => {
-    if (!cup && completedLeague?.cupPrizeSettings) setPrizeDraft([...completedLeague.cupPrizeSettings])
-  }, [cup, completedLeague])
+    if (cup) return
+    setPrizeDraft([...(completedLeague?.cupPrizeSettings || saveData.settings?.customCupPrizes || DEFAULT_CUP_PRIZES)])
+    setCupMatchPrizeDraft({
+      ...DEFAULT_CUP_MATCH_PRIZES,
+      ...(completedLeague?.cupMatchPrizes || saveData.settings?.customCupMatchPrizes || {}),
+    })
+  }, [cup, completedLeague, saveData.settings?.customCupMatchPrizes, saveData.settings?.customCupPrizes])
+
+  useEffect(() => {
+    if (!cup) return
+    const firstAvailableRound = [1, 2, 3].find(round => (cup.rounds?.[round] || []).length > 0) || 1
+    setMobileRound(current => Math.max(current, firstAvailableRound))
+  }, [cup])
 
   function openSetup() {
     setSelected(isFirstCup ? [] : qualifiedIds.slice(0, 8))
@@ -252,15 +263,16 @@ export default function DraftCupTab() {
       const swapIndex = Math.floor(drawRandom() * (index + 1))
       ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
     }
-    const firstRound = Array.from({ length: 4 }, (_, index) => ({ home: shuffled[index * 2], away: shuffled[index * 2 + 1], played: false }))
+    const startingRound = selectionTarget === 8 ? 1 : selectionTarget === 4 ? 2 : 3
+    const firstRound = Array.from({ length: selectionTarget / 2 }, (_, index) => ({ home: shuffled[index * 2], away: shuffled[index * 2 + 1], played: false }))
     const selectedQualifierIds = selected.filter(id => qualifiedIds.includes(id))
     const selectedInvitedIds = selected.filter(id => !qualifiedIds.includes(id))
     const newCup = {
       id: cupId,
       seasonId: completedLeague?.id || null,
       number: cups.length + 1,
-      status: 'active', round: 1, qualifiedIds: selectedQualifierIds, invitedIds: selectedInvitedIds,
-      rounds: { 1: firstRound },
+      status: 'active', round: startingRound, qualifiedIds: selectedQualifierIds, invitedIds: selectedInvitedIds,
+      rounds: { [startingRound]: firstRound },
       prizeSettings: [...prizeDraft],
       matchPrizes: { ...cupMatchPrizeDraft },
       createdAt: new Date().toISOString(),
@@ -277,6 +289,7 @@ export default function DraftCupTab() {
     }
     await updateDraftState(saveId, newSaveData)
     setSaveData(newSaveData)
+    setMobileRound(startingRound)
     setSetupOpen(false)
     setSelected([])
   }
@@ -292,8 +305,8 @@ export default function DraftCupTab() {
   }
 
   function openPrizeSettings() {
-    setPrizeDraft([...(cup?.prizeSettings || completedLeague?.cupPrizeSettings || DEFAULT_CUP_PRIZES)])
-    setCupMatchPrizeDraft({ ...(DEFAULT_CUP_MATCH_PRIZES), ...(cup?.matchPrizes || {}) })
+    setPrizeDraft([...(cup?.prizeSettings || completedLeague?.cupPrizeSettings || saveData.settings?.customCupPrizes || DEFAULT_CUP_PRIZES)])
+    setCupMatchPrizeDraft({ ...DEFAULT_CUP_MATCH_PRIZES, ...(completedLeague?.cupMatchPrizes || saveData.settings?.customCupMatchPrizes || {}), ...(cup?.matchPrizes || {}) })
     setPrizeOpen(true)
   }
 
@@ -316,6 +329,25 @@ export default function DraftCupTab() {
     }
   }
 
+  async function saveInitialPrizeSettings() {
+    setSavingPrizes(true)
+    try {
+      const nextState = {
+        ...saveData,
+        settings: {
+          ...saveData.settings,
+          customCupPrizes: [...prizeDraft],
+          customCupMatchPrizes: { ...cupMatchPrizeDraft },
+        },
+      }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      setPrizeOpen(false)
+    } finally {
+      setSavingPrizes(false)
+    }
+  }
+
   if (!isFirstCup && !completedLeague && cups.length === 0) return (
     <div className="rounded-2xl border border-gray-200 bg-white px-6 py-20 text-center shadow-sm">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-[#FD5461]"><Trophy size={28} /></div>
@@ -328,7 +360,14 @@ export default function DraftCupTab() {
   if (!cup) return (
     <>
       {cup?.champion && <div className="mb-5 rounded-2xl border border-[#FD5461]/35 bg-[#FD5461]/[0.07] p-5"><div className="text-[10px] font-black uppercase tracking-widest text-[#FD5461]">Last cup champion</div><div className="mt-1 font-heading text-xl font-black uppercase text-[#0A1318]">{allClubs.find(club => club.id === cup.champion)?.name}</div></div>}
-      <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-[#FD5461]" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">Create the cup tournament</h2><p className="mt-2 text-sm text-gray-500">Select clubs for the cup tournament. League qualifiers are preselected but can be changed before the unrestricted random draw.</p><div className="mt-7 flex flex-wrap justify-center gap-2"><Button variant="outline" onClick={() => { setPrizeDraft([...DEFAULT_CUP_PRIZES]); setPrizeOpen(true) }} className="flex items-center gap-2"><Settings2 size={16} />Set prizes</Button><Button onClick={openSetup}>{`Select ${selectionTarget} clubs`}</Button></div></div>
+      <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-[#FD5461]" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">Create the cup tournament</h2><p className="mt-2 text-sm text-gray-500">Select clubs for the cup tournament. League qualifiers are preselected but can be changed before the unrestricted random draw.</p><div className="mt-7 flex flex-wrap justify-center gap-2"><Button variant="outline" onClick={() => {
+        setPrizeDraft([...(completedLeague?.cupPrizeSettings || saveData.settings?.customCupPrizes || DEFAULT_CUP_PRIZES)])
+        setCupMatchPrizeDraft({
+          ...DEFAULT_CUP_MATCH_PRIZES,
+          ...(completedLeague?.cupMatchPrizes || saveData.settings?.customCupMatchPrizes || {}),
+        })
+        setPrizeOpen(true)
+      }} className="flex items-center gap-2"><Settings2 size={16} />Set prizes</Button><Button onClick={openSetup}>{`Select ${selectionTarget} clubs`}</Button></div></div>
       <Modal open={setupOpen} onClose={() => setSetupOpen(false)} title="Select Cup Clubs" width="max-w-3xl">
         <div className="space-y-5">
             <p className="type-body-sm text-gray-500">Select clubs · {selected.length}/{selectionTarget} selected · all pairings are random</p>
@@ -382,14 +421,14 @@ export default function DraftCupTab() {
                 })}
               </div>
             </div>
-            <div className="border-t border-gray-100 pt-4"><button onClick={createCup} disabled={selected.length !== selectionTarget} className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FD5461] py-3 type-body font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300"><Shuffle size={16} />{selected.length === selectionTarget ? 'Shuffle all 8 clubs' : `Select ${selectionTarget - selected.length} more`}</button></div>
+            <div className="border-t border-gray-100 pt-4"><button onClick={createCup} disabled={selected.length !== selectionTarget} className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FD5461] py-3 type-body font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300"><Shuffle size={16} />{selected.length === selectionTarget ? `Shuffle all ${selectionTarget} clubs` : `Select ${selectionTarget - selected.length} more`}</button></div>
         </div>
       </Modal>
       <Modal open={prizeOpen} onClose={() => setPrizeOpen(false)} title={`Cup prizes`} width="max-w-xl">
         <div className="space-y-5">
           <p className="text-sm text-gray-500">Set five reward tiers for the cup tournament.</p>
-          <CupPrizeFields prizes={prizeDraft} setPrizes={setPrizeDraft} />
-          <button onClick={() => setPrizeOpen(false)} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white">Save cup prizes</button>
+          <CupPrizeFields prizes={prizeDraft} setPrizes={setPrizeDraft} matchPrizes={cupMatchPrizeDraft} setMatchPrizes={setCupMatchPrizeDraft} />
+          <button disabled={savingPrizes} onClick={saveInitialPrizeSettings} className="w-full rounded-xl bg-[#FD5461] py-3 text-sm font-semibold text-white disabled:opacity-50">{savingPrizes ? 'Saving...' : 'Save cup prizes'}</button>
         </div>
       </Modal>
     </>
@@ -399,6 +438,7 @@ export default function DraftCupTab() {
   const qf = rounds[1] || []
   const sf = rounds[2] || []
   const finalRound = rounds[3] || []
+  const firstRoundNumber = [1, 2, 3].find(round => (rounds[round] || []).length > 0) || 1
   const lineColor = done => done ? '#FD5461' : '#D7DCE2'
   const columnData = [
     { round: 1, title: 'Quarter Finals', short: 'Round of 8', count: 4 },
@@ -491,7 +531,7 @@ export default function DraftCupTab() {
           <button onClick={() => setMobileRound(round => Math.min(3, round + 1))} disabled={mobileRound === 3} aria-label="Next round" className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-[#0A1318] transition-all hover:border-[#FD5461] hover:text-[#FD5461] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-300 disabled:hover:border-gray-200"><ChevronRight size={19} strokeWidth={2.25} /></button>
         </div>
         <div key={mobileRound} className="space-y-4" style={{ animation: 'fadeSlideUp 0.35s cubic-bezier(.22,1,.36,1) both' }}>
-          {Array.from({ length: columnData[mobileRound - 1].count }, (_, index) => {
+          {Array.from({ length: mobileRound < firstRoundNumber ? 0 : columnData[mobileRound - 1].count }, (_, index) => {
             const match = rounds[mobileRound]?.[index]
             const prevMatch1 = rounds[mobileRound - 1]?.[index * 2]
             const prevMatch2 = rounds[mobileRound - 1]?.[index * 2 + 1]
@@ -541,7 +581,7 @@ export default function DraftCupTab() {
             <div className="absolute inset-0 grid grid-cols-3 gap-12">
               {columnData.map(column => {
                 const positions = column.round === 1 ? [90, 270, 450, 630] : column.round === 2 ? [180, 540] : [360]
-                return <section key={column.round} className="relative h-full">{Array.from({ length: column.count }, (_, index) => {
+                return <section key={column.round} className="relative h-full">{Array.from({ length: column.round < firstRoundNumber ? 0 : column.count }, (_, index) => {
                   const match = rounds[column.round]?.[index]
                   const prevMatch1 = rounds[column.round - 1]?.[index * 2]
                   const prevMatch2 = rounds[column.round - 1]?.[index * 2 + 1]

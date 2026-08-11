@@ -7,6 +7,7 @@ import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 import OvrBadge from '../../components/ui/OvrBadge'
 import PositionBadge from '../../components/ui/PositionBadge'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
+import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES } from '../../services/draftSave'
 
 const PODIUM_STYLES = [
   { badge: 'bg-[#FD5461] text-white shadow-sm shadow-red-200' },
@@ -24,12 +25,42 @@ function RankBadge({ rank }) {
   )
 }
 
+function PrizeValueRow({ label, description, value, onChange }) {
+  const adjust = delta => onChange(Math.max(0, (Number(value) || 0) + delta))
+  return (
+    <div className="flex flex-col justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3 sm:flex-row sm:items-center">
+      <div className="min-w-0">
+        <div className="text-sm font-bold text-[#0A1318]">{label}</div>
+        <div className="text-xs text-gray-400">{description}</div>
+      </div>
+      <div className="flex w-full shrink-0 items-center gap-1.5 sm:w-auto">
+        <button type="button" onClick={() => adjust(-10_000_000)} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-10</button>
+        <button type="button" onClick={() => adjust(-1_000_000)} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">-1</button>
+        <span className="relative flex h-9 min-w-0 flex-1 items-center rounded-lg border border-gray-200 bg-white px-2 focus-within:border-[#FD5461] focus-within:ring-2 focus-within:ring-red-50 sm:w-24 sm:flex-none">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={((Number(value) || 0) / 1_000_000).toFixed(1)}
+            onFocus={event => event.target.select()}
+            onChange={event => {
+              const raw = event.target.value.replace(/[^0-9.]/g, '')
+              if (!/^\d*(?:\.\d?)?$/.test(raw)) return
+              const millions = Number.parseFloat(raw)
+              if (Number.isFinite(millions)) onChange(Math.round(millions * 1_000_000))
+            }}
+            className="w-full bg-transparent text-right text-sm font-bold tabular-nums outline-none"
+          />
+          <span className="ml-1 text-xs font-bold leading-none text-gray-400">M</span>
+        </span>
+        <button type="button" onClick={() => adjust(1_000_000)} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+1</button>
+        <button type="button" onClick={() => adjust(10_000_000)} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+10</button>
+      </div>
+    </div>
+  )
+}
+
 const STEPS = ['Save', 'Clubs', 'Team setup', 'Prizes']
 const DEFAULT_BUDGET = 100_000_000
-
-const DEFAULT_LEAGUE_PLACEMENT_PRIZES = [50_000_000, 30_000_000, 20_000_000, 10_000_000, 5_000_000]
-const DEFAULT_AWARDS_PRIZES = { topScorers: 5_000_000, topAssists: 5_000_000, mostMvps: 5_000_000 }
-const DEFAULT_CUP_PRIZES = [30_000_000, 20_000_000, 15_000_000, 10_000_000, 10_000_000, 5_000_000, 5_000_000, 5_000_000]
 
 function ClubBadge({ club }) {
   if (club.badge_url) return <img src={club.badge_url} alt="" className="h-10 w-10 object-contain" />
@@ -54,9 +85,11 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
   // Prizes config state
   const [hasLeague, setHasLeague] = useState(true)
   const [hasCup, setHasCup] = useState(true)
-  const [leaguePlacements, setLeaguePlacements] = useState(DEFAULT_LEAGUE_PLACEMENT_PRIZES)
-  const [awardPrizes, setAwardPrizes] = useState(DEFAULT_AWARDS_PRIZES)
-  const [cupPrizes, setCupPrizes] = useState(DEFAULT_CUP_PRIZES)
+  const [leaguePlacements, setLeaguePlacements] = useState(() => [...DEFAULT_LEAGUE_PRIZES.placements])
+  const [awardPrizes, setAwardPrizes] = useState(() => ({ ...DEFAULT_LEAGUE_PRIZES.awards }))
+  const [leagueMatchPrizes, setLeagueMatchPrizes] = useState(() => ({ ...DEFAULT_LEAGUE_PRIZES.matchPrizes }))
+  const [cupPrizes, setCupPrizes] = useState(() => [...DEFAULT_CUP_PRIZES])
+  const [cupMatchPrizes, setCupMatchPrizes] = useState(() => ({ ...DEFAULT_CUP_MATCH_PRIZES }))
 
   useEffect(() => {
     Promise.all([fetchClubs(), fetchPlayers()])
@@ -136,13 +169,22 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
         prizeSettings: {
           placements: leaguePlacements,
           awards: awardPrizes,
+          matchPrizes: leagueMatchPrizes,
         },
         cupPrizeSettings: cupPrizes,
+        cupMatchPrizes,
       },
     })
   }
 
-  const canContinue = step === 0 ? Boolean(saveName.trim()) : step === 1 ? selectedIds.length >= 2 : (step === 3 ? (hasLeague || hasCup) : true)
+  const hasEnoughCompetitionClubs = (!hasLeague || selectedIds.length >= 5) && selectedIds.length >= 2
+  const canContinue = step === 0
+    ? Boolean(saveName.trim())
+    : step === 1
+      ? selectedIds.length >= 2
+      : step === 3
+        ? (hasLeague || hasCup) && hasEnoughCompetitionClubs
+        : true
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
@@ -182,7 +224,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                 <div className="flex items-end justify-between gap-4">
                   <div>
                     <h3 className="font-heading text-xl font-black uppercase tracking-wide text-[#0A1318]">Add clubs</h3>
-                    <p className="mt-1 text-sm text-gray-500">Add clubs one at a time. A career needs at least two.</p>
+                    <p className="mt-1 text-sm text-gray-500">Add clubs one at a time. A league career needs at least five clubs.</p>
                   </div>
                   <span className="font-heading text-xs font-black uppercase tracking-wider text-[#FD5461]">{selectedIds.length} selected</span>
                 </div>
@@ -387,6 +429,21 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                   </div>
                 </div>
 
+                <div className={`grid transition-[grid-template-rows,opacity,margin] duration-400 ease-out ${hasLeague ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 -mt-6'}`}>
+                  <div className="overflow-hidden">
+                    <div className="space-y-3">
+                      <h4 className="font-heading text-xs font-black uppercase tracking-wider text-gray-400">League Per-Match Rewards</h4>
+                      {[
+                        ['win', 'Match Win Prize', 'Paid to the winning club'],
+                        ['draw', 'Match Draw Prize', 'Paid to each club after a draw'],
+                        ['loss', 'Match Loss Prize', 'Paid to the losing club'],
+                      ].map(([key, label, description]) => (
+                        <PrizeValueRow key={key} label={label} description={description} value={leagueMatchPrizes[key]} onChange={amount => setLeagueMatchPrizes(current => ({ ...current, [key]: amount }))} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Cup Prizes Config Accordion */}
                 <div className={`grid transition-[grid-template-rows,opacity,margin] duration-400 ease-out ${hasCup ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 -mt-6'}`}>
                   <div className="overflow-hidden">
@@ -428,6 +485,20 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`grid transition-[grid-template-rows,opacity,margin] duration-400 ease-out ${hasCup ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 -mt-6'}`}>
+                  <div className="overflow-hidden">
+                    <div className="space-y-3">
+                      <h4 className="font-heading text-xs font-black uppercase tracking-wider text-gray-400">Cup Per-Match Rewards</h4>
+                      {[
+                        ['win', 'Cup Match Win Prize', 'Paid to the club that advances'],
+                        ['loss', 'Cup Match Loss Prize', 'Paid to the eliminated club'],
+                      ].map(([key, label, description]) => (
+                        <PrizeValueRow key={key} label={label} description={description} value={cupMatchPrizes[key]} onChange={amount => setCupMatchPrizes(current => ({ ...current, [key]: amount }))} />
+                      ))}
                     </div>
                   </div>
                 </div>

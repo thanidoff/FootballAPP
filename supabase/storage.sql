@@ -2,7 +2,8 @@
 insert into storage.buckets (id, name, public)
 values
   ('player-photos', 'player-photos', true),
-  ('club-badges',   'club-badges',   true)
+  ('club-badges',   'club-badges',   true),
+  ('coach-photos',  'coach-photos',  true)
 on conflict (id) do nothing;
 
 -- Public read policies
@@ -25,6 +26,23 @@ create policy "public delete player-photos"
 create policy "public read club-badges"
   on storage.objects for select
   using (bucket_id = 'club-badges');
+
+create policy "public read coach-photos"
+  on storage.objects for select
+  using (bucket_id = 'coach-photos');
+
+create policy "authenticated upload coach-photos"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'coach-photos');
+
+create policy "authenticated update coach-photos"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'coach-photos')
+  with check (bucket_id = 'coach-photos');
+
+create policy "authenticated delete coach-photos"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'coach-photos');
 
 create policy "public upload club-badges"
   on storage.objects for insert
