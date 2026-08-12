@@ -19,6 +19,10 @@ export const DEFAULT_LEAGUE_PRIZES = {
   placements: [100_000_000, 70_000_000, 50_000_000, 30_000_000, 20_000_000],
   awards: { topScorers: 15_000_000, topAssists: 15_000_000, mostMvps: 15_000_000 },
   matchPrizes: { win: 5_000_000, draw: 3_000_000, loss: 2_000_000 },
+  externalIncome: {
+    league: { min: 55_000_000, max: 85_000_000 },
+    cup: { min: 15_000_000, max: 35_000_000 },
+  },
 }
 
 export const DEFAULT_CUP_PRIZES = [80_000_000, 50_000_000, 35_000_000, 25_000_000, 20_000_000, 15_000_000, 10_000_000, 10_000_000]
@@ -34,6 +38,16 @@ function normalizeLeaguePrizes(prizes) {
       win: Math.max(0, Number(prizes?.matchPrizes?.win ?? DEFAULT_LEAGUE_PRIZES.matchPrizes.win)),
       draw: Math.max(0, Number(prizes?.matchPrizes?.draw ?? DEFAULT_LEAGUE_PRIZES.matchPrizes.draw)),
       loss: Math.max(0, Number(prizes?.matchPrizes?.loss ?? DEFAULT_LEAGUE_PRIZES.matchPrizes.loss)),
+    },
+    externalIncome: {
+      league: {
+        min: Math.max(0, Number(prizes?.externalIncome?.league?.min ?? DEFAULT_LEAGUE_PRIZES.externalIncome.league.min)),
+        max: Math.max(0, Number(prizes?.externalIncome?.league?.max ?? DEFAULT_LEAGUE_PRIZES.externalIncome.league.max)),
+      },
+      cup: {
+        min: Math.max(0, Number(prizes?.externalIncome?.cup?.min ?? DEFAULT_LEAGUE_PRIZES.externalIncome.cup.min)),
+        max: Math.max(0, Number(prizes?.externalIncome?.cup?.max ?? DEFAULT_LEAGUE_PRIZES.externalIncome.cup.max)),
+      },
     },
   }
 }

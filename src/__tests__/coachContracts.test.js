@@ -56,9 +56,21 @@ describe('external competition income', () => {
     const teams = [{ club_id: 'league', budget: 0 }, { club_id: 'cup', budget: 0 }, { club_id: 'outside', budget: 0 }]
     const previousSeason = { id: 1, teamIds: ['league'] }
     const cups = [{ seasonId: 1, invitedIds: ['cup'], rounds: {} }]
-    const result = applyExternalCompetitionIncome(teams, previousSeason, cups)
-    expect(result.teams.find(team => team.club_id === 'league').budget).toBe(25_000_000)
-    expect(result.teams.find(team => team.club_id === 'cup').budget).toBe(70_000_000)
-    expect(result.teams.find(team => team.club_id === 'outside').budget).toBe(95_000_000)
+    const ranges = { league: { min: 50_000_000, max: 80_000_000 }, cup: { min: 10_000_000, max: 30_000_000 } }
+    const result = applyExternalCompetitionIncome(teams, previousSeason, cups, ranges, () => 0.5)
+    expect(result.teams.find(team => team.club_id === 'league').budget).toBe(20_000_000)
+    expect(result.teams.find(team => team.club_id === 'cup').budget).toBe(65_000_000)
+    expect(result.teams.find(team => team.club_id === 'outside').budget).toBe(85_000_000)
+  })
+
+  it('rolls a separate external income inside the configured range', () => {
+    const teams = [{ club_id: 'low', budget: 0 }, { club_id: 'high', budget: 0 }]
+    const values = [0, 0, 1, 1]
+    const result = applyExternalCompetitionIncome(teams, { id: 1, teamIds: [] }, [], {
+      league: { min: 50_000_000, max: 80_000_000 },
+      cup: { min: 10_000_000, max: 30_000_000 },
+    }, () => values.shift())
+    expect(result.teams[0].budget).toBe(60_000_000)
+    expect(result.teams[1].budget).toBe(110_000_000)
   })
 })

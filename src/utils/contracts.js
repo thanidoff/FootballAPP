@@ -1,6 +1,8 @@
 export const DEFAULT_CONTRACT_SEASONS = 3
-export const EXTERNAL_LEAGUE_INCOME = 70_000_000
-export const EXTERNAL_CUP_INCOME = 25_000_000
+export const DEFAULT_EXTERNAL_INCOME = {
+  league: { min: 55_000_000, max: 85_000_000 },
+  cup: { min: 15_000_000, max: 35_000_000 },
+}
 
 export function marketValueForOvr(ovrValue, isCoach = false) {
   const ovr = Math.max(50, Number(ovrValue) || 70)
@@ -89,8 +91,16 @@ export function processSeasonContracts(teams = [], freeAgents = [], freeAgentCoa
   }
 }
 
-export function applyExternalCompetitionIncome(teams = [], previousSeason, cups = []) {
+function randomIncome(range, random) {
+  const min = Math.max(0, Math.min(Number(range?.min) || 0, Number(range?.max) || 0))
+  const max = Math.max(min, Number(range?.max) || Number(range?.min) || 0)
+  const step = 1_000_000
+  return Math.round((min + random() * (max - min)) / step) * step
+}
+
+export function applyExternalCompetitionIncome(teams = [], previousSeason, cups = [], ranges, random = Math.random) {
   if (!previousSeason) return { teams, incomes: [] }
+  const configured = ranges || previousSeason?.prizeSettings?.externalIncome || DEFAULT_EXTERNAL_INCOME
   const leagueIds = new Set((previousSeason.teamIds || []).map(String))
   const relevantCups = cups.filter(cup => String(cup.seasonId) === String(previousSeason.id))
   const cupIds = new Set(relevantCups.flatMap(cup => [
@@ -100,8 +110,8 @@ export function applyExternalCompetitionIncome(teams = [], previousSeason, cups 
   const incomes = []
   const updatedTeams = teams.map(team => {
     const clubId = String(team.club_id)
-    const leagueIncome = leagueIds.has(clubId) ? 0 : EXTERNAL_LEAGUE_INCOME
-    const cupIncome = cupIds.has(clubId) ? 0 : EXTERNAL_CUP_INCOME
+    const leagueIncome = leagueIds.has(clubId) ? 0 : randomIncome(configured.league || DEFAULT_EXTERNAL_INCOME.league, random)
+    const cupIncome = cupIds.has(clubId) ? 0 : randomIncome(configured.cup || DEFAULT_EXTERNAL_INCOME.cup, random)
     const amount = leagueIncome + cupIncome
     if (amount) incomes.push({ clubId: team.club_id, clubName: team.club_name, amount, leagueIncome, cupIncome })
     return { ...team, budget: (Number(team.budget) || 0) + amount }

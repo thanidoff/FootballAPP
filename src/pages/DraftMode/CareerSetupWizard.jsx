@@ -90,6 +90,10 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
   const [leaguePlacements, setLeaguePlacements] = useState(() => [...DEFAULT_LEAGUE_PRIZES.placements])
   const [awardPrizes, setAwardPrizes] = useState(() => ({ ...DEFAULT_LEAGUE_PRIZES.awards }))
   const [leagueMatchPrizes, setLeagueMatchPrizes] = useState(() => ({ ...DEFAULT_LEAGUE_PRIZES.matchPrizes }))
+  const [externalIncome, setExternalIncome] = useState(() => ({
+    league: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.league },
+    cup: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.cup },
+  }))
   const [cupPrizes, setCupPrizes] = useState(() => [...DEFAULT_CUP_PRIZES])
   const [cupMatchPrizes, setCupMatchPrizes] = useState(() => ({ ...DEFAULT_CUP_MATCH_PRIZES }))
 
@@ -173,6 +177,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
           placements: leaguePlacements,
           awards: awardPrizes,
           matchPrizes: leagueMatchPrizes,
+          externalIncome,
         },
         cupPrizeSettings: cupPrizes,
         cupMatchPrizes,
@@ -456,6 +461,17 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                       ))}
                     </div>
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-heading text-xs font-black uppercase tracking-wider text-gray-400">Outside Competition Income</h4>
+                    <p className="mt-1 text-xs text-gray-400">Random income for clubs not selected for your competitions.</p>
+                  </div>
+                  <PrizeValueRow label="Outside league · Minimum" description="Lowest possible external league income" value={externalIncome.league.min} onChange={amount => setExternalIncome(current => ({ ...current, league: { min: amount, max: Math.max(amount, current.league.max) } }))} />
+                  <PrizeValueRow label="Outside league · Maximum" description="Highest possible external league income" value={externalIncome.league.max} onChange={amount => setExternalIncome(current => ({ ...current, league: { min: Math.min(current.league.min, amount), max: amount } }))} />
+                  <PrizeValueRow label="Outside cup · Minimum" description="Lowest possible external cup income" value={externalIncome.cup.min} onChange={amount => setExternalIncome(current => ({ ...current, cup: { min: amount, max: Math.max(amount, current.cup.max) } }))} />
+                  <PrizeValueRow label="Outside cup · Maximum" description="Highest possible external cup income" value={externalIncome.cup.max} onChange={amount => setExternalIncome(current => ({ ...current, cup: { min: Math.min(current.cup.min, amount), max: amount } }))} />
                 </div>
 
                 {/* Cup Prizes Config Accordion */}

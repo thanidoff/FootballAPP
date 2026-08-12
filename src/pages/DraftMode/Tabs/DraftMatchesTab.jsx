@@ -120,6 +120,24 @@ export function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, 
     ['draw', 'Match Draw Prize', 'Bonus for drawing a league match'],
     ['loss', 'Match Loss Prize', 'Bonus for losing a league match'],
   ]
+  const externalIncome = {
+    league: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.league, ...(prizes.externalIncome?.league || {}) },
+    cup: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.cup, ...(prizes.externalIncome?.cup || {}) },
+  }
+  const setExternalIncome = (competition, edge, millions) => setPrizes(current => {
+    const range = { ...DEFAULT_LEAGUE_PRIZES.externalIncome[competition], ...(current.externalIncome?.[competition] || {}) }
+    const amount = Math.max(0, Number(millions) || 0) * 1_000_000
+    return {
+      ...current,
+      externalIncome: {
+        ...DEFAULT_LEAGUE_PRIZES.externalIncome,
+        ...(current.externalIncome || {}),
+        [competition]: edge === 'min'
+          ? { min: amount, max: Math.max(amount, range.max) }
+          : { min: Math.min(range.min, amount), max: amount },
+      },
+    }
+  })
 
   return (
     <div className="space-y-6">
@@ -199,6 +217,32 @@ export function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, 
                 </span>
                 <button type="button" disabled={locked} onClick={() => adjustMatchPrize(key, 1)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+1</button>
                 <button type="button" disabled={locked} onClick={() => adjustMatchPrize(key, 10)} className="flex h-9 shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+10</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-[#0A1318]">Outside competition income</h3>
+        <p className="mt-0.5 text-xs text-gray-400">Each outside club receives a random amount within these ranges at the next season.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {[
+            ['league', 'Outside league'],
+            ['cup', 'Outside cup'],
+          ].map(([competition, label]) => (
+            <div key={competition} className="rounded-2xl border border-gray-200 bg-white p-3">
+              <div className="text-sm font-semibold text-[#0A1318]">{label}</div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {['min', 'max'].map(edge => (
+                  <label key={edge} className="text-xs text-gray-400">
+                    {edge === 'min' ? 'Minimum' : 'Maximum'}
+                    <span className="mt-1 flex h-9 items-center rounded-lg border border-gray-200 px-2 focus-within:border-[#FD5461]">
+                      <input disabled={locked} type="number" min="0" step="1" value={externalIncome[competition][edge] / 1_000_000} onChange={event => setExternalIncome(competition, edge, event.target.value)} className="min-w-0 flex-1 bg-transparent text-right text-sm font-normal text-[#0A1318] outline-none disabled:bg-transparent" />
+                      <span className="ml-1 text-xs text-gray-400">M</span>
+                    </span>
+                  </label>
+                ))}
               </div>
             </div>
           ))}
@@ -617,6 +661,10 @@ export default function DraftMatchesTab() {
         ...DEFAULT_LEAGUE_PRIZES.matchPrizes,
         ...(savedLeaguePrizes?.matchPrizes || {}),
       },
+      externalIncome: {
+        league: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.league, ...(savedLeaguePrizes?.externalIncome?.league || {}) },
+        cup: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.cup, ...(savedLeaguePrizes?.externalIncome?.cup || {}) },
+      },
       cupMatchPrizes: {
         ...DEFAULT_CUP_MATCH_PRIZES,
         ...(seasonCup?.matchPrizes || seasonData?.cupMatchPrizes || {}),
@@ -638,6 +686,7 @@ export default function DraftMatchesTab() {
         placements: prizeDraft.placements,
         awards: prizeDraft.awards,
         matchPrizes: prizeDraft.matchPrizes,
+        externalIncome: prizeDraft.externalIncome,
       }
       let nextState = await updateDraftSeasonPrizeSettings(saveId, seasonData.id, updatedPrizeSettings)
       nextState = {
@@ -739,6 +788,10 @@ export default function DraftMatchesTab() {
           placements: [...(initialLeaguePrizes.placements || DEFAULT_LEAGUE_PRIZES.placements)],
           awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(initialLeaguePrizes.awards || {}) },
           matchPrizes: { ...DEFAULT_LEAGUE_PRIZES.matchPrizes, ...(initialLeaguePrizes.matchPrizes || {}) },
+          externalIncome: {
+            league: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.league, ...(initialLeaguePrizes.externalIncome?.league || {}) },
+            cup: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.cup, ...(initialLeaguePrizes.externalIncome?.cup || {}) },
+          },
         },
         cupPrizeSettings: [...(saveData.settings?.customCupPrizes || DEFAULT_CUP_PRIZES)],
         cupMatchPrizes: { ...DEFAULT_CUP_MATCH_PRIZES, ...(saveData.settings?.customCupMatchPrizes || {}) },
@@ -786,6 +839,10 @@ export default function DraftMatchesTab() {
         placements: [...(previousSeason?.prizeSettings?.placements || DEFAULT_LEAGUE_PRIZES.placements)],
         awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(previousSeason?.prizeSettings?.awards || {}) },
         matchPrizes: { ...DEFAULT_LEAGUE_PRIZES.matchPrizes, ...(previousSeason?.prizeSettings?.matchPrizes || {}) },
+        externalIncome: {
+          league: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.league, ...(previousSeason?.prizeSettings?.externalIncome?.league || {}) },
+          cup: { ...DEFAULT_LEAGUE_PRIZES.externalIncome.cup, ...(previousSeason?.prizeSettings?.externalIncome?.cup || {}) },
+        },
       }
       const previousCup = [...(newSettings.cups || [])].reverse().find(cup => cup.prizeSettings)
       const inheritedCupPrizes = [...(previousSeason?.cupPrizeSettings || previousCup?.prizeSettings || DEFAULT_CUP_PRIZES)]
