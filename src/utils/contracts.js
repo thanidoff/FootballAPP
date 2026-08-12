@@ -1,4 +1,6 @@
 export const DEFAULT_CONTRACT_SEASONS = 3
+export const EXTERNAL_LEAGUE_INCOME = 70_000_000
+export const EXTERNAL_CUP_INCOME = 25_000_000
 
 export function annualWageFor(person) {
   return Math.max(500_000, Math.round((Number(person?.market_value) || 0) * 0.08 / 100_000) * 100_000)
@@ -49,4 +51,24 @@ export function processSeasonContracts(teams = [], freeAgents = [], freeAgentCoa
     releasedCoaches,
     payrolls,
   }
+}
+
+export function applyExternalCompetitionIncome(teams = [], previousSeason, cups = []) {
+  if (!previousSeason) return { teams, incomes: [] }
+  const leagueIds = new Set((previousSeason.teamIds || []).map(String))
+  const relevantCups = cups.filter(cup => String(cup.seasonId) === String(previousSeason.id))
+  const cupIds = new Set(relevantCups.flatMap(cup => [
+    ...(cup.qualifiedIds || []), ...(cup.invitedIds || []),
+    ...Object.values(cup.rounds || {}).flat().flatMap(match => [match?.home, match?.away]),
+  ]).filter(Boolean).map(String))
+  const incomes = []
+  const updatedTeams = teams.map(team => {
+    const clubId = String(team.club_id)
+    const leagueIncome = leagueIds.has(clubId) ? 0 : EXTERNAL_LEAGUE_INCOME
+    const cupIncome = cupIds.has(clubId) ? 0 : EXTERNAL_CUP_INCOME
+    const amount = leagueIncome + cupIncome
+    if (amount) incomes.push({ clubId: team.club_id, clubName: team.club_name, amount, leagueIncome, cupIncome })
+    return { ...team, budget: (Number(team.budget) || 0) + amount }
+  })
+  return { teams: updatedTeams, incomes }
 }

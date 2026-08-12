@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getCoachEffects } from '../utils/coachEffects'
-import { annualWageFor, processSeasonContracts, withDefaultContract } from '../utils/contracts'
+import { annualWageFor, applyExternalCompetitionIncome, processSeasonContracts, withDefaultContract } from '../utils/contracts'
 
 describe('coach effects', () => {
   it('uses the head coach fully and applies only a small assistant bonus', () => {
@@ -31,5 +31,17 @@ describe('contracts', () => {
     expect(result.teams[0].roster).toHaveLength(0)
     expect(result.freeAgents[0]).toMatchObject({ id: 'p1', club_id: null, contract: null })
     expect(team.roster[0].contract.seasonsRemaining).toBe(1)
+  })
+})
+
+describe('external competition income', () => {
+  it('keeps clubs outside managed competitions financially active', () => {
+    const teams = [{ club_id: 'league', budget: 0 }, { club_id: 'cup', budget: 0 }, { club_id: 'outside', budget: 0 }]
+    const previousSeason = { id: 1, teamIds: ['league'] }
+    const cups = [{ seasonId: 1, invitedIds: ['cup'], rounds: {} }]
+    const result = applyExternalCompetitionIncome(teams, previousSeason, cups)
+    expect(result.teams.find(team => team.club_id === 'league').budget).toBe(25_000_000)
+    expect(result.teams.find(team => team.club_id === 'cup').budget).toBe(70_000_000)
+    expect(result.teams.find(team => team.club_id === 'outside').budget).toBe(95_000_000)
   })
 })

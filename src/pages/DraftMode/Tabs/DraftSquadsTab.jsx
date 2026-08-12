@@ -959,6 +959,17 @@ export default function DraftSquadsTab() {
           })
         }
       }
+
+      const externalIncome = (season.externalIncome || []).find(item => String(item.clubId) === teamId)
+      if (externalIncome?.amount > 0) {
+        const timestamp = saveCreatedTime + (seasonIndex * 30 + 1) * 3600_000
+        logs.push({ id: `external-income-${seasonIndex}`, title: 'External Competitions Income', category: 'External Competitions', seasonLabel: `Season ${seasonIndex + 1}`, seasonNum: seasonIndex + 1, amount: externalIncome.amount, type: 'income', description: 'Income from competitions outside the managed league and cup', date: new Date(timestamp).toISOString(), timestamp })
+      }
+      const payroll = (season.payrolls || []).find(item => String(item.clubId) === teamId)
+      if (payroll?.amount > 0) {
+        const timestamp = saveCreatedTime + (seasonIndex * 30 + 2) * 3600_000
+        logs.push({ id: `payroll-${seasonIndex}`, title: 'Season Wages', category: 'Contracts', seasonLabel: `Season ${seasonIndex + 1}`, seasonNum: seasonIndex + 1, amount: payroll.amount, type: 'expense', description: 'Player and coach wages paid for the season', date: new Date(timestamp).toISOString(), timestamp })
+      }
     })
 
     // 4. Cup match bonuses & Tournament final placement prizes
