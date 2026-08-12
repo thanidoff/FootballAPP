@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MOCK_CLUBS, MOCK_PLAYERS } from '../data/mockGameData'
 import { generateMockRoster, generateSchedule } from '../utils/draftLogic'
+import { applyExternalCompetitionIncome, processSeasonContracts, withDefaultContract } from '../utils/contracts'
 import {
   completeDraftCupMatch,
   completeDraftMatch,
@@ -216,6 +217,99 @@ describe('complete career simulation', () => {
     expect(Object.values(completedSeason.stats.topScorers).reduce((sum, value) => sum + value, 0)).toBe(22)
     expect(Object.values(completedSeason.stats.topAssists).reduce((sum, value) => sum + value, 0)).toBe(22)
     expect(Object.values(completedSeason.stats.mostMvps).reduce((sum, value) => sum + value, 0)).toBe(22)
+  })
+
+  it('plays three consecutive seasons with transfers, payrolls, expiry, and outside income', async () => {
+    const teams = makeTeams(6).map(team => ({
+      ...team,
+      budget: 150_000_000,
+      roster: team.roster.map(player => withDefaultContract(player, 3)),
+      coaches: [],
+    }))
+    const leagueIds = teams.slice(0, 5).map(team => team.club_id)
+    const outsideId = teams[5].club_id
+    const externalRange = {
+      league: { min: 60_000_000, max: 60_000_000 },
+      cup: { min: 20_000_000, max: 20_000_000 },
+    }
+    const saveId = await createDraftState({
+      name: 'Three season regression',
+      teams,
+      freeAgents: MOCK_PLAYERS.slice(30).map(player => ({ ...player, club_id: null })),
+      currentWeek: 1,
+      settings: { seasons: [], cups: [] },
+    })
+
+    for (let seasonNumber = 1; seasonNumber <= 3; seasonNumber += 1) {
+      let state = await loadDraftState(saveId)
+      const schedule = generateSchedule(leagueIds)
+      state.settings.seasons.push({
+        id: seasonNumber,
+        teamIds: leagueIds,
+        matches: schedule,
+        stats: { topScorers: {}, topAssists: {}, mostMvps: {}, mostFouls: {} },
+        prizeSettings: {
+          placements: [100_000_000, 70_000_000, 50_000_000, 30_000_000, 20_000_000],
+          awards: { topScorers: 15_000_000, topAssists: 15_000_000, mostMvps: 15_000_000 },
+          matchPrizes: { win: 5_000_000, draw: 3_000_000, loss: 2_000_000 },
+          externalIncome: externalRange,
+        },
+        status: 'active',
+      })
+      state.currentWeek = 1
+      await updateDraftState(saveId, state)
+
+      for (let week = 1; week <= schedule.length; week += 1) {
+        for (let index = 0; index < schedule[week - 1].matches.length; index += 1) {
+          state = await loadDraftState(saveId)
+          const match = state.settings.seasons.at(-1).matches[week - 1].matches[index]
+          const home = state.teams.find(team => team.club_id === match.home) || state.teams[0]
+          const away = state.teams.find(team => team.club_id === match.away) || state.teams[1]
+          await completeDraftMatch(saveId, week, index, {
+            homeScore: (seasonNumber + week + index) % 4,
+            awayScore: (seasonNumber * 2 + week + index) % 3,
+            events: [{ type: 'goal', player: home.roster[0], assist: home.roster[1] }],
+            mvp: away.roster[0],
+          })
+        }
+      }
+
+      state = await loadDraftState(saveId)
+      expect(state.settings.seasons.at(-1).status).toBe('completed')
+      expect(state.settings.seasons.at(-1).standings).toHaveLength(5)
+      expect(state.settings.seasons.at(-1).prizesPaidAt).toBeTruthy()
+
+      const movable = state.teams[0].roster.at(-1)
+      const destination = state.teams[1]
+      if (destination.budget < 0) destination.budget = 1_000_000
+      await updateDraftState(saveId, state)
+      state = await transferDraftPlayer(saveId, movable.id, destination.club_id, 1_000_000, 3)
+      expect(state.teams[1].roster.some(player => player.id === movable.id)).toBe(true)
+
+      const contracts = processSeasonContracts(state.teams, state.freeAgents, state.freeAgentsCoaches || [])
+      const external = applyExternalCompetitionIncome(
+        contracts.teams,
+        state.settings.seasons.at(-1),
+        state.settings.cups,
+        externalRange,
+        () => 0.5,
+      )
+      const outsiderBefore = contracts.teams.find(team => team.club_id === outsideId).budget
+      const outsiderAfter = external.teams.find(team => team.club_id === outsideId).budget
+      expect(outsiderAfter - outsiderBefore).toBe(80_000_000)
+      state.teams = external.teams
+      state.freeAgents = contracts.freeAgents
+      state.freeAgentsCoaches = contracts.freeAgentsCoaches
+      await updateDraftState(saveId, state)
+    }
+
+    const finalState = await loadDraftState(saveId)
+    expect(finalState.settings.seasons).toHaveLength(3)
+    expect(finalState.settings.seasons.every(season => season.status === 'completed')).toBe(true)
+    expect(finalState.transferHistory).toHaveLength(3)
+    expect(finalState.freeAgents.length).toBeGreaterThan(0)
+    expect(finalState.teams.every(team => Number.isFinite(team.budget))).toBe(true)
+    expect(finalState.teams.every(team => team.roster.every(player => player.contract?.seasonsRemaining > 0))).toBe(true)
   })
 })
 
