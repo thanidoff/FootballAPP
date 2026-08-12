@@ -12,13 +12,15 @@ function dataUrlToBlob(dataUrl) {
 export async function uploadDataUrl(bucket, path, dataUrl) {
   const blob = dataUrlToBlob(dataUrl)
   const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-  // ใช้ชื่อไฟล์เดียวกันทั้ง upload และ getPublicUrl (มีนามสกุล)
-  const filePath = `${path}.${ext}`
+  // Every replacement gets a new object. Supabase Storage upsert requires
+  // additional SELECT permission and fails for our write-only public policy.
+  const uniqueSuffix = `${Date.now()}-${crypto.randomUUID()}`
+  const filePath = `${path}-${uniqueSuffix}.${ext}`
   const file = new File([blob], filePath, { type: blob.type })
 
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(filePath, file, { upsert: true, contentType: blob.type })
+    .upload(filePath, file, { upsert: false, contentType: blob.type })
 
   if (error) throw error
 

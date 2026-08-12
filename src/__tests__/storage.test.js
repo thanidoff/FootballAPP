@@ -28,13 +28,15 @@ describe('uploadDataUrl', () => {
 
     const result = await uploadDataUrl('player-photos', 'player-abc', SAMPLE_PNG_DATA_URL)
 
+    const uploadedPath = upload.mock.calls[0][0]
+    expect(uploadedPath).toMatch(/^player-abc-\d+-[\w-]+\.png$/)
     expect(upload).toHaveBeenCalledWith(
-      'player-abc.png',
+      uploadedPath,
       expect.any(File),
-      expect.objectContaining({ upsert: true, contentType: 'image/png' }),
+      expect.objectContaining({ upsert: false, contentType: 'image/png' }),
     )
-    expect(getPublicUrl).toHaveBeenCalledWith('player-abc.png')
-    expect(result).toMatch(/player-abc\.png\?t=\d+$/)
+    expect(getPublicUrl).toHaveBeenCalledWith(uploadedPath)
+    expect(result).toMatch(/\?t=\d+$/)
   })
 
   it('throws when upload fails', async () => {
@@ -55,7 +57,7 @@ describe('uploadDataUrl', () => {
 
     await uploadDataUrl('player-photos', 'player-jpeg', SAMPLE_PNG_DATA_URL.replace('image/png', 'image/jpeg'))
 
-    expect(upload).toHaveBeenCalledWith('player-jpeg.jpg', expect.any(File), expect.any(Object))
+    expect(upload.mock.calls[0][0]).toMatch(/^player-jpeg-\d+-[\w-]+\.jpg$/)
   })
 
   it('adds a cache-busting timestamp to every public URL', async () => {

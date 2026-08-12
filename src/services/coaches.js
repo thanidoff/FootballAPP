@@ -182,7 +182,7 @@ export async function createCoach({ name, nationality, age, market_value, stats,
 export async function updateCoach(id, { name, nationality, age, market_value, stats, photo, club_id }) {
   if (isSupabaseConfigured) {
     let existingPhotoUrl = null
-    if (photo === null) {
+    if (photo !== undefined) {
       const { data: existing, error: existingError } = await supabase.from('coaches').select('photo_url').eq('id', id).single()
       if (existingError) throw existingError
       existingPhotoUrl = existing?.photo_url || null
@@ -212,8 +212,13 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
       .eq('id', id)
       .select('*, clubs(id, name, short_name, badge_color, badge_url)')
       .single()
-    if (error) throw error
-    if (photo === null && existingPhotoUrl) await removeStorageObject('coach-photos', existingPhotoUrl)
+    if (error) {
+      if (photo_url) await removeStorageObject('coach-photos', photo_url).catch(() => {})
+      throw error
+    }
+    if (photo !== undefined && existingPhotoUrl && existingPhotoUrl !== photo_url) {
+      await removeStorageObject('coach-photos', existingPhotoUrl)
+    }
     return mapRowToCoach(data)
   }
 
