@@ -4,6 +4,7 @@ import { CalendarClock, Check, ChevronLeft, ChevronRight, Eye, Plus, Settings2, 
 import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
 import { createSeededRandom } from '../../../utils/matchEngine'
 import { generateMockRoster } from '../../../utils/draftLogic'
+import { getSeasonMatchSize } from '../../../utils/matchFormat'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
 import { ScoreChip } from '../../../components/draft/ResultScore'
@@ -301,7 +302,8 @@ export default function DraftCupTab() {
     const awayBase = allClubs.find(club => club.id === match.away)
     const home = homeTeam ? { ...homeBase, id: homeTeam.club_id, name: homeTeam.club_name, roster: homeTeam.roster, coaches: homeTeam.coaches || [] } : homeBase
     const away = awayTeam ? { ...awayBase, id: awayTeam.club_id, name: awayTeam.club_name, roster: awayTeam.roster, coaches: awayTeam.coaches || [] } : awayBase
-    navigate('/matches/draft/prematch', { state: { homeClub: home, awayClub: away, duration: 5, returnPath: `/draft/${saveId}/cup`, saveId, cupRound: round, matchIndex: index } })
+    const cupSeason = leagueSeasons.find(season => String(season.id) === String(cup?.seasonId)) || completedLeague
+    navigate('/matches/draft/prematch', { state: { homeClub: home, awayClub: away, duration: 5, matchSize: getSeasonMatchSize(saveData.settings, cupSeason), returnPath: `/draft/${saveId}/cup`, saveId, cupRound: round, matchIndex: index } })
   }
 
   function openPrizeSettings() {

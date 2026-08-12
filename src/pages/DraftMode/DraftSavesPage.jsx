@@ -44,9 +44,9 @@ export default function DraftSavesPage() {
     setCreateOpen(true)
   }
 
-  async function handleSetupComplete({ name, clubs, freeAgents, prizes }) {
+  async function handleSetupComplete({ name, clubs, freeAgents, prizes, matchSize }) {
     try {
-      const { newTeams, remainingPlayers, remainingCoaches } = generateInitialDraft(clubs, freeAgents)
+      const { newTeams, remainingPlayers, remainingCoaches } = generateInitialDraft(clubs, freeAgents, undefined, undefined, matchSize)
       const teams = newTeams.map(team => {
         const originalClub = clubs.find(c => String(c.id) === String(team.club_id))
         return {
@@ -58,6 +58,7 @@ export default function DraftSavesPage() {
       const saveId = await createDraftState({
         name,
         settings: {
+          matchSize,
           startingBudgets: Object.fromEntries(teams.map(team => [team.club_id, team.budget])),
           ...(prizes ? {
             customPrizes: prizes.prizeSettings,

@@ -10,6 +10,7 @@ import { completeLeagueMatch } from '../services/league'
 import { completeDraftMatch, completeDraftCupMatch } from '../services/draftSave'
 import { getOVRTier } from '../utils/stats'
 import { simulateMatchSequences } from '../utils/matchEngine'
+import { getSimulationPace, normalizeMatchSize, orderStartingLineup } from '../utils/matchFormat'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 import PlayerCard from '../components/ui/PlayerCard'
 import AllStarIcon from '../components/ui/AllStarIcon'
@@ -368,7 +369,7 @@ function EmptyRow({ isOver, canDrop }) {
   )
 }
 
-function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
+function useDrag(setSlots, suspendedIds = new Set(), onTap = null, starterLimit = 5) {
   const dragRef = useRef({ active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null })
   const suppressClickRef = useRef(false)
   const slotRefs = useRef(Array(12).fill(null))
@@ -461,10 +462,10 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null) {
         const fIdx = dragRef.current.fromIdx
         if (toIdx !== null && toIdx !== fIdx) {
           setSlots(prev => {
-            const starterCount = prev.slice(0, 5).filter(Boolean).length
-            if (fIdx < 5 && toIdx >= 5 && starterCount < 5) return prev
+            const starterCount = prev.slice(0, starterLimit).filter(Boolean).length
+            if (fIdx < starterLimit && toIdx >= starterLimit && starterCount < starterLimit) return prev
             const playerToMove = prev[fIdx]
-            if (toIdx < 5 && playerToMove && suspendedIds.has(playerToMove.id)) return prev
+            if (toIdx < starterLimit && playerToMove && suspendedIds.has(playerToMove.id)) return prev
             const next = [...prev]
             const tmp = next[fIdx]; next[fIdx] = next[toIdx]; next[toIdx] = tmp
             return next
@@ -643,9 +644,9 @@ function CoachSlotCell({ coaches = [], club, onSwapCoaches }) {
 }
 
 // Desktop: shared rows so both columns align perfectly
-function SharedLineupDesktop({ homeClub, awayClub, homeCoaches, awayCoaches, homeSlots, setHomeSlots, awaySlots, setAwaySlots, goals, fouls, suspendedIds, onPlayerClick }) {
-  const home = useDrag(setHomeSlots, suspendedIds, (idx) => { const p = homeSlots[idx]; if (p) onPlayerClick(p) })
-  const away = useDrag(setAwaySlots, suspendedIds, (idx) => { const p = awaySlots[idx]; if (p) onPlayerClick(p) })
+function SharedLineupDesktop({ homeClub, awayClub, homeCoaches, awayCoaches, homeSlots, setHomeSlots, awaySlots, setAwaySlots, goals, fouls, suspendedIds, onPlayerClick, starterCount }) {
+  const home = useDrag(setHomeSlots, suspendedIds, (idx) => { const p = homeSlots[idx]; if (p) onPlayerClick(p) }, starterCount)
+  const away = useDrag(setAwaySlots, suspendedIds, (idx) => { const p = awaySlots[idx]; if (p) onPlayerClick(p) }, starterCount)
 
   const [homeCoachesList, setHomeCoachesList] = useState(homeCoaches)
   const [awayCoachesList, setAwayCoachesList] = useState(awayCoaches)
@@ -699,8 +700,9 @@ function SharedLineupDesktop({ homeClub, awayClub, homeCoaches, awayCoaches, hom
     })
   }
 
-  const homeStarters = homeSlots.slice(0, 5).filter(Boolean).length
-  const awayStarters = awaySlots.slice(0, 5).filter(Boolean).length
+  const homeStarters = homeSlots.slice(0, starterCount).filter(Boolean).length
+  const awayStarters = awaySlots.slice(0, starterCount).filter(Boolean).length
+  const substituteCount = Math.max(0, homeSlots.length - starterCount)
 
   return (
     <div>
@@ -713,18 +715,18 @@ function SharedLineupDesktop({ homeClub, awayClub, homeCoaches, awayCoaches, hom
       {/* Column headers */}
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-600">Starting 5</span>
-          <span className="text-sm text-gray-500">{homeStarters}/5</span>
+          <span className="text-sm font-semibold text-gray-600">Starting {starterCount}</span>
+          <span className="text-sm text-gray-500">{homeStarters}/{starterCount}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-600">Starting 5</span>
-          <span className="text-sm text-gray-500">{awayStarters}/5</span>
+          <span className="text-sm font-semibold text-gray-600">Starting {starterCount}</span>
+          <span className="text-sm text-gray-500">{awayStarters}/{starterCount}</span>
         </div>
       </div>
 
       {/* Starter rows */}
       <div className="space-y-1.5">
-        {Array.from({ length: 5 }, (_, i) => (
+        {Array.from({ length: starterCount }, (_, i) => (
           <div key={`starter-row-${homeSlots[i]?.id || 'h'+i}-${awaySlots[i]?.id || 'a'+i}`} className="grid grid-cols-2 gap-4">
             <SlotCell player={homeSlots[i]} club={homeClub} idx={i} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={homeSlots[i] ? homeAnimOffsets[homeSlots[i].id] || 0 : 0} />
             <SlotCell player={awaySlots[i]} club={awayClub} idx={i} onMovePlayer={moveAwayPlayer} {...away} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={awaySlots[i] ? awayAnimOffsets[awaySlots[i].id] || 0 : 0} />
@@ -736,20 +738,20 @@ function SharedLineupDesktop({ homeClub, awayClub, homeCoaches, awayCoaches, hom
       <div className="grid grid-cols-2 gap-4 my-4">
         <div className="flex items-center gap-2">
           <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-sm font-medium text-gray-500">Subs · {homeSlots.slice(5).filter(Boolean).length}/7</span>
+          <span className="text-sm font-medium text-gray-500">Subs · {homeSlots.slice(starterCount).filter(Boolean).length}/{substituteCount}</span>
           <div className="flex-1 h-px bg-gray-100" />
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-sm font-medium text-gray-500">Subs · {awaySlots.slice(5).filter(Boolean).length}/7</span>
+          <span className="text-sm font-medium text-gray-500">Subs · {awaySlots.slice(starterCount).filter(Boolean).length}/{substituteCount}</span>
           <div className="flex-1 h-px bg-gray-100" />
         </div>
       </div>
 
       {/* Sub rows */}
       <div className="space-y-1.5">
-        {Array.from({ length: 7 }, (_, i) => {
-          const idx = i + 5
+        {Array.from({ length: substituteCount }, (_, i) => {
+          const idx = i + starterCount
           return (
             <div key={`sub-row-${homeSlots[idx]?.id || 'h'+idx}-${awaySlots[idx]?.id || 'a'+idx}`} className="grid grid-cols-2 gap-4">
               <SlotCell player={homeSlots[idx]} club={homeClub} idx={idx} onMovePlayer={moveHomePlayer} {...home} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={homeSlots[idx] ? homeAnimOffsets[homeSlots[idx].id] || 0 : 0} />
@@ -763,10 +765,10 @@ function SharedLineupDesktop({ homeClub, awayClub, homeCoaches, awayCoaches, hom
 }
 
 // Mobile: tab + slide
-function LineupPanel({ club, coaches, slots, setSlots, goals, fouls, suspendedIds, onPlayerClick }) {
-  const { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate } = useDrag(setSlots, suspendedIds, (idx) => { const p = slots[idx]; if (p) onPlayerClick(p) })
-  const starters = slots.slice(0, 5)
-  const subs = slots.slice(5)
+function LineupPanel({ club, coaches, slots, setSlots, goals, fouls, suspendedIds, onPlayerClick, starterCount }) {
+  const { slotRefs, activeDragIdx, dragOver, handlePointerDown, handleActivate } = useDrag(setSlots, suspendedIds, (idx) => { const p = slots[idx]; if (p) onPlayerClick(p) }, starterCount)
+  const starters = slots.slice(0, starterCount)
+  const subs = slots.slice(starterCount)
   const [animOffsets, setAnimOffsets] = useState({})
 
   const movePlayer = (from, to) => {
@@ -794,8 +796,8 @@ function LineupPanel({ club, coaches, slots, setSlots, goals, fouls, suspendedId
       <CoachSlotCell coaches={coaches} club={club} />
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-gray-600">Starting 5</span>
-          <span className="text-sm text-gray-500">{starters.filter(Boolean).length}/5</span>
+          <span className="text-sm font-semibold text-gray-600">Starting {starterCount}</span>
+          <span className="text-sm text-gray-500">{starters.filter(Boolean).length}/{starterCount}</span>
         </div>
         <div className="space-y-1.5">
           {starters.map((player, i) => (
@@ -812,7 +814,7 @@ function LineupPanel({ club, coaches, slots, setSlots, goals, fouls, suspendedId
       </div>
       <div className="space-y-1.5">
         {subs.map((player, i) => {
-          const idx = i + 5
+          const idx = i + starterCount
           return (
             <div key={player?.id || `sub-${idx}`}>
               <SlotCell player={player} club={club} idx={idx} onMovePlayer={movePlayer} slotRefs={slotRefs} activeDragIdx={activeDragIdx} dragOver={dragOver} handlePointerDown={handlePointerDown} handleActivate={handleActivate} goals={goals} fouls={fouls} suspendedIds={suspendedIds} animOffset={player ? animOffsets[player.id] || 0 : 0} />
@@ -849,7 +851,8 @@ export default function PreMatchPage() {
   const navigate = useNavigate()
   const { matchId } = useParams()
   // Support both URL param and legacy location.state
-  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds, saveId, matchIndex, currentWeek, cupRound } = location.state ?? {}
+  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds, saveId, matchIndex, currentWeek, cupRound, matchSize } = location.state ?? {}
+  const starterCount = normalizeMatchSize(matchSize)
   const isTournament = location.pathname.includes('/world-cup/') || location.pathname.includes('/club-cup/')
   const isLeague = location.pathname.includes('/league/')
   const isDraft = location.pathname.includes('/matches/draft/prematch')
@@ -910,14 +913,14 @@ export default function PreMatchPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   function simulateStatSegment(startSec, endSec, currentHomeScore, currentAwayScore, currentGoals, currentFouls) {
-    const homePlayers = homeSlots.slice(0, 5).filter(player => player && !currentFouls.some(foul => foul.player?.id === player.id && foul.card === 'red'))
-    const awayPlayers = awaySlots.slice(0, 5).filter(player => player && !currentFouls.some(foul => foul.player?.id === player.id && foul.card === 'red'))
+    const homePlayers = homeSlots.slice(0, starterCount).filter(player => player && !currentFouls.some(foul => foul.player?.id === player.id && foul.card === 'red'))
+    const awayPlayers = awaySlots.slice(0, starterCount).filter(player => player && !currentFouls.some(foul => foul.player?.id === player.id && foul.card === 'red'))
     const segmentRatio = Math.max(0, endSec - startSec) / Math.max(1, totalSeconds)
     const startMinute = toMatchMinute(startSec)
     const endMinute = toMatchMinute(endSec)
     const sequence = simulateMatchSequences(homePlayers, awayPlayers, {
       seed: `${homeClub?.id}-${awayClub?.id}-${startSec}-${endSec}-${currentGoals.length}-${currentFouls.length}`,
-      possessions: Math.max(1, Math.round(36 * segmentRatio)),
+      possessions: Math.max(1, Math.round(36 * getSimulationPace(starterCount) * segmentRatio)),
       startMinute,
       endMinute,
     })
@@ -932,8 +935,8 @@ export default function PreMatchPage() {
         const scoreDiff = team === 'home' ? (hScore - aScore) : (aScore - hScore)
         
         // Non-GK starters on pitch & subs on bench
-        const startersOnPitch = slots.slice(0, 5).map((p, idx) => ({ player: p, idx })).filter(item => item.player && item.player.position !== 'GK')
-        const subsBench = slots.slice(5).map((p, idx) => ({ player: p, idx: idx + 5 })).filter(item => item.player)
+        const startersOnPitch = slots.slice(0, starterCount).map((p, idx) => ({ player: p, idx })).filter(item => item.player && item.player.position !== 'GK')
+        const subsBench = slots.slice(starterCount).map((p, idx) => ({ player: p, idx: idx + starterCount })).filter(item => item.player)
 
         if (startersOnPitch.length > 0 && subsBench.length > 0 && Math.random() < 0.65) {
           const subMinute = Math.floor(Math.random() * (Math.min(85, endMinute) - Math.max(55, startMinute) + 1)) + Math.max(55, startMinute)
@@ -1358,7 +1361,7 @@ export default function PreMatchPage() {
     setFouls(prev => [...prev, { player: foulPlayer, team: foulPlayerTeam, card, minute, phase }])
     if (card === 'red') {
       const slots = foulPlayerTeam === 'home' ? homeSlots : awaySlots
-      const isStarter = slots.slice(0, 5).some(p => p?.id === foulPlayer.id)
+      const isStarter = slots.slice(0, starterCount).some(p => p?.id === foulPlayer.id)
       if (isStarter) {
         clearInterval(timerRef.current)
         setPaused(true)
@@ -1456,6 +1459,7 @@ export default function PreMatchPage() {
     ]).then(([homePlayers, awayPlayers]) => {
       const makeSlots = (players, uncapped = false) => {
         let sorted = [...players]
+        if (isDraft) sorted = orderStartingLineup(sorted, starterCount)
         if (!isDraft) {
           const orderKey = nationalMode ? 'national_roster_order' : 'roster_order'
           sorted.sort((a, b) => {
@@ -1474,7 +1478,7 @@ export default function PreMatchPage() {
           return slots
         }
         if (nationalMode) {
-          // Only first 12 (Starting 5 + Substitutes) go to the match
+          // Only the first 12 match-day players are used.
           const slots = Array(12).fill(null)
           sorted.forEach((p, i) => { if (i < 12) slots[i] = p })
           return slots
@@ -1489,7 +1493,7 @@ export default function PreMatchPage() {
     }).catch(() => {
       navigate(matchesPath)
     })
-  }, [homeClub, awayClub, navigate])
+  }, [homeClub, awayClub, navigate, starterCount])
 
   if (!homeClub || !awayClub) return null
 
@@ -1951,6 +1955,7 @@ export default function PreMatchPage() {
               homeSlots={homeSlots} setHomeSlots={setHomeSlots}
               awaySlots={awaySlots} setAwaySlots={setAwaySlots}
               goals={goals} fouls={fouls} suspendedIds={suspendedIds}
+              starterCount={starterCount}
               onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail}
             />
           </div>
@@ -1972,10 +1977,10 @@ export default function PreMatchPage() {
                 style={{ transform: activeTab === 'home' ? 'translateX(0%)' : 'translateX(-50%)', width: '200%' }}
               >
                 <div className="w-1/2 pr-3">
-                  <LineupPanel club={homeClub} coaches={homeCoaches} slots={homeSlots} setSlots={setHomeSlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
+                  <LineupPanel club={homeClub} coaches={homeCoaches} slots={homeSlots} setSlots={setHomeSlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} starterCount={starterCount} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
                 </div>
                 <div className="w-1/2 pl-3">
-                  <LineupPanel club={awayClub} coaches={awayCoaches} slots={awaySlots} setSlots={setAwaySlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
+                  <LineupPanel club={awayClub} coaches={awayCoaches} slots={awaySlots} setSlots={setAwaySlots} goals={goals} fouls={fouls} suspendedIds={suspendedIds} starterCount={starterCount} onPlayerClick={phase === 'full_time' ? setMvp : setPlayerDetail} />
                 </div>
               </div>
             </div>

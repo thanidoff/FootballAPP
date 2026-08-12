@@ -57,8 +57,10 @@ function shooterWeight(player, isGk = false) {
 }
 
 export function simulatePossession({ attacking, defending, team, minute, random }) {
-  const creator = weightedPick(attacking, (player) => creatorWeight(player, player.id === attacking[4]?.id), random)
-  const outfieldDefenders = defending.slice(0, 4).filter(Boolean)
+  const attackingGoalkeeper = attacking.at(-1)
+  const defendingGoalkeeper = defending.at(-1)
+  const creator = weightedPick(attacking, (player) => creatorWeight(player, player.id === attackingGoalkeeper?.id), random)
+  const outfieldDefenders = defending.slice(0, -1).filter(Boolean)
   const defendersToUse = outfieldDefenders.length ? outfieldDefenders : defending
   const defender = weightedPick(defendersToUse, player => stat(player, 'DEF') * 0.6 + stat(player, 'PHY') * 0.4, random)
   if (!creator || !defender) return { type: 'turnover', team, minute }
@@ -86,12 +88,12 @@ export function simulatePossession({ attacking, defending, team, minute, random 
   const buildupChance = contestProbability(attackPower, defensePower, 0.10)
   if (random() > buildupChance) return { type: action === 'dribble' ? 'dispossessed' : 'bad_pass', team, minute, player: creator, opponent: defender }
 
-  const shooter = weightedPick(attacking, (player) => shooterWeight(player, player.id === attacking[4]?.id), random)
+  const shooter = weightedPick(attacking, (player) => shooterWeight(player, player.id === attackingGoalkeeper?.id), random)
   const blocker = weightedPick(defendersToUse, player => stat(player, 'DEF') + stat(player, 'PHY') * 0.4, random)
-  // 🧤 Lock Goalkeeper strictly to the 5th player (Index 4 of Starting 5)
-  const goalkeeper = defending[4] || defending.find(player => player.position === 'GK') || defending.at(-1)
+  // The final starter slot is the goalkeeper in every supported match format.
+  const goalkeeper = defendingGoalkeeper || defending.find(player => player.position === 'GK')
   
-  const isGkShooter = shooter.id === attacking[4]?.id
+  const isGkShooter = shooter.id === attackingGoalkeeper?.id
   const preparation = stat(shooter, 'SHO') * 0.45 + stat(shooter, 'DRI') * 0.35 + stat(shooter, 'PAC') * 0.20
   const blockPower = stat(blocker, 'DEF') * 0.55 + stat(blocker, 'PHY') * 0.25 + stat(blocker, 'PAC') * 0.20
   const blockChance = clamp(0.24 + (blockPower - preparation) / 200, 0.05, 0.55)
@@ -110,7 +112,8 @@ export function simulatePossession({ attacking, defending, team, minute, random 
   // - High SHO strikers (88-99) gain strong conversion boost against average GKs
   // - World-class GKs (88-99 SAV/REF/GKA) significantly reduce scoringChance and make crucial saves
   const finishing = stat(shooter, 'SHO') * 0.65 + stat(shooter, 'DRI') * 0.18 + stat(shooter, 'PHY') * 0.10 + stat(shooter, 'PAC') * 0.07
-  const goalkeeperPower = stat(goalkeeper, 'SAV') * 0.55 + stat(goalkeeper, 'GKA') * 0.30 + stat(goalkeeper, 'PHY') * 0.15
+  const keeperRoleFactor = attacking.length === 3 ? 0.72 : attacking.length === 7 ? 1.04 : 1
+  const goalkeeperPower = (stat(goalkeeper, 'SAV') * 0.55 + stat(goalkeeper, 'GKA') * 0.30 + stat(goalkeeper, 'PHY') * 0.15) * keeperRoleFactor
 
   // Long range GK goal attempts apply penalty modifier (-0.25) making GK goals rare miracles
   const scoringChance = contestProbability(finishing, goalkeeperPower, isGkShooter ? -0.25 : -0.09)
@@ -123,7 +126,7 @@ export function simulatePossession({ attacking, defending, team, minute, random 
   const teammatesForAssist = attacking.filter(p => p.id !== shooter.id)
   const assist = weightedPick(
     teammatesForAssist.length ? teammatesForAssist : attacking,
-    player => creatorWeight(player, player.id === attacking[4]?.id),
+    player => creatorWeight(player, player.id === attackingGoalkeeper?.id),
     random
   )
   return { type: 'goal', team, minute, player: shooter, scorer: shooter, assist, goalkeeper, error: error ? 'goalkeeper_error' : null }

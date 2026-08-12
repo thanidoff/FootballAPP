@@ -8,6 +8,7 @@ import OvrBadge from '../../components/ui/OvrBadge'
 import PositionBadge from '../../components/ui/PositionBadge'
 import { FIFA_NATIONS } from '../../utils/fifaNations'
 import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES } from '../../services/draftSave'
+import { MATCH_SIZES } from '../../utils/matchFormat'
 
 const PODIUM_STYLES = [
   { badge: 'bg-[#FD5461] text-white shadow-sm shadow-red-200' },
@@ -75,6 +76,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
   useOverlayBehavior(true, onClose)
   const [step, setStep] = useState(0)
   const [saveName, setSaveName] = useState(initialName)
+  const [matchSize, setMatchSize] = useState(5)
   const [clubs, setClubs] = useState([])
   const [players, setPlayers] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
@@ -163,6 +165,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
       name: saveName.trim(),
       clubs: configuredClubs,
       freeAgents: players.filter(player => !attachedIds.has(player.id)),
+      matchSize,
       prizes: {
         hasLeague,
         hasCup,
@@ -216,6 +219,17 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                 <h3 className="font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Name your save</h3>
                 <p className="mt-2 text-sm text-gray-500">Give this career a name you will recognize later.</p>
                 <input value={saveName} onChange={event => setSaveName(event.target.value)} placeholder="e.g. Bangkok Road to Glory" className="mt-7 w-full rounded-2xl border-2 border-gray-200 bg-white px-5 py-4 text-base text-[#0A1318] outline-none transition-colors focus:border-[#FD5461] focus:ring-4 focus:ring-red-50" />
+                <fieldset className="mt-6">
+                  <legend className="text-sm font-bold text-[#0A1318]">Players on the pitch</legend>
+                  <p className="mt-1 text-xs text-gray-500">Choose the match format for Season 1. The final starter slot is always the goalkeeper.</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {MATCH_SIZES.map(size => (
+                      <button key={size} type="button" aria-pressed={matchSize === size} onClick={() => setMatchSize(size)} className={`min-h-12 rounded-xl border text-sm font-bold transition-colors ${matchSize === size ? 'border-[#FD5461] bg-[#FD5461] text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-[#FD5461]/40'}`}>
+                        {size} players
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
               </div>
             </div>
 

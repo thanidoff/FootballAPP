@@ -7,6 +7,7 @@ import { Check, ChevronLeft, Plus, RefreshCw, Search, X } from 'lucide-react'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 import OvrBadge from '../ui/OvrBadge'
 import { generateSchedule } from '../../utils/draftLogic'
+import { MATCH_SIZES, normalizeMatchSize } from '../../utils/matchFormat'
 
 const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 
@@ -20,7 +21,7 @@ const EMPTY_SELECTED_IDS = []
 
 // lockedTeamIds: top 4 from previous season (if new season)
 // relegatedTeamIds: bottom 2 (shown but user cannot re-select them)
-export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams = [], initialSelectedIds = EMPTY_SELECTED_IDS, teams = null, players = null, requiredTeams = REQUIRED }) {
+export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams = [], initialSelectedIds = EMPTY_SELECTED_IDS, teams = null, players = null, requiredTeams = REQUIRED, initialMatchSize = 5 }) {
   const { shouldRender, closing } = useOverlayBehavior(open, onClose)
   const isNewSeason = lockedTeams.length > 0
   const lockedIds = new Set(lockedTeams.map(t => t.club_id ?? t.id))
@@ -35,6 +36,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
   const [search, setSearch] = useState('')
   const [nameSort, setNameSort] = useState(null)
   const [ovrSort, setOvrSort] = useState('desc')
+  const [matchSize, setMatchSize] = useState(() => normalizeMatchSize(initialMatchSize))
 
   useEffect(() => {
     if (!open) return
@@ -43,6 +45,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
     setSearch('')
     setNameSort(null)
     setOvrSort('desc')
+    setMatchSize(normalizeMatchSize(initialMatchSize))
     if (teams) {
       setAllTeams(teams)
       const map = {}
@@ -84,7 +87,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
       setAllTeams([])
       setOvrMap({})
     }).finally(() => setLoading(false))
-  }, [open, teams, players, initialSelectedIds])
+  }, [open, teams, players, initialSelectedIds, initialMatchSize])
 
   const [scheduleSeed, setScheduleSeed] = useState(0)
 
@@ -135,7 +138,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
     if (selected.size !== slotsNeeded) return
     setSaving(true)
     const lockedClubIds = lockedTeams.map(t => t.club_id ?? t.id)
-    try { await onCreate([...lockedClubIds, ...selected]) }
+    try { await onCreate([...lockedClubIds, ...selected], matchSize) }
     finally { setSaving(false) }
   }
 
@@ -178,6 +181,16 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
             {totalSelected} / {requiredTeams} selected
           </span>
         </div>
+
+        {isNewSeason && step === 0 && (
+          <fieldset className="mx-6 mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-3 sm:mx-8">
+            <legend className="px-1 text-xs font-bold text-[#0A1318]">Players on the pitch this season</legend>
+            <div className="grid grid-cols-3 gap-2">
+              {MATCH_SIZES.map(size => <button key={size} type="button" aria-pressed={matchSize === size} onClick={() => setMatchSize(size)} className={`min-h-10 rounded-xl text-sm font-bold transition-colors ${matchSize === size ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-500 ring-1 ring-gray-200 hover:text-[#FD5461]'}`}>{size}</button>)}
+            </div>
+            <p className="mt-2 text-center text-[11px] text-gray-400">The final starter slot is reserved for the goalkeeper.</p>
+          </fieldset>
+        )}
 
         {/* Locked teams (new season only) */}
         {isNewSeason && (

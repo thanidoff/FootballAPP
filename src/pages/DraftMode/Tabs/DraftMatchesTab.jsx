@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
 import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
 import { generateMockRoster, generateSchedule, simulateMatch } from '../../../utils/draftLogic'
+import { getSeasonMatchSize, normalizeMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
 import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
@@ -592,6 +593,7 @@ export default function DraftMatchesTab() {
   }, [seasons, currentSeasonIdx])
 
   const seasonData = seasons[currentSeasonIdx]
+  const seasonMatchSize = getSeasonMatchSize(saveData.settings, seasonData)
   const isActiveSeason = seasonData?.status === 'active'
   const activeSeasonIdx = seasons.findIndex(season => season.status === 'active')
   const seasonCup = (saveData.settings?.cups || []).find(cup => String(cup.seasonId) === String(seasonData?.id))
@@ -727,6 +729,7 @@ export default function DraftMatchesTab() {
       const initialLeaguePrizes = saveData.settings?.customPrizes || DEFAULT_LEAGUE_PRIZES
       newSettings.seasons = [{
         id: 1,
+        matchSize: normalizeMatchSize(saveData.settings?.matchSize),
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
@@ -762,9 +765,10 @@ export default function DraftMatchesTab() {
     }
   }
 
-  async function handleStartNewSeason(teamIds) {
+  async function handleStartNewSeason(teamIds, requestedMatchSize) {
     setProcessing(true)
     try {
+      const nextMatchSize = normalizeMatchSize(requestedMatchSize, seasonMatchSize)
       const schedule = generateSchedule(teamIds)
       
       // Reset team stats
@@ -789,10 +793,12 @@ export default function DraftMatchesTab() {
         ...(previousSeason?.cupMatchPrizes || previousCup?.matchPrizes || {}),
       }
       
-      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
+      const { updatedTeams: adjustedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
+      const updatedTeams = adjustedTeams.map(team => ({ ...team, roster: orderStartingLineup(team.roster || [], nextMatchSize) }))
 
       newSettings.seasons.push({
         id: newSeasonId,
+        matchSize: nextMatchSize,
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
@@ -845,19 +851,13 @@ export default function DraftMatchesTab() {
         }
       })))
       
-      // Default Starting 5: Top 4 outfield players + Top 1 Goalkeeper
+      // Build the selected season format with the goalkeeper in the final starter slot.
       const goalkeepers = pool.filter(p => p.position === 'GK').sort((a, b) => (b.ovr || 0) - (a.ovr || 0))
       const outfields = pool.filter(p => p.position !== 'GK').sort((a, b) => (b.ovr || 0) - (a.ovr || 0))
 
       const topGk = goalkeepers[0] || pool.sort((a, b) => (b.ovr || 0) - (a.ovr || 0))[0]
-      const topOutfield = outfields.slice(0, 4)
-      const starting5 = [...topOutfield, topGk].filter(Boolean)
-      
-      const starting5Ids = new Set(starting5.map(p => p.id))
-      const substitutes = pool.filter(p => !starting5Ids.has(p.id)).sort((a, b) => (b.ovr || 0) - (a.ovr || 0))
-      
-      // Complete roster: Starting 5 first, followed by all other players as bench
-      const fullRoster = [...starting5, ...substitutes]
+      const topOutfield = outfields.slice(0, Math.max(0, seasonMatchSize - 1))
+      const fullRoster = orderStartingLineup([...topOutfield, topGk, ...pool], seasonMatchSize)
 
       return {
         club_id: '__allstars__',
@@ -884,6 +884,7 @@ export default function DraftMatchesTab() {
         homeClub: { id: homeTeam.club_id, name: homeTeam.club_name, short_name: homeTeam.short_name || homeTeam.club_name?.slice(0, 3).toUpperCase(), badge_url: homeTeam.badge_url, badge_color: homeTeam.badge_color, roster: homeTeam.roster, coaches: homeTeam.coaches || [] },
         awayClub: { id: awayTeam.club_id, name: awayTeam.club_name, short_name: awayTeam.short_name || awayTeam.club_name?.slice(0, 3).toUpperCase(), badge_url: awayTeam.badge_url, badge_color: awayTeam.badge_color, roster: awayTeam.roster, coaches: awayTeam.coaches || [] },
         duration: 5,
+        matchSize: seasonMatchSize,
         returnPath: `/draft/${saveId}/matches`,
         saveId,
         currentWeek: week,
@@ -1347,6 +1348,7 @@ export default function DraftMatchesTab() {
         teams={leagueTeams.filter(team => team.id !== (seasonData?.standings || []).at(-1)?.club_id)}
         players={leaguePlayers}
         requiredTeams={5}
+        initialMatchSize={seasonMatchSize}
       />
       <Modal open={prizeSettingsOpen} onClose={() => setPrizeSettingsOpen(false)} title={`Season ${seasonData?.id || ''} prizes`} width="max-w-2xl">
         {isActiveSeason ? <PrizeSettingsForm

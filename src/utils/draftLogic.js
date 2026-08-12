@@ -1,5 +1,6 @@
 import { MOCK_PLAYERS, MOCK_COACHES } from '../data/mockGameData'
 import { simulateMatchSequences } from './matchEngine'
+import { normalizeMatchSize, orderStartingLineup } from './matchFormat'
 
 // Shuffle array using Fisher-Yates
 function shuffle(array) {
@@ -11,7 +12,7 @@ function shuffle(array) {
   return arr
 }
 
-export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoaches = MOCK_COACHES) {
+export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoaches = MOCK_COACHES, matchSize = 5) {
   const lockedIds = new Set(clubs.flatMap(club => (club.startingRoster || []).map(player => player.id)))
   const availablePlayers = allPlayers.filter(player => !lockedIds.has(player.id))
   const availableCoaches = [...allCoaches]
@@ -32,10 +33,11 @@ export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoach
     return teamState
   })
 
-  return rollDraft(draftedTeams, availablePlayers, null, availableCoaches)
+  return rollDraft(draftedTeams, availablePlayers, null, availableCoaches, matchSize)
 }
 
-export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex = null, currentAvailableCoaches = MOCK_COACHES) {
+export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex = null, currentAvailableCoaches = MOCK_COACHES, matchSize = 5) {
+  const starterCount = normalizeMatchSize(matchSize)
   let newTeams = JSON.parse(JSON.stringify(currentTeams || []))
   let availablePlayers = [...(currentAvailablePlayers || [])]
   let coachPool = shuffle(currentAvailableCoaches || MOCK_COACHES)
@@ -85,12 +87,14 @@ export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex
     if (!Array.isArray(team.roster)) team.roster = []
 
     // Draft Players
-    const positionsNeeded = ['GK', 'DEF', 'MF', 'FWD']
+    const positionsNeeded = starterCount === 3 ? ['GK', 'MF', 'FWD'] : ['GK', 'DEF', 'MF', 'FWD']
     for (const player of team.roster) {
       const coveredIndex = positionsNeeded.indexOf(player.position)
       if (coveredIndex !== -1) positionsNeeded.splice(coveredIndex, 1)
     }
-    while (positionsNeeded.length < Math.max(0, 5 - team.roster.length)) positionsNeeded.push('ANY')
+    const slotsToFill = Math.max(0, starterCount - team.roster.length)
+    positionsNeeded.splice(slotsToFill)
+    while (positionsNeeded.length < slotsToFill) positionsNeeded.push('ANY')
 
     for (const posReq of positionsNeeded) {
       let foundIndex = -1
@@ -110,6 +114,7 @@ export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex
         availablePlayers.splice(foundIndex, 1)
       }
     }
+    team.roster = orderStartingLineup(team.roster, starterCount)
 
     // Draft Coaches (Assign 1 or 2 coaches to team)
     const coachCountNeeded = Math.min(coachPool.length, Math.floor(Math.random() * 2) + 1) // 1 or 2
@@ -196,8 +201,8 @@ export function generateMockRoster(club, strengthOffset = 0) {
   })
 }
 
-export function simulateMatch(homeTeam, awayTeam, seed = `${homeTeam.club_id}-${awayTeam.club_id}`) {
-  const events = simulateMatchSequences((homeTeam.roster || []).slice(0, 5), (awayTeam.roster || []).slice(0, 5), { seed, possessions: 36 })
+export function simulateMatch(homeTeam, awayTeam, seed = `${homeTeam.club_id}-${awayTeam.club_id}`, matchSize = 5) {
+  const events = simulateMatchSequences((homeTeam.roster || []).slice(0, matchSize), (awayTeam.roster || []).slice(0, matchSize), { seed, possessions: 36 })
   return {
     homeScore: events.filter(event => event.type === 'goal' && event.team === 'home').length,
     awayScore: events.filter(event => event.type === 'goal' && event.team === 'away').length,

@@ -23,6 +23,7 @@ import CoachCard from '../../../components/ui/CoachCard'
 import { useToast } from '../../../components/ui/Toast'
 import { fetchPlayers } from '../../../services/players'
 import { rollDraft } from '../../../utils/draftLogic'
+import { getSeasonMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
 
 import { calculateOVR, getOVRTier } from '../../../utils/stats'
 
@@ -235,8 +236,9 @@ export default function DraftSquadsTab() {
 
   if (!team) return null
   const displayRoster = localDraftRoster || team.roster || []
+  const matchSize = getSeasonMatchSize(saveData.settings)
   const isLineupDirty = JSON.stringify(displayRoster.map(p => p.id)) !== JSON.stringify((team.roster || []).map(p => p.id))
-  const starters = displayRoster.slice(0, 5)
+  const starters = displayRoster.slice(0, matchSize)
   const averageOvr = starters.length ? Math.round(starters.reduce((sum, player) => sum + player.ovr, 0) / starters.length) : 0
 
   const [releasingPlayer, setReleasingPlayer] = useState(null)
@@ -489,7 +491,8 @@ export default function DraftSquadsTab() {
     if (!localDraftRoster) return
     setSavingLineup(true)
     try {
-      const newTeams = saveData.teams.map(item => item.club_id === team.club_id ? { ...item, roster: localDraftRoster } : item)
+      const orderedRoster = orderStartingLineup(localDraftRoster, matchSize)
+      const newTeams = saveData.teams.map(item => item.club_id === team.club_id ? { ...item, roster: orderedRoster } : item)
       const newSaveData = { ...saveData, teams: newTeams }
       await updateDraftState(saveId, newSaveData)
       setSaveData(newSaveData)
@@ -1210,13 +1213,14 @@ export default function DraftSquadsTab() {
                       availablePool = allMaster.filter(p => !assignedIds.has(String(p.id)))
                     }
 
-                    const { newTeams: updatedTeams, remainingPlayers } = rollDraft(saveData.teams, availablePool, teamIndex)
+                    const { newTeams: updatedTeams, remainingPlayers } = rollDraft(saveData.teams, availablePool, teamIndex, undefined, matchSize)
                     const draftedPlayers = updatedTeams?.[teamIndex]?.roster || []
                     const draftedIds = new Set(draftedPlayers.map(p => String(p.id)))
                     const updatedFreeAgents = (remainingPlayers || availablePool).filter(p => !draftedIds.has(String(p.id)))
                     const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
                     await updateDraftState(saveId, nextSave)
-                    setSaveData(nextSave)
+      setSaveData(nextSave)
+      setLocalDraftRoster(orderedRoster)
                     toast.success(`Drafted ${draftedPlayers.length} players for ${team.club_name}!`)
                   } catch (err) {
                     console.error('Failed to auto draft players', err)
@@ -1466,11 +1470,11 @@ export default function DraftSquadsTab() {
               )}
             </div>
 
-            {[{ title: 'Starting 5', start: 0, count: 5 }, { title: `Substitutes · ${Math.max(0, displayRoster.length - 5)}`, start: 5, count: Math.max(7, displayRoster.length - 5) }].map((section, sectionIndex) => (
+            {[{ title: `Starting ${matchSize}`, start: 0, count: matchSize }, { title: `Substitutes · ${Math.max(0, displayRoster.length - matchSize)}`, start: matchSize, count: Math.max(7, displayRoster.length - matchSize) }].map((section, sectionIndex) => (
               <div key={section.title} className={sectionIndex ? 'mt-6' : ''}>
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-500">{section.title}</span>
-                  {!sectionIndex && <span className="text-sm text-gray-400">{Math.min(displayRoster.length, 5)} / 5</span>}
+                  {!sectionIndex && <span className="text-sm text-gray-400">{Math.min(displayRoster.length, matchSize)} / {matchSize}</span>}
                 </div>
                 <div className="space-y-2">
                   {Array.from({ length: section.count }, (_, localIndex) => {
@@ -1617,8 +1621,8 @@ export default function DraftSquadsTab() {
                       </button>
                       <div className="hidden sm:flex ml-3 shrink-0 items-center gap-1.5">
                         {sectionIndex === 0
-                          ? <Button variant="outline" size="sm" disabled={(team.roster?.length || 0) <= 5} onClick={() => movePlayer(playerIndex, 5)}>To bench</Button>
-                          : <Button variant="outline" size="sm" onClick={() => movePlayer(playerIndex, 4)}>Make starter</Button>}
+                          ? <Button variant="outline" size="sm" disabled={(team.roster?.length || 0) <= matchSize} onClick={() => movePlayer(playerIndex, matchSize)}>To bench</Button>
+                          : <Button variant="outline" size="sm" onClick={() => movePlayer(playerIndex, Math.max(0, matchSize - 1))}>Make starter</Button>}
                         <Button variant="ghost" size="sm" aria-label={`Edit ${player.name}`} title="Edit player" onClick={() => openPlayerEditor(player)}><Pencil size={16} /></Button>
                       </div>
                     </div>
