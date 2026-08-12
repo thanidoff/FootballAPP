@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getCoachEffects } from '../utils/coachEffects'
-import { annualWageFor, applyExternalCompetitionIncome, marketValueForOvr, processSeasonContracts, withDefaultContract } from '../utils/contracts'
+import { annualWageFor, applyExternalCompetitionIncome, contractFeeFor, marketValueForOvr, processSeasonContracts, withDefaultContract } from '../utils/contracts'
 
 describe('coach effects', () => {
   it('uses the head coach fully and applies only a small assistant bonus', () => {
@@ -33,6 +33,12 @@ describe('contracts', () => {
 
   it('uses a lower wage scale for coaches', () => {
     expect(annualWageFor({ ovr: 90, market_value: 15_000_000, stats: { TAC: 90, MGT: 90, MOT: 90, ATT: 90, DEF: 90, PHY: 90 } })).toBe(3_500_000)
+  })
+
+  it('charges a smaller contract fee now and leaves annual wages for season start', () => {
+    expect(contractFeeFor(10_000_000, 1)).toBe(2_000_000)
+    expect(contractFeeFor(10_000_000, 3)).toBe(5_000_000)
+    expect(contractFeeFor(10_000_000, 3, { freeAgent: true })).toBe(8_000_000)
   })
 
   it('creates a three-season contract and an 8% annual wage', () => {

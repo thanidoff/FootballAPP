@@ -1,7 +1,7 @@
 import { createSeededRandom } from '../utils/matchEngine'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { fetchCoaches } from './coaches'
-import { withDefaultContract } from '../utils/contracts'
+import { annualWageFor, contractFeeFor, withDefaultContract } from '../utils/contracts'
 import { ANNUAL_AWARD_DEFINITIONS, calculateAnnualAwards, generateOutsideLeagueStats, mergeSeasonStats } from '../utils/seasonAwards'
 import { getSeasonMatchSize, orderStartingLineup } from '../utils/matchFormat'
 
@@ -913,14 +913,16 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
   if (!player) throw new Error('Player not found')
   if (sourceIndex === targetIndex) throw new Error('Player is already in this club')
 
-  const fee = agreedFee == null ? (player.market_value || 0) : Number(agreedFee)
+  const proposedFee = agreedFee == null ? (player.market_value || 0) : Number(agreedFee)
+  const fee = sourceIndex < 0 && !isFreeAgentTarget ? 0 : proposedFee
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
 
   if (!isFreeAgentTarget) {
     if ((teams[targetIndex].budget || 0) < 0) {
       throw new Error('This club is in debt. Sell or release players before making another signing.')
     }
-    teams[targetIndex].budget -= fee
+    const signingFee = contractFeeFor(annualWage ?? annualWageFor(player), contractSeasons, { freeAgent: sourceIndex < 0 })
+    teams[targetIndex].budget -= fee + signingFee
   }
 
   if (sourceIndex >= 0) {
@@ -934,7 +936,7 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
     const releasedPlayer = { ...player, club_id: null, club: null }
     freeAgents.push(releasedPlayer)
   } else {
-    const storedPlayer = withDefaultContract({ ...player, contract: { seasonsRemaining: contractSeasons, annualWage: annualWage ?? undefined }, club_id: targetClubId, market_value: fee }, contractSeasons)
+    const storedPlayer = withDefaultContract({ ...player, contract: { seasonsRemaining: contractSeasons, annualWage: annualWage ?? undefined }, club_id: targetClubId, market_value: sourceIndex < 0 ? player.market_value : fee }, contractSeasons)
     delete storedPlayer.club
     teams[targetIndex].roster.push(storedPlayer)
   }
@@ -948,6 +950,7 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
     toClubId: isFreeAgentTarget ? null : teams[targetIndex].club_id,
     toName: isFreeAgentTarget ? 'Free Agent' : teams[targetIndex].club_name,
     fee, week: saveData.currentWeek || 1, seasonId: activeSeason?.id || null,
+    contractFee: isFreeAgentTarget ? 0 : contractFeeFor(annualWage ?? annualWageFor(player), contractSeasons, { freeAgent: sourceIndex < 0 }),
     createdAt: new Date().toISOString(),
   }
   const nextState = { ...saveData, teams, freeAgents, transferHistory: [...(saveData.transferHistory || []), transfer] }
@@ -988,14 +991,16 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
   if (!coach) throw new Error('Coach not found')
   if (sourceIndex === targetIndex && sourceIndex >= 0) throw new Error('Coach is already in this club')
 
-  const fee = agreedFee == null ? (coach.market_value || 0) : Number(agreedFee)
+  const proposedFee = agreedFee == null ? (coach.market_value || 0) : Number(agreedFee)
+  const fee = sourceIndex < 0 && !isFreeAgentTarget ? 0 : proposedFee
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
 
   if (!isFreeAgentTarget) {
     if ((teams[targetIndex].budget || 0) < 0) {
       throw new Error('This club is in debt. Clear the debt before making another signing.')
     }
-    teams[targetIndex].budget -= fee
+    const signingFee = contractFeeFor(annualWage ?? annualWageFor(coach), contractSeasons, { freeAgent: sourceIndex < 0 })
+    teams[targetIndex].budget -= fee + signingFee
   }
 
   if (sourceIndex >= 0) {
@@ -1011,7 +1016,7 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
     const releasedCoach = { ...coach, club_id: null, club: null }
     updatedFreeAgentsCoaches.push(releasedCoach)
   } else {
-    const storedCoach = withDefaultContract({ ...coach, contract: { seasonsRemaining: contractSeasons, annualWage: annualWage ?? undefined }, club_id: targetClubId, market_value: fee }, contractSeasons)
+    const storedCoach = withDefaultContract({ ...coach, contract: { seasonsRemaining: contractSeasons, annualWage: annualWage ?? undefined }, club_id: targetClubId, market_value: sourceIndex < 0 ? coach.market_value : fee }, contractSeasons)
     delete storedCoach.club
     teams[targetIndex].coaches.push(storedCoach)
   }
@@ -1028,6 +1033,7 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
     fee,
     week: saveData.currentWeek || 1,
     seasonId: activeSeason?.id || null,
+    contractFee: isFreeAgentTarget ? 0 : contractFeeFor(annualWage ?? annualWageFor(coach), contractSeasons, { freeAgent: sourceIndex < 0 }),
     createdAt: new Date().toISOString(),
   }
 

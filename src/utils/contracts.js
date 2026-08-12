@@ -1,4 +1,12 @@
 export const DEFAULT_CONTRACT_SEASONS = 3
+export const CONTRACT_ADMIN_FEE = 500_000
+
+export function contractFeeFor(annualWage, seasons, { freeAgent = false } = {}) {
+  const wage = Math.max(0, Number(annualWage) || 0)
+  const years = Math.max(0, Math.round(Number(seasons) || 0))
+  if (!years) return 0
+  return Math.round(wage * years * (freeAgent ? 0.25 : 0.15) + CONTRACT_ADMIN_FEE)
+}
 export const DEFAULT_EXTERNAL_INCOME = {
   league: { min: 55_000_000, max: 85_000_000 },
   cup: { min: 15_000_000, max: 35_000_000 },

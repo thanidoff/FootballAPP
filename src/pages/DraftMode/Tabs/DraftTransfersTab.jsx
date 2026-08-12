@@ -26,7 +26,7 @@ import { fetchCoaches } from '../../../services/coaches'
 import { Check, Plus, Search, Sparkles, Users, UserCheck } from 'lucide-react'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 import { applySeasonalCoachAdjustments, applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
-import { annualWageFor } from '../../../utils/contracts'
+import { annualWageFor, contractFeeFor } from '../../../utils/contracts'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
 
@@ -44,7 +44,6 @@ export default function DraftTransfersTab() {
   const [signingItem, setSigningItem] = useState(null)
   const [selectedClubId, setSelectedClubId] = useState('')
   const [agreedFee, setAgreedFee] = useState(0)
-  const [feeDisplay, setFeeDisplay] = useState('0.0')
   const [contractSeasons, setContractSeasons] = useState(3)
   const [annualWage, setAnnualWage] = useState(0)
   const [wageCustomized, setWageCustomized] = useState(false)
@@ -223,14 +222,13 @@ export default function DraftTransfersTab() {
   const openSigning = (item) => {
     setSigningItem(item)
     setSelectedClubId('')
-    setAgreedFee(item.market_value || 0)
-    setFeeDisplay(((item.market_value || 0) / 1_000_000).toFixed(1))
+    setAgreedFee(0)
     setContractSeasons(3)
     setAnnualWage(annualWageFor(item))
     setWageCustomized(false)
   }
 
-  const suggestedWage = annualWageFor({ ...signingItem, market_value: agreedFee })
+  const suggestedWage = annualWageFor(signingItem)
   useEffect(() => {
     if (!wageCustomized && signingItem) setAnnualWage(suggestedWage)
   }, [suggestedWage, signingItem, wageCustomized])
@@ -679,25 +677,17 @@ export default function DraftTransfersTab() {
               ]}
             />
 
-            <div>
-              <label className="mb-1 block text-xs font-heading font-bold uppercase tracking-wider text-gray-500">Transfer Fee</label>
-              <div className="flex items-center gap-1.5">
-                {[-10, -5].map(amount => <button key={amount} type="button" onClick={() => { const value = Math.max(0, agreedFee + amount * 1_000_000); setAgreedFee(value); setFeeDisplay((value / 1_000_000).toFixed(1)) }} className="h-9 rounded-lg border border-gray-200 px-2 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">{amount}</button>)}
-                <div className="relative min-w-[90px] flex-1"><input type="number" min="0" step="0.1" value={feeDisplay} onChange={event => { setFeeDisplay(event.target.value); setAgreedFee(Math.max(0, Math.round(Number(event.target.value || 0) * 1_000_000))) }} onBlur={() => setFeeDisplay((agreedFee / 1_000_000).toFixed(1))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-8 text-center font-heading font-bold focus:border-[#FD5461] focus:outline-none" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">M</span></div>
-                {[5, 10].map(amount => <button key={amount} type="button" onClick={() => { const value = agreedFee + amount * 1_000_000; setAgreedFee(value); setFeeDisplay((value / 1_000_000).toFixed(1)) }} className="h-9 rounded-lg border border-gray-200 px-2 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+{amount}</button>)}
-              </div>
-            </div>
+            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm"><span className="text-gray-500">Transfer fee · Free Agent</span><span className="font-semibold">$0</span></div>
 
             <ContractTermsPanel seasons={contractSeasons} onSeasonsChange={setContractSeasons} annualWage={annualWage} suggestedWage={suggestedWage} wageCustomized={wageCustomized} onAnnualWageChange={value => { setAnnualWage(value); setWageCustomized(true) }} onResetWage={() => { setAnnualWage(suggestedWage); setWageCustomized(false) }} />
 
             {(() => {
               const selectedTeam = saveData.teams.find(t => t.club_id === selectedClubId)
               if (!selectedTeam) return null
-              const budgetAfter = selectedTeam.budget - agreedFee
+              const signingFee = contractFeeFor(annualWage, contractSeasons, { freeAgent: true })
+              const budgetAfter = selectedTeam.budget - signingFee
               return (
-                <p className={`text-sm font-medium ${budgetAfter < 0 ? 'text-red-500 font-bold' : 'text-[#FD5461]'}`}>
-                  Budget after signing: {budgetAfter < 0 ? `-$${formatCurrency(Math.abs(budgetAfter))}` : `$${formatCurrency(budgetAfter)}`}
-                </p>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm"><div className="flex justify-between text-gray-500"><span>Free Agent contract fee</span><span>{formatCurrency(signingFee)}</span></div><div className="mt-2 flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Due now</span><span className="text-[#FD5461]">{formatCurrency(signingFee)}</span></div><div className={`mt-1 text-xs ${budgetAfter < 0 ? 'font-bold text-red-500' : 'text-gray-400'}`}>Budget after signing: {budgetAfter < 0 ? `-$${formatCurrency(Math.abs(budgetAfter))}` : `$${formatCurrency(budgetAfter)}`}</div></div>
               )
             })()}
 

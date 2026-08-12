@@ -25,7 +25,7 @@ import { fetchPlayers } from '../../../services/players'
 import { rollDraft } from '../../../utils/draftLogic'
 import { getSeasonMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
 import { getCoachEffects } from '../../../utils/coachEffects'
-import { annualWageFor, withDefaultContract } from '../../../utils/contracts'
+import { annualWageFor, contractFeeFor, withDefaultContract } from '../../../utils/contracts'
 
 import { calculateOVR, getOVRTier } from '../../../utils/stats'
 import ContractTermsPanel from '../../../components/draft/ContractTermsPanel'
@@ -201,8 +201,13 @@ export default function DraftSquadsTab() {
 
   function openRenewalModal(person, kind) {
     const current = withDefaultContract(person).contract
+    const seasonId = saveData.settings?.seasons?.find(season => season.status === 'active')?.id ?? saveData.settings?.seasons?.at(-1)?.id ?? 1
+    if (String(current.lastRenewedSeasonId || '') === String(seasonId)) {
+      toast.error(`${person.name} has already renewed this season`)
+      return
+    }
     setRenewingContract({ person, kind, current })
-    setRenewalSeasons(Math.min(10, Math.max(1, Number(current.seasonsRemaining) || 3)))
+    setRenewalSeasons(1)
     setRenewalWage(Number(current.annualWage) || annualWageFor(person))
     setRenewalWageCustomized(false)
   }
@@ -211,16 +216,18 @@ export default function DraftSquadsTab() {
     if (!renewingContract) return
     const { person, kind } = renewingContract
     const wage = Math.max(0, Number(renewalWage) || 0)
-    const seasons = Math.min(10, Math.max(1, Math.round(Number(renewalSeasons) || 1)))
+    const addedSeasons = Math.min(5, Math.max(1, Math.round(Number(renewalSeasons) || 1)))
+    const seasonId = saveData.settings?.seasons?.find(season => season.status === 'active')?.id ?? saveData.settings?.seasons?.at(-1)?.id ?? 1
+    const renewalFee = contractFeeFor(wage, addedSeasons)
     setProcessing(true)
     try {
       const renew = item => String(item.id) === String(person.id)
-        ? { ...withDefaultContract(item), contract: { seasonsRemaining: seasons, annualWage: wage } }
+        ? { ...withDefaultContract(item), contract: { seasonsRemaining: Math.min(10, Number(item.contract?.seasonsRemaining || 0) + addedSeasons), annualWage: wage, lastRenewedSeasonId: seasonId } }
         : item
       const updatedTeams = saveData.teams.map(item => String(item.club_id) === String(team.club_id)
         ? {
             ...item,
-            budget: (Number(item.budget) || 0) - wage,
+            budget: (Number(item.budget) || 0) - renewalFee,
             roster: kind === 'player' ? (item.roster || []).map(renew) : item.roster,
             coaches: kind === 'coach' ? (item.coaches || []).map(renew) : item.coaches,
           }
@@ -232,13 +239,13 @@ export default function DraftSquadsTab() {
           id: `renewal-${kind}-${person.id}-${Date.now()}`,
           type: 'expense', category: 'Contract', playerName: person.name,
           fromClubId: team.club_id, fromName: team.club_name, toClubId: team.club_id, toName: team.club_name,
-          fee: wage, createdAt: new Date().toISOString(), title: `Renewed ${person.name} for ${seasons} season${seasons === 1 ? '' : 's'}`,
+          fee: renewalFee, contractFee: renewalFee, addedSeasons, seasonId, createdAt: new Date().toISOString(), title: `Extended ${person.name} by ${addedSeasons} season${addedSeasons === 1 ? '' : 's'}`,
         }],
       }
       await updateDraftState(saveId, nextState)
       setSaveData(nextState)
       setRenewingContract(null)
-      toast.success(`${person.name} renewed for ${seasons} season${seasons === 1 ? '' : 's'}`)
+      toast.success(`${person.name} extended by ${addedSeasons} season${addedSeasons === 1 ? '' : 's'}`)
     } catch (error) {
       toast.error(error.message || 'Failed to renew contract')
     } finally {
@@ -1139,6 +1146,11 @@ export default function DraftSquadsTab() {
       if (!isSeller && !isBuyer) return
       const timestamp = t.createdAt ? new Date(t.createdAt).getTime() : saveCreatedTime + index * 1000
 
+      if (t.category === 'Contract') {
+        logs.push({ id: `contract-${index}`, title: t.title || `Contract renewal: ${t.playerName}`, category: 'Contracts', seasonLabel: `Season ${t.seasonId || 1}`, seasonNum: t.seasonId || 1, amount: t.contractFee || t.fee || 0, type: 'expense', description: `${t.addedSeasons || 1}-season extension fee; annual wages remain payable at season start`, date: t.createdAt || new Date(timestamp).toISOString(), timestamp })
+        return
+      }
+
       if (isBuyer) {
         logs.push({
           id: `transfer-buy-${index}`,
@@ -1152,6 +1164,7 @@ export default function DraftSquadsTab() {
           date: t.createdAt || new Date(timestamp).toISOString(),
           timestamp,
         })
+        if ((t.contractFee || 0) > 0) logs.push({ id: `contract-signing-${index}`, title: `Contract fee: ${t.playerName}`, category: 'Contracts', seasonLabel: `Season ${t.seasonId || 1}`, seasonNum: t.seasonId || 1, amount: t.contractFee, type: 'expense', description: t.fromClubId ? 'Signing and registration fee' : 'Free Agent signing and registration fee', date: t.createdAt || new Date(timestamp).toISOString(), timestamp: timestamp + 1 })
       }
       if (isSeller) {
         logs.push({
@@ -2126,11 +2139,10 @@ export default function DraftSquadsTab() {
             {(() => {
               const selectedTeam = saveData.teams.find(t => t.club_id === signingClubId)
               if (!selectedTeam) return null
-              const budgetAfter = selectedTeam.budget - agreedFee
+              const signingFee = contractFeeFor(annualWage, contractSeasons)
+              const budgetAfter = selectedTeam.budget - agreedFee - signingFee
               return (
-                <p className={`text-sm font-medium ${budgetAfter < 0 ? 'text-red-500 font-bold' : 'text-[#FD5461]'}`}>
-                  Budget after signing: {budgetAfter < 0 ? `-$${formatCurrency(Math.abs(budgetAfter))}` : `$${formatCurrency(budgetAfter)}`}
-                </p>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm"><div className="flex justify-between text-gray-500"><span>Transfer fee</span><span>{formatCurrency(agreedFee)}</span></div><div className="mt-1 flex justify-between text-gray-500"><span>Contract fee</span><span>{formatCurrency(signingFee)}</span></div><div className="mt-2 flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Due now</span><span className="text-[#FD5461]">{formatCurrency(agreedFee + signingFee)}</span></div><div className={`mt-1 text-xs ${budgetAfter < 0 ? 'font-bold text-red-500' : 'text-gray-400'}`}>Budget after signing: {budgetAfter < 0 ? `-$${formatCurrency(Math.abs(budgetAfter))}` : `$${formatCurrency(budgetAfter)}`}</div></div>
               )
             })()}
 
@@ -2150,6 +2162,8 @@ export default function DraftSquadsTab() {
           const { person, kind, current } = renewingContract
           const flagCode = FIFA_NATIONS.find(nation => nation.name === person.nationality)?.code
           const defaultWage = annualWageFor(person)
+          const renewalFee = contractFeeFor(renewalWage, renewalSeasons)
+          const newExpiry = Math.min(10, Number(current.seasonsRemaining || 0) + renewalSeasons)
           return <div className="space-y-5">
             <div className="flex items-center gap-3 border-b border-gray-100 pb-5">
               {person.photo_url ? <img src={person.photo_url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-black/5" /> : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gray-100 text-lg font-semibold text-gray-400">{person.name?.charAt(0)}</span>}
@@ -2165,8 +2179,8 @@ export default function DraftSquadsTab() {
               </div>
               <div className="text-right"><div className="text-[10px] uppercase tracking-wider text-gray-400">Current</div><div className="mt-1 text-sm font-semibold">{current.seasonsRemaining} season{current.seasonsRemaining === 1 ? '' : 's'} · {formatCurrency(current.annualWage)}</div></div>
             </div>
-            <ContractTermsPanel seasons={renewalSeasons} onSeasonsChange={setRenewalSeasons} annualWage={renewalWage} suggestedWage={defaultWage} wageCustomized={renewalWageCustomized} paymentLabel="charged now" onAnnualWageChange={value => { setRenewalWage(value); setRenewalWageCustomized(true) }} onResetWage={() => { setRenewalWage(defaultWage); setRenewalWageCustomized(false) }} />
-            <div className="flex items-center justify-between border-t border-gray-100 pt-4 text-sm"><span className="text-gray-500">Pay now</span><span className="font-semibold tabular-nums text-[#0A1318]">{formatCurrency(renewalWage)}</span></div>
+            <ContractTermsPanel seasons={renewalSeasons} onSeasonsChange={setRenewalSeasons} annualWage={renewalWage} suggestedWage={defaultWage} wageCustomized={renewalWageCustomized} paymentLabel="paid when each season starts" lengthLabel="Extend By" maxSeasons={5} totalLabel="Added contract value" onAnnualWageChange={value => { setRenewalWage(value); setRenewalWageCustomized(true) }} onResetWage={() => { setRenewalWage(defaultWage); setRenewalWageCustomized(false) }} />
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm"><div className="flex justify-between"><span className="text-gray-500">Extension</span><span className="font-medium">+{renewalSeasons} season{renewalSeasons === 1 ? '' : 's'} · new total {newExpiry}</span></div><div className="mt-2 flex justify-between"><span className="text-gray-500">Contract fee due now</span><span className="font-semibold tabular-nums text-[#FD5461]">{formatCurrency(renewalFee)}</span></div><p className="mt-2 text-xs text-gray-400">15% of added contract value + $0.5M administration fee. Annual wage is not charged now.</p></div>
             <Button className="w-full justify-center py-3" disabled={processing} onClick={renewContract}>{processing ? 'Saving...' : 'Confirm Renewal'}</Button>
           </div>
         })()}

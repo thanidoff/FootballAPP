@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MOCK_CLUBS, MOCK_PLAYERS } from '../data/mockGameData'
 import { generateMockRoster, generateSchedule } from '../utils/draftLogic'
-import { applyExternalCompetitionIncome, processSeasonContracts, withDefaultContract } from '../utils/contracts'
+import { annualWageFor, applyExternalCompetitionIncome, contractFeeFor, processSeasonContracts, withDefaultContract } from '../utils/contracts'
 import {
   completeDraftCupMatch,
   completeDraftNationalCupMatch,
@@ -79,17 +79,19 @@ describe('complete career simulation', () => {
     const negotiatedFee = 60_500_000
     let state = await transferDraftPlayer(saveId, signing.id, teamIds[0], negotiatedFee)
     expect(state.teams[0].roster.some(player => player.id === signing.id)).toBe(true)
-    expect(state.teams[0].roster.find(player => player.id === signing.id).market_value).toBe(negotiatedFee)
-    expect(state.teams[0].budget).toBe(500_000_000 - negotiatedFee)
+    expect(state.teams[0].roster.find(player => player.id === signing.id).market_value).toBe(signing.market_value)
+    const signingFee = contractFeeFor(annualWageFor(signing), 3, { freeAgent: true })
+    expect(state.teams[0].budget).toBe(500_000_000 - signingFee)
     expect(state.freeAgents.some(player => player.id === signing.id)).toBe(false)
     expect(state.transferHistory).toHaveLength(1)
 
     // A solvent club may complete one deal that takes it into debt, but cannot
     // make another signing until its balance recovers.
-    state.teams[0].budget = 5_000_000
+    state.teams[0].budget = 1_000_000
     await updateDraftState(saveId, state)
     state = await transferDraftPlayer(saveId, freeAgents[1].id, teamIds[0], 20_000_000)
-    expect(state.teams[0].budget).toBe(-15_000_000)
+    const secondSigningFee = contractFeeFor(annualWageFor(freeAgents[1]), 3, { freeAgent: true })
+    expect(state.teams[0].budget).toBe(1_000_000 - secondSigningFee)
     await expect(transferDraftPlayer(saveId, freeAgents[2].id, teamIds[0], 1_000_000))
       .rejects.toThrow('in debt')
 
@@ -321,7 +323,7 @@ describe('career transfer budget protection', () => {
 
   it('allows one coach deal into debt, then blocks the next purchase', async () => {
     const teams = makeTeams(2)
-    teams[0].budget = 10_000_000
+    teams[0].budget = 1_000_000
     const coach = { id: 'qa-coach', name: 'QA Coach', market_value: 25_000_000, club_id: null, stats: { TAC: 80, MGT: 80, MOT: 80, ATT: 80, DEF: 80, PHY: 80 } }
     const secondCoach = { ...coach, id: 'qa-coach-2', name: 'Second Coach' }
     const saveId = await createDraftState({
@@ -333,7 +335,8 @@ describe('career transfer budget protection', () => {
 
     let state = await transferDraftCoach(saveId, coach.id, teams[0].club_id, 25_000_000)
     expect(state.teams[0].coaches.map(item => item.id)).toContain(coach.id)
-    expect(state.teams[0].budget).toBe(-15_000_000)
+    const signingFee = contractFeeFor(annualWageFor(coach), 3, { freeAgent: true })
+    expect(state.teams[0].budget).toBe(1_000_000 - signingFee)
     expect(state.freeAgentsCoaches).toHaveLength(1)
     await expect(transferDraftCoach(saveId, secondCoach.id, teams[0].club_id, 1_000_000)).rejects.toThrow('in debt')
 
