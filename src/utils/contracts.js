@@ -2,8 +2,44 @@ export const DEFAULT_CONTRACT_SEASONS = 3
 export const EXTERNAL_LEAGUE_INCOME = 70_000_000
 export const EXTERNAL_CUP_INCOME = 25_000_000
 
+export function marketValueForOvr(ovrValue, isCoach = false) {
+  const ovr = Math.max(50, Number(ovrValue) || 70)
+  const playerBands = [[70, 15], [75, 25], [80, 35], [85, 55], [90, 90], [95, 160], [100, 240]]
+  const coachBands = [[70, 2], [75, 3], [80, 5], [85, 8], [90, 12], [95, 18], [100, 25]]
+  const bands = isCoach ? coachBands : playerBands
+  const upperIndex = bands.findIndex(([rating]) => ovr <= rating)
+  if (upperIndex <= 0) return bands[0][1] * 1_000_000
+  if (upperIndex < 0) return bands.at(-1)[1] * 1_000_000
+  const [lowerOvr, lowerValue] = bands[upperIndex - 1]
+  const [upperOvr, upperValue] = bands[upperIndex]
+  const interpolated = lowerValue + ((ovr - lowerOvr) / (upperOvr - lowerOvr)) * (upperValue - lowerValue)
+  return Math.round(interpolated) * 1_000_000
+}
+
 export function annualWageFor(person) {
-  return Math.max(500_000, Math.round((Number(person?.market_value) || 0) * 0.08 / 100_000) * 100_000)
+  const stats = person?.stats || {}
+  const coachStats = ['TAC', 'MGT', 'MOT', 'ATT', 'DEF', 'PHY']
+    .map(key => Number(stats[key] ?? person?.[`stat_${key.toLowerCase()}`]))
+    .filter(Number.isFinite)
+  const isCoach = !person?.position && coachStats.length > 0
+  const calculatedCoachOvr = coachStats.length
+    ? Math.round(coachStats.reduce((sum, value) => sum + value, 0) / coachStats.length)
+    : 0
+  const ovr = Number(person?.ovr_v2 ?? person?.ovr) || calculatedCoachOvr
+  const marketWage = (Number(person?.market_value) || 0) * 0.08
+
+  if (!ovr) {
+    return Math.max(500_000, Math.round(marketWage / 100_000) * 100_000)
+  }
+
+  const ratingAbove70 = Math.max(0, ovr - 70)
+  const eliteRating = Math.max(0, ovr - 85)
+  const ovrWage = isCoach
+    ? 500_000 + ratingAbove70 * 150_000 + eliteRating * 200_000
+    : 500_000 + ratingAbove70 * 300_000 + eliteRating * 400_000
+  const blendedWage = ovrWage * 0.7 + marketWage * 0.3
+
+  return Math.max(500_000, Math.round(blendedWage / 100_000) * 100_000)
 }
 
 export function withDefaultContract(person, seasons = DEFAULT_CONTRACT_SEASONS) {

@@ -2,6 +2,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { removeStorageObject, uploadDataUrl } from './storage'
 import { MOCK_PLAYERS } from '../data/mockGameData'
 import { calculateOVR, normalizeStats } from '../utils/stats'
+import { marketValueForOvr } from '../utils/contracts'
 
 function mapStatsToRow(position, stats) {
   const current = normalizeStats(stats)
@@ -33,6 +34,8 @@ function mapRowToStats(row) {
 
 export function mapRowToPlayer(row) {
   const stats = mapRowToStats(row)
+  const ovr = row.ovr_v2 ?? calculateOVR(row.position, stats) ?? row.ovr
+  const storedMarketValue = Number(row.market_value) || 0
   return {
     id: row.id,
     name: row.name,
@@ -41,8 +44,8 @@ export function mapRowToPlayer(row) {
     position: row.position,
     club_id: row.club_id,
     club: row.clubs ?? null,
-    market_value: row.market_value,
-    ovr: row.ovr_v2 ?? calculateOVR(row.position, stats) ?? row.ovr,
+    market_value: storedMarketValue >= 5_000_000 ? storedMarketValue : marketValueForOvr(ovr),
+    ovr,
     roster_order: row.roster_order ?? null,
     national_roster_order: row.national_roster_order ?? null,
     photo_url: row.photo_url ?? null,

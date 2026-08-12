@@ -205,7 +205,7 @@ export default function DraftTransfersTab() {
     setWageCustomized(false)
   }
 
-  const suggestedWage = annualWageFor({ market_value: agreedFee })
+  const suggestedWage = annualWageFor({ ...signingItem, market_value: agreedFee })
   useEffect(() => {
     if (!wageCustomized && signingItem) setAnnualWage(suggestedWage)
   }, [suggestedWage, signingItem, wageCustomized])

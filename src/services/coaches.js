@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { removeStorageObject, uploadDataUrl } from './storage'
 import { MOCK_COACHES, MOCK_CLUBS } from '../data/mockGameData'
+import { marketValueForOvr } from '../utils/contracts'
 
 const COACHES_STORAGE_KEY = 'football_app_mock_coaches_v1'
 
@@ -71,7 +72,7 @@ export function mapRowToCoach(row, clubsList = MOCK_CLUBS) {
     age: row.age,
     club_id: row.club_id ?? null,
     club,
-    market_value: row.market_value ?? 2000000,
+    market_value: Number(row.market_value) >= 1_000_000 ? Number(row.market_value) : marketValueForOvr(ovr, true),
     photo_url: row.photo_url ?? null,
     ovr,
     stats,
