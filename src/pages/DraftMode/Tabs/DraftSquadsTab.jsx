@@ -274,6 +274,12 @@ export default function DraftSquadsTab() {
 
   const teamIndex = saveData.teams.findIndex(t => t.club_id === selectedClubId)
   const team = saveData.teams[teamIndex]
+  const contractRows = [
+    ...(team?.roster || []).map(person => ({ person, kind: 'player', contract: withDefaultContract(person).contract })),
+    ...(team?.coaches || []).map(person => ({ person, kind: 'coach', contract: withDefaultContract(person).contract })),
+  ].sort((a, b) => a.contract.seasonsRemaining - b.contract.seasonsRemaining || b.contract.annualWage - a.contract.annualWage)
+  const annualPayroll = contractRows.reduce((sum, row) => sum + row.contract.annualWage, 0)
+  const expiringContracts = contractRows.filter(row => row.contract.seasonsRemaining <= 1)
   const draggedTeamIdx = saveData.teams.findIndex(t => t.club_id === draggedTeamId)
   const dragTargetTeamIdx = saveData.teams.findIndex(t => t.club_id === dragTargetTeamId)
 
@@ -1767,18 +1773,23 @@ export default function DraftSquadsTab() {
             <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs">
               <div className="border-b border-gray-100 px-5 py-4">
                 <h2 className="font-heading text-base font-black uppercase text-[#0A1318]">Contracts</h2>
-                <p className="mt-0.5 text-xs text-gray-400">Wages are paid once per season. Renewing costs one season of wages and resets the deal to 3 seasons.</p>
+                <p className="mt-0.5 text-xs text-gray-400">Wages are deducted when the next season starts. A 1-season contract expires after that payment.</p>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2.5"><div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Next season payroll</div><div className="mt-1 text-base font-bold text-[#0A1318]">{formatCurrency(annualPayroll)}</div></div>
+                  <div className={`rounded-xl px-3 py-2.5 ${expiringContracts.length ? 'bg-red-50' : 'bg-gray-50'}`}><div className={`text-[10px] font-bold uppercase tracking-wider ${expiringContracts.length ? 'text-[#FD5461]' : 'text-gray-400'}`}>Expiring</div><div className="mt-1 text-base font-bold text-[#0A1318]">{expiringContracts.length} contract{expiringContracts.length === 1 ? '' : 's'}</div></div>
+                  <div className="col-span-2 rounded-xl bg-gray-50 px-3 py-2.5 sm:col-span-1"><div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">After payroll</div><div className={`mt-1 text-base font-bold ${team.budget - annualPayroll < 0 ? 'text-red-600' : 'text-[#0A1318]'}`}>{formatCurrency(team.budget - annualPayroll)}</div></div>
+                </div>
+                <p className="mt-3 text-[11px] text-gray-400">Renew is available below 3 seasons. It charges one annual wage now and resets the contract to 3 seasons.</p>
               </div>
               <div className="divide-y divide-gray-100">
-                {[...(team.roster || []).map(person => ({ person, kind: 'player' })), ...(team.coaches || []).map(person => ({ person, kind: 'coach' }))].map(({ person, kind }) => {
-                  const contract = withDefaultContract(person).contract
+                {contractRows.map(({ person, kind, contract }) => {
                   return <div key={`${kind}-${person.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold text-[#0A1318]">{person.name}</div>
-                      <div className="mt-0.5 text-xs text-gray-400">{kind === 'coach' ? 'Coach' : person.position || 'Player'} · {contract.seasonsRemaining} season{contract.seasonsRemaining === 1 ? '' : 's'} left</div>
+                      <div className={`mt-0.5 text-xs ${contract.seasonsRemaining <= 1 ? 'font-semibold text-[#FD5461]' : 'text-gray-400'}`}>{kind === 'coach' ? 'Coach' : person.position || 'Player'} · {contract.seasonsRemaining} season{contract.seasonsRemaining === 1 ? '' : 's'} left{contract.seasonsRemaining <= 1 ? ' · expires next season' : ''}</div>
                     </div>
                     <div className="text-right"><div className="text-sm font-bold">{formatCurrency(contract.annualWage)}</div><div className="text-[10px] text-gray-400">per season</div></div>
-                    <Button size="sm" variant="outline" disabled={processing || contract.seasonsRemaining >= 3} onClick={() => renewContract(person, kind)}>Renew</Button>
+                    <Button size="sm" variant="outline" disabled={processing || contract.seasonsRemaining >= 3} title={contract.seasonsRemaining >= 3 ? 'Already on the maximum 3-season deal' : `Pay ${formatCurrency(contract.annualWage)} now`} onClick={() => renewContract(person, kind)}>Renew</Button>
                   </div>
                 })}
               </div>
