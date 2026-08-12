@@ -2102,7 +2102,9 @@ export default function DraftSquadsTab() {
                 ...saveData.teams.filter(t => t.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(t => ({
                   ...t,
                   id: t.club_id,
-                  name: `${t.club_name}  ·  $${formatCurrency(t.budget)}  ·  ${t.roster?.length || 0} players`,
+                  name: signingKind === 'coach'
+                    ? `${t.club_name}  ·  $${formatCurrency(t.budget)}  ·  ${t.coaches?.length || 0}/2 coaches`
+                    : `${t.club_name}  ·  $${formatCurrency(t.budget)}  ·  ${t.roster?.length || 0} players`,
                   short_name: t.short_name || t.club_name.slice(0, 3).toUpperCase(),
                   disabled: t.budget < 0 || (signingKind === 'coach' && (t.coaches?.length || 0) >= 2),
                 }))
