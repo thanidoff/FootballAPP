@@ -731,8 +731,8 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
 
   if (!isFreeAgentTarget) {
-    if ((teams[targetIndex].budget || 0) < fee) {
-      throw new Error('Insufficient budget for this player transfer.')
+    if ((teams[targetIndex].budget || 0) < 0) {
+      throw new Error('This club is in debt. Sell or release players before making another signing.')
     }
     teams[targetIndex].budget -= fee
   }
@@ -806,8 +806,8 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
   if (!Number.isFinite(fee) || fee < 0) throw new Error('Invalid transfer fee')
 
   if (!isFreeAgentTarget) {
-    if ((teams[targetIndex].budget || 0) < fee) {
-      throw new Error('Insufficient budget for this coach transfer.')
+    if ((teams[targetIndex].budget || 0) < 0) {
+      throw new Error('This club is in debt. Clear the debt before making another signing.')
     }
     teams[targetIndex].budget -= fee
   }

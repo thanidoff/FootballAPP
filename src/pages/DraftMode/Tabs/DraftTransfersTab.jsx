@@ -491,17 +491,11 @@ export default function DraftTransfersTab() {
               value={selectedClubId}
               onChange={setSelectedClubId}
               clubs={[
-                ...(signingItem.club_id || signingItem.club?.id ? [{
-                  id: 'free_agent',
-                  club_id: 'free_agent',
-                  name: 'Free Agent',
-                  short_name: 'FA',
-                }] : []),
                 ...saveData.teams.filter(team => team.club_id !== (signingItem.club_id || signingItem.club?.id)).map(team => {
                   const isCoach = signingItem.position === 'COACH'
                   const coachCount = (team.coaches || []).length
                   const playerCount = (team.roster || []).length
-                  const isDisabled = isCoach ? coachCount >= 2 : false
+                  const isDisabled = team.budget < 0 || (isCoach ? coachCount >= 2 : false)
                   
                   return {
                     ...team,

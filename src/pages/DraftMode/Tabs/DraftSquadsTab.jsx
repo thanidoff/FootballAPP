@@ -140,10 +140,6 @@ export default function DraftSquadsTab() {
 
   async function renewContract(person, kind) {
     const wage = Number(person.contract?.annualWage || annualWageFor(person))
-    if ((Number(team.budget) || 0) < wage) {
-      toast.error('Club balance is too low for the renewal fee')
-      return
-    }
     setProcessing(true)
     try {
       const renew = item => String(item.id) === String(person.id)
@@ -1334,11 +1330,11 @@ export default function DraftSquadsTab() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={processing || team.budget < 40_000_000}
-                title={team.budget < 40_000_000 ? 'At least $40M is required to draft a player' : 'Draft a random player for $40M'}
+                disabled={processing || team.budget < 0}
+                title={team.budget < 0 ? 'Clear the club debt before drafting another player' : 'Draft a random player for $40M'}
                 onClick={async () => {
-                  if (team.budget < 40_000_000) {
-                    toast.error('Insufficient budget. Drafting a player costs $40M.')
+                  if (team.budget < 0) {
+                    toast.error('This club is in debt. Sell or release a player before drafting again.')
                     return
                   }
                   try {
@@ -2004,12 +2000,6 @@ export default function DraftSquadsTab() {
               value={signingClubId}
               onChange={setSigningClubId}
               clubs={[
-                ...(signingPlayer.club_id || signingPlayer.club?.id ? [{
-                  id: 'free_agent',
-                  club_id: 'free_agent',
-                  name: 'Free Agent',
-                  short_name: 'FA',
-                }] : []),
                 ...saveData.teams.filter(t => t.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(t => ({
                   ...t,
                   id: t.club_id,

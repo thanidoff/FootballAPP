@@ -73,14 +73,21 @@ describe('complete career simulation', () => {
 
     const signing = freeAgents[0]
     const negotiatedFee = 60_500_000
-    await expect(transferDraftPlayer(saveId, signing.id, teamIds[0], 600_000_000))
-      .rejects.toThrow('Insufficient budget')
     let state = await transferDraftPlayer(saveId, signing.id, teamIds[0], negotiatedFee)
     expect(state.teams[0].roster.some(player => player.id === signing.id)).toBe(true)
     expect(state.teams[0].roster.find(player => player.id === signing.id).market_value).toBe(negotiatedFee)
     expect(state.teams[0].budget).toBe(500_000_000 - negotiatedFee)
     expect(state.freeAgents.some(player => player.id === signing.id)).toBe(false)
     expect(state.transferHistory).toHaveLength(1)
+
+    // A solvent club may complete one deal that takes it into debt, but cannot
+    // make another signing until its balance recovers.
+    state.teams[0].budget = 5_000_000
+    await updateDraftState(saveId, state)
+    state = await transferDraftPlayer(saveId, freeAgents[1].id, teamIds[0], 20_000_000)
+    expect(state.teams[0].budget).toBe(-15_000_000)
+    await expect(transferDraftPlayer(saveId, freeAgents[2].id, teamIds[0], 1_000_000))
+      .rejects.toThrow('in debt')
 
     for (let week = 1; week <= schedule.length; week += 1) {
       state = await loadDraftState(saveId)
@@ -215,23 +222,23 @@ describe('complete career simulation', () => {
 describe('career transfer budget protection', () => {
   beforeEach(() => localStorage.clear())
 
-  it('moves coaches between the free-agent pool and clubs without allowing debt', async () => {
+  it('allows one coach deal into debt, then blocks the next purchase', async () => {
     const teams = makeTeams(2)
+    teams[0].budget = 10_000_000
     const coach = { id: 'qa-coach', name: 'QA Coach', market_value: 25_000_000, club_id: null, stats: { TAC: 80, MGT: 80, MOT: 80, ATT: 80, DEF: 80, PHY: 80 } }
+    const secondCoach = { ...coach, id: 'qa-coach-2', name: 'Second Coach' }
     const saveId = await createDraftState({
       name: 'Coach transfer QA',
       teams,
       freeAgents: [],
-      freeAgentsCoaches: [coach],
+      freeAgentsCoaches: [coach, secondCoach],
     })
-
-    await expect(transferDraftCoach(saveId, coach.id, teams[0].club_id, 600_000_000))
-      .rejects.toThrow('Insufficient budget')
 
     let state = await transferDraftCoach(saveId, coach.id, teams[0].club_id, 25_000_000)
     expect(state.teams[0].coaches.map(item => item.id)).toContain(coach.id)
-    expect(state.teams[0].budget).toBe(475_000_000)
-    expect(state.freeAgentsCoaches).toHaveLength(0)
+    expect(state.teams[0].budget).toBe(-15_000_000)
+    expect(state.freeAgentsCoaches).toHaveLength(1)
+    await expect(transferDraftCoach(saveId, secondCoach.id, teams[0].club_id, 1_000_000)).rejects.toThrow('in debt')
 
     state = await transferDraftCoach(saveId, coach.id, 'free_agent', 0)
     expect(state.teams[0].coaches).toHaveLength(0)
