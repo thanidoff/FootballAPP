@@ -22,6 +22,7 @@ import { transferDraftPlayer, transferDraftCoach } from '../../../services/draft
 import CoachCard from '../../../components/ui/CoachCard'
 import { useToast } from '../../../components/ui/Toast'
 import { fetchPlayers } from '../../../services/players'
+import { rollDraft } from '../../../utils/draftLogic'
 import { getSeasonMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
 import { getCoachEffects } from '../../../utils/coachEffects'
 import { annualWageFor, withDefaultContract } from '../../../utils/contracts'
@@ -469,8 +470,16 @@ export default function DraftSquadsTab() {
         }))
       const releasedPlayers = removedTeams.flatMap(item => (item.roster || []).map(player => ({ ...player, club_id: null, club: null })))
       const releasedIds = new Set(releasedPlayers.map(player => String(player.id)))
-      const freeAgents = [...(saveData.freeAgents || []).filter(player => !releasedIds.has(String(player.id))), ...releasedPlayers]
-      const teams = [...keptTeams, ...addedTeams]
+      let teams = [...keptTeams, ...addedTeams]
+      let availablePlayers = [...(saveData.freeAgents || []).filter(player => !releasedIds.has(String(player.id))), ...releasedPlayers]
+      for (let index = keptTeams.length; index < teams.length; index += 1) {
+        const drafted = rollDraft(teams, availablePlayers, index, [], matchSize)
+        teams = drafted.newTeams.map((item, teamIndex) => teamIndex === index
+          ? { ...item, roster: (item.roster || []).map(player => ({ ...player, club_id: item.club_id, club: null })) }
+          : item)
+        availablePlayers = drafted.remainingPlayers
+      }
+      const freeAgents = availablePlayers
       const nextState = { ...saveData, teams, freeAgents }
       await updateDraftState(saveId, nextState)
       setSaveData(nextState)

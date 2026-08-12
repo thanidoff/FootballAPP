@@ -78,6 +78,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
   const [step, setStep] = useState(0)
   const [saveName, setSaveName] = useState(initialName)
   const [matchSize, setMatchSize] = useState(5)
+  const [randomizeStartingSquads, setRandomizeStartingSquads] = useState(false)
   const [clubs, setClubs] = useState([])
   const [players, setPlayers] = useState([])
   const [coaches, setCoaches] = useState([])
@@ -172,6 +173,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
       freeAgents: players.map(player => ({ ...player, club_id: null, club: null })),
       coaches,
       matchSize,
+      randomizeStartingSquads,
       prizes: {
         hasLeague,
         hasCup,
@@ -226,6 +228,10 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
                 <h3 className="font-heading text-2xl font-black uppercase tracking-wide text-[#0A1318]">Name your save</h3>
                 <p className="mt-2 text-sm text-gray-500">Give this career a name you will recognize later.</p>
                 <input value={saveName} onChange={event => setSaveName(event.target.value)} placeholder="e.g. Bangkok Road to Glory" className="mt-7 w-full rounded-2xl border-2 border-gray-200 bg-white px-5 py-4 text-base text-[#0A1318] outline-none transition-colors focus:border-[#FD5461] focus:ring-4 focus:ring-red-50" />
+                <button type="button" role="checkbox" aria-checked={randomizeStartingSquads} onClick={() => setRandomizeStartingSquads(value => !value)} className={`mt-4 flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition-colors ${randomizeStartingSquads ? 'border-[#FD5461] bg-red-50' : 'border-gray-200 bg-white hover:border-[#FD5461]/40'}`}>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border ${randomizeStartingSquads ? 'border-[#FD5461] bg-[#FD5461] text-white' : 'border-gray-300 bg-white text-transparent'}`}><Check size={15} strokeWidth={3} /></span>
+                  <span><span className="block text-sm font-bold text-[#0A1318]">Randomize starting squads</span><span className="mt-0.5 block text-xs text-gray-500">Give every selected club a ready-to-play random roster. Leave unchecked to start with empty squads and use the $40M draft.</span></span>
+                </button>
                 <fieldset className="mt-6">
                   <legend className="text-sm font-bold text-[#0A1318]">Players on the pitch</legend>
                   <p className="mt-1 text-xs text-gray-500">Choose the match format for Season 1. The final starter slot is always the goalkeeper.</p>

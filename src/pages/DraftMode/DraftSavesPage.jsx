@@ -5,6 +5,7 @@ import CareerSetupWizard from './CareerSetupWizard'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { rollDraft } from '../../utils/draftLogic'
 
 const MAX_SAVE_SLOTS = 5
 
@@ -43,7 +44,7 @@ export default function DraftSavesPage() {
     setCreateOpen(true)
   }
 
-  async function handleSetupComplete({ name, clubs, freeAgents, coaches, prizes, matchSize }) {
+  async function handleSetupComplete({ name, clubs, freeAgents, coaches, prizes, matchSize, randomizeStartingSquads }) {
     try {
       const teams = clubs.map(club => ({
         club_id: club.id,
@@ -57,11 +58,19 @@ export default function DraftSavesPage() {
         locked_player_ids: [],
         stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 },
       }))
+      const initial = randomizeStartingSquads
+        ? rollDraft(teams, freeAgents, null, [], matchSize)
+        : { newTeams: teams, remainingPlayers: freeAgents }
+      initial.newTeams = initial.newTeams.map(team => ({
+        ...team,
+        roster: (team.roster || []).map(player => ({ ...player, club_id: team.club_id, club: null })),
+      }))
       const saveId = await createDraftState({
         name,
         settings: {
           matchSize,
-          startingBudgets: Object.fromEntries(teams.map(team => [team.club_id, team.budget])),
+          randomizeStartingSquads,
+          startingBudgets: Object.fromEntries(initial.newTeams.map(team => [team.club_id, team.budget])),
           ...(prizes ? {
             customPrizes: prizes.prizeSettings,
             customCupPrizes: prizes.cupPrizeSettings,
@@ -70,8 +79,8 @@ export default function DraftSavesPage() {
             hasCup: prizes.hasCup,
           } : {}),
         },
-        teams,
-        freeAgents,
+        teams: initial.newTeams,
+        freeAgents: initial.remainingPlayers,
         freeAgentsCoaches: coaches,
         currentWeek: 1,
       })
