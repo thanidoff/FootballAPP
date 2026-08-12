@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { uploadDataUrl } from './storage'
+import { removeStorageObject, uploadDataUrl } from './storage'
 import { MOCK_COACHES, MOCK_CLUBS } from '../data/mockGameData'
 
 const COACHES_STORAGE_KEY = 'football_app_mock_coaches_v1'
@@ -180,6 +180,12 @@ export async function createCoach({ name, nationality, age, market_value, stats,
 
 export async function updateCoach(id, { name, nationality, age, market_value, stats, photo, club_id }) {
   if (isSupabaseConfigured) {
+    let existingPhotoUrl = null
+    if (photo === null) {
+      const { data: existing, error: existingError } = await supabase.from('coaches').select('photo_url').eq('id', id).single()
+      if (existingError) throw existingError
+      existingPhotoUrl = existing?.photo_url || null
+    }
     const photo_url = await resolvePhotoUrl(photo, id)
     const updates = {
         ...(name !== undefined ? { name } : {}),
@@ -196,6 +202,7 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
           stat_phy: Number(stats.PHY ?? 70),
         } : {}),
         ...(photo_url !== undefined ? { photo_url } : {}),
+        ...(photo === null ? { photo_url: null } : {}),
       }
 
     const { data, error } = await supabase
@@ -205,6 +212,7 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
       .select('*, clubs(id, name, short_name, badge_color, badge_url)')
       .single()
     if (error) throw error
+    if (photo === null && existingPhotoUrl) await removeStorageObject('coach-photos', existingPhotoUrl)
     return mapRowToCoach(data)
   }
 
@@ -236,8 +244,11 @@ export async function updateCoach(id, { name, nationality, age, market_value, st
 
 export async function deleteCoach(id) {
   if (isSupabaseConfigured) {
+    const { data: existing, error: fetchError } = await supabase.from('coaches').select('photo_url').eq('id', id).single()
+    if (fetchError) throw fetchError
     const { error } = await supabase.from('coaches').delete().eq('id', id)
     if (error) throw error
+    if (existing?.photo_url) await removeStorageObject('coach-photos', existing.photo_url)
     return
   }
   mockCoachesState = mockCoachesState.filter(c => String(c.id) !== String(id))

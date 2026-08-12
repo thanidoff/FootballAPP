@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { uploadDataUrl } from './storage'
+import { removeStorageObject, uploadDataUrl } from './storage'
 import { MOCK_PLAYERS } from '../data/mockGameData'
 import { calculateOVR, normalizeStats } from '../utils/stats'
 
@@ -144,6 +144,12 @@ export async function createPlayer({ name, nationality, age, position, market_va
 }
 
 export async function updatePlayer(id, { name, nationality, age, position, market_value, stats, photo, club_id }) {
+  let existingPhotoUrl = null
+  if (photo === null) {
+    const { data: existing, error: existingError } = await supabase.from('players').select('photo_url').eq('id', id).single()
+    if (existingError) throw existingError
+    existingPhotoUrl = existing?.photo_url || null
+  }
   const photo_url = await resolvePhotoUrl(photo, id)
 
   const updates = {
@@ -165,12 +171,16 @@ export async function updatePlayer(id, { name, nationality, age, position, marke
     .select('*, clubs(id, name, short_name, badge_color, badge_url)')
     .single()
   if (error) throw error
+  if (photo === null && existingPhotoUrl) await removeStorageObject('player-photos', existingPhotoUrl)
   return mapRowToPlayer(data)
 }
 
 export async function deletePlayer(id) {
+  const { data: existing, error: fetchError } = await supabase.from('players').select('photo_url').eq('id', id).single()
+  if (fetchError) throw fetchError
   const { error } = await supabase.from('players').delete().eq('id', id)
   if (error) throw error
+  if (existing?.photo_url) await removeStorageObject('player-photos', existing.photo_url)
 }
 
 export async function fetchPlayerHistory(playerId) {

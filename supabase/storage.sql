@@ -6,10 +6,9 @@ values
   ('coach-photos',  'coach-photos',  true)
 on conflict (id) do nothing;
 
--- Public read policies
-create policy "public read player-photos"
-  on storage.objects for select
-  using (bucket_id = 'player-photos');
+-- Public buckets serve files without a SELECT policy. Keeping a broad SELECT
+-- policy would also let clients enumerate every object in the bucket.
+drop policy if exists "public read player-photos" on storage.objects;
 
 create policy "public upload player-photos"
   on storage.objects for insert
@@ -23,13 +22,8 @@ create policy "public delete player-photos"
   on storage.objects for delete
   using (bucket_id = 'player-photos');
 
-create policy "public read club-badges"
-  on storage.objects for select
-  using (bucket_id = 'club-badges');
-
-create policy "public read coach-photos"
-  on storage.objects for select
-  using (bucket_id = 'coach-photos');
+drop policy if exists "public read club-badges" on storage.objects;
+drop policy if exists "public read coach-photos" on storage.objects;
 
 create policy "authenticated upload coach-photos"
   on storage.objects for insert to authenticated

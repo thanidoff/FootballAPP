@@ -4,11 +4,14 @@ import './index.css'
 import App from './App.jsx'
 import { ToastProvider } from './components/ui/Toast.jsx'
 import AuthWrapper from './components/ui/AuthWrapper.jsx'
+import AppErrorBoundary from './components/ui/AppErrorBoundary.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ToastProvider>
-      <AuthWrapper><App /></AuthWrapper>
+      <AppErrorBoundary>
+        <AuthWrapper><App /></AuthWrapper>
+      </AppErrorBoundary>
     </ToastProvider>
   </StrictMode>,
 )

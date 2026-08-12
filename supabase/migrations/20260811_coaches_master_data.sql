@@ -39,8 +39,7 @@ drop policy if exists "public read coach-photos" on storage.objects;
 drop policy if exists "authenticated upload coach-photos" on storage.objects;
 drop policy if exists "authenticated update coach-photos" on storage.objects;
 drop policy if exists "authenticated delete coach-photos" on storage.objects;
-create policy "public read coach-photos" on storage.objects for select
-  using (bucket_id = 'coach-photos');
+-- Public bucket URLs remain readable without exposing a list of every object.
 create policy "authenticated upload coach-photos" on storage.objects for insert to authenticated
   with check (bucket_id = 'coach-photos');
 create policy "authenticated update coach-photos" on storage.objects for update to authenticated

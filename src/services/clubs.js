@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { uploadDataUrl } from './storage'
+import { removeStorageObject, uploadDataUrl } from './storage'
 import { MOCK_CLUBS } from '../data/mockGameData'
 
 async function resolveBadgeUrl(badge, clubId) {
@@ -50,6 +50,12 @@ export async function createClub({ name, short_name, badge_color, budget, badge,
 }
 
 export async function updateClub(id, { name, short_name, badge_color, budget, badge, is_national }) {
+  let existingBadgeUrl = null
+  if (badge === null) {
+    const { data: existing, error: existingError } = await supabase.from('clubs').select('badge_url').eq('id', id).single()
+    if (existingError) throw existingError
+    existingBadgeUrl = existing?.badge_url || null
+  }
   const badge_url = await resolveBadgeUrl(badge, id)
 
   const updates = {
@@ -65,12 +71,16 @@ export async function updateClub(id, { name, short_name, badge_color, budget, ba
     .select()
     .single()
   if (error) throw error
+  if (badge === null && existingBadgeUrl) await removeStorageObject('club-badges', existingBadgeUrl)
   return data
 }
 
 export async function deleteClub(id) {
+  const { data: existing, error: fetchError } = await supabase.from('clubs').select('badge_url').eq('id', id).single()
+  if (fetchError) throw fetchError
   const { error } = await supabase.from('clubs').delete().eq('id', id)
   if (error) throw error
+  if (existing?.badge_url) await removeStorageObject('club-badges', existing.badge_url)
 }
 
 export async function fetchClubRecords(clubId) {

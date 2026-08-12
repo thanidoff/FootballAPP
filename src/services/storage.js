@@ -27,3 +27,18 @@ export async function uploadDataUrl(bucket, path, dataUrl) {
   const cacheBust = `?t=${Date.now()}`
   return `${data.publicUrl}${cacheBust}`
 }
+
+export function getStoragePath(bucket, publicUrl) {
+  if (!publicUrl || typeof publicUrl !== 'string') return null
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const markerIndex = publicUrl.indexOf(marker)
+  if (markerIndex < 0) return null
+  return decodeURIComponent(publicUrl.slice(markerIndex + marker.length).split('?')[0]) || null
+}
+
+export async function removeStorageObject(bucket, publicUrl) {
+  const path = getStoragePath(bucket, publicUrl)
+  if (!path) return
+  const { error } = await supabase.storage.from(bucket).remove([path])
+  if (error) throw error
+}

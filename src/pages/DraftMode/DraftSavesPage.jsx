@@ -3,6 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getDraftSaves, createDraftState, deleteDraftState } from '../../services/draftSave'
 import CareerSetupWizard from './CareerSetupWizard'
 import { generateInitialDraft } from '../../utils/draftLogic'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import { useToast } from '../../components/ui/Toast'
 
 const MAX_SAVE_SLOTS = 5
 
@@ -10,8 +13,11 @@ export default function DraftSavesPage() {
   const [saves, setSaves] = useState([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const toast = useToast()
 
   useEffect(() => {
     if (searchParams.get('name')) setCreateOpen(true)
@@ -24,6 +30,7 @@ export default function DraftSavesPage() {
       setSaves((data || []).slice(0, MAX_SAVE_SLOTS))
     } catch (err) {
       console.error('Failed to load saves', err)
+      toast.error(err.message || 'Failed to load career saves')
     } finally {
       setLoading(false)
     }
@@ -69,7 +76,7 @@ export default function DraftSavesPage() {
       navigate(`/draft/${saveId}/overview`)
     } catch (err) {
       console.error('Failed to create career save', err)
-      alert(err.message || 'Failed to create career save')
+      toast.error(err.message || 'Failed to create career save')
     }
   }
 
@@ -77,15 +84,24 @@ export default function DraftSavesPage() {
     navigate(`/draft/${saveId}`)
   }
 
-  async function handleDelete(event, saveId) {
+  function handleDelete(event, save) {
     event.stopPropagation()
-    if (window.confirm('Delete this save? This cannot be undone.')) {
-      try {
-        await deleteDraftState(saveId)
-        await loadSaves()
-      } catch (err) {
-        alert('Failed to delete save')
-      }
+    setDeleteTarget(save)
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+    try {
+      await deleteDraftState(deleteTarget.id)
+      setDeleteTarget(null)
+      await loadSaves()
+      toast.success('Career save deleted')
+    } catch (err) {
+      console.error('Failed to delete save', err)
+      toast.error(err.message || 'Failed to delete career save')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -119,7 +135,8 @@ export default function DraftSavesPage() {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={(event) => handleDelete(event, save.id)}
+                  onClick={(event) => handleDelete(event, save)}
+                  aria-label={`Delete ${save.name}`}
                   className="p-2 text-gray-300 hover:text-[#FD5461] hover:bg-red-50 rounded-lg transition-colors"
                   title="Delete Save"
                 >
@@ -150,6 +167,13 @@ export default function DraftSavesPage() {
       )}
 
       {createOpen && <CareerSetupWizard open={createOpen} initialName={searchParams.get('name') || ''} onClose={() => setCreateOpen(false)} onComplete={handleSetupComplete} />}
+      <Modal open={Boolean(deleteTarget)} onClose={() => !deleting && setDeleteTarget(null)} title="Delete career save" width="max-w-md">
+        <p className="type-body text-gray-600">Delete <strong className="font-medium text-[#0A1318]">{deleteTarget?.name}</strong>? This action cannot be undone.</p>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+          <Button variant="danger" onClick={confirmDelete} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete save'}</Button>
+        </div>
+      </Modal>
     </div>
   )
 }
