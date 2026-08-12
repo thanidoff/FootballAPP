@@ -218,7 +218,7 @@ export default function PlayersPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20"
         />
-        <div className="flex gap-1.5">
+        <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
           {POS_FILTERS.map((pos) => (
             <button
               key={pos}
@@ -239,7 +239,7 @@ export default function PlayersPage() {
             OVR {sortDirection === 'desc' ? <ArrowDown size={13} /> : <ArrowUp size={13} />}
           </button>
           {/* View toggle */}
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          <div className="hidden gap-1 bg-gray-100 rounded-xl p-1 sm:flex">
             <button
               onClick={() => setViewMode('card')}
               aria-label="Card view"

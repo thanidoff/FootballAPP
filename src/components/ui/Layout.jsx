@@ -310,7 +310,7 @@ export default function Layout() {
               <div className="sm:hidden relative" ref={menuRef}>
                 <button
                   onClick={() => setMenuOpen(o => !o)}
-                  className="w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="w-10 h-10 flex flex-col items-center justify-center gap-1.5 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
                   <span className={`block w-5 h-0.5 bg-[#0A1318] rounded-full transition-all duration-200 ${menuOpen ? 'opacity-0' : ''}`} />

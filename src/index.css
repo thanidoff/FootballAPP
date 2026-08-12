@@ -71,6 +71,25 @@ body {
   overflow-x: hidden;
 }
 
+/* Mobile interaction baseline: controls remain comfortably tappable without
+   changing compact desktop/table layouts. Explicit icon-only micro controls
+   can opt out with data-compact-control when their surrounding row is the
+   larger interaction target. */
+@media (max-width: 639px) {
+  :where(
+    button:not([data-compact-control]),
+    a[href]:not([data-compact-control]),
+    input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+    select
+  ) {
+    min-height: 2.5rem;
+  }
+
+  [role="tab"] {
+    min-height: 2.75rem;
+  }
+}
+
 .hide-scrollbar,
 .scrollbar-hide,
 .no-scrollbar {
