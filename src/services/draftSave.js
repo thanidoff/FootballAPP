@@ -2,6 +2,8 @@ import { createSeededRandom } from '../utils/matchEngine'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { fetchCoaches } from './coaches'
 import { withDefaultContract } from '../utils/contracts'
+import { ANNUAL_AWARD_DEFINITIONS, calculateAnnualAwards, generateOutsideLeagueStats, mergeSeasonStats } from '../utils/seasonAwards'
+import { getSeasonMatchSize, orderStartingLineup } from '../utils/matchFormat'
 
 const STORAGE_KEY = 'football_manager_career_saves'
 export const MAX_CAREER_SAVES = 5
@@ -17,7 +19,10 @@ function cloneCareerSnapshot(value) {
 
 export const DEFAULT_LEAGUE_PRIZES = {
   placements: [100_000_000, 70_000_000, 50_000_000, 30_000_000, 20_000_000],
-  awards: { topScorers: 15_000_000, topAssists: 15_000_000, mostMvps: 15_000_000 },
+  awards: {
+    topScorers: 15_000_000, topAssists: 15_000_000, mostMvps: 15_000_000,
+    ballonDor: 15_000_000, bestGK: 8_000_000, bestDEF: 8_000_000, bestMF: 8_000_000, bestFWD: 8_000_000,
+  },
   matchPrizes: { win: 5_000_000, draw: 3_000_000, loss: 2_000_000 },
   externalIncome: {
     league: { min: 55_000_000, max: 85_000_000 },
@@ -50,6 +55,30 @@ function normalizeLeaguePrizes(prizes) {
       },
     },
   }
+}
+
+function finalizeAnnualAwards(saveData, seasonIndex) {
+  const season = saveData.settings?.seasons?.[seasonIndex]
+  if (!season || season.annualAwards?.finalizedAt) return
+  const externalStats = season.externalPlayerStats || generateOutsideLeagueStats(saveData.teams || [], season)
+  season.externalPlayerStats = externalStats
+  season.stats = mergeSeasonStats(season.stats, externalStats)
+  const awards = calculateAnnualAwards(season.stats, saveData.teams || [], season, saveData.settings?.cups || [], saveData.settings?.nationalCups || [])
+  const prizeSettings = normalizeLeaguePrizes(season.prizeSettings)
+  const teams = (saveData.teams || []).map(team => ({ ...team }))
+  const payouts = []
+  ANNUAL_AWARD_DEFINITIONS.forEach(definition => {
+    const player = awards[definition.key]
+    const amount = Math.max(0, Number(prizeSettings.awards[definition.key] ?? definition.defaultPrize) || 0)
+    const team = teams.find(item => String(item.club_id) === String(player?.club?.id))
+    if (!player || !team || amount <= 0) return
+    team.budget = (team.budget || 0) + amount
+    payouts.push({ clubId: team.club_id, clubName: team.club_name, amount, type: 'annual_award', label: definition.label, playerId: player.id })
+  })
+  season.annualAwards = { ...awards, finalizedAt: new Date().toISOString() }
+  season.prizePayouts = [...(season.prizePayouts || []), ...payouts]
+  saveData.settings.seasons[seasonIndex] = season
+  saveData.teams = teams
 }
 
 function readLocalSaves() {
@@ -619,6 +648,10 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
           }
         })
 
+        const outsideStats = season.externalPlayerStats || generateOutsideLeagueStats(saveData.teams || [], season)
+        season.externalPlayerStats = outsideStats
+        const withOutsideStats = mergeSeasonStats(combined, outsideStats)
+        Object.assign(combined, withOutsideStats)
         const prizeSettings = normalizeLeaguePrizes(season.prizeSettings)
         const awardLabels = { topScorers: 'Top Scorer', topAssists: 'Top Assists', mostMvps: 'Most MVP' }
         const awardPayouts = []
@@ -652,12 +685,100 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
         saveData.settings.seasons[seasonIndex] = season
         saveData.teams = teams
       }
+      const nationalCupFinished = (saveData.settings?.nationalCups || []).some(item => String(item.seasonId) === String(cup.seasonId) && item.status === 'completed')
+      if (!season?.nationalCupEnabled || nationalCupFinished) finalizeAnnualAwards(saveData, seasonIndex)
     }
   }
 
   cups[cupIndex] = cup
   await updateDraftState(saveId, { ...saveData, settings: { ...saveData.settings, cups } })
   return loadDraftState(saveId)
+}
+
+export async function createDraftNationalCup(saveId, nationalities) {
+  const saveData = await loadDraftState(saveId)
+  const season = [...(saveData.settings?.seasons || [])].reverse().find(item => item.status === 'completed')
+    || (saveData.settings?.seasons || []).find(item => item.status === 'active')
+  if (!season?.nationalCupEnabled) throw new Error('National Cup is disabled for this season')
+  if (!Array.isArray(nationalities) || nationalities.length !== 8) throw new Error('Select exactly 8 national teams')
+  const allPlayers = [...(saveData.freeAgents || []), ...(saveData.teams || []).flatMap(team => team.roster || [])]
+  const matchSize = getSeasonMatchSize(saveData.settings, season)
+  const participants = nationalities.map(name => {
+    const roster = orderStartingLineup(allPlayers.filter(player => player.nationality === name).sort((a, b) => Number(b.overall ?? b.ovr ?? 0) - Number(a.overall ?? a.ovr ?? 0)), matchSize)
+    if (roster.length < matchSize) throw new Error(`${name} does not have ${matchSize} available players`)
+    return { id: `nation:${name}`, name, short_name: name.slice(0, 3).toUpperCase(), roster, coaches: [] }
+  })
+  const id = globalThis.crypto?.randomUUID?.() || `national-${Date.now()}`
+  const random = createSeededRandom(id)
+  const shuffled = [...participants].sort(() => random() - 0.5)
+  const cup = {
+    id, seasonId: season.id, number: (saveData.settings?.nationalCups || []).length + 1,
+    status: 'active', round: 1, matchSize, participants,
+    rounds: { 1: Array.from({ length: 4 }, (_, index) => ({ home: shuffled[index * 2].id, away: shuffled[index * 2 + 1].id, played: false })) },
+    createdAt: new Date().toISOString(),
+  }
+  const nextState = { ...saveData, settings: { ...saveData.settings, nationalCups: [...(saveData.settings?.nationalCups || []), cup] } }
+  await updateDraftState(saveId, nextState)
+  return nextState
+}
+
+export async function completeDraftNationalCupMatch(saveId, round, matchIndex, payload) {
+  const saveData = await loadDraftState(saveId)
+  const cups = saveData.settings?.nationalCups || []
+  const cupIndex = cups.findIndex(item => item.status === 'active')
+  if (cupIndex < 0) throw new Error('No active National Cup found')
+  const cup = cups[cupIndex]
+  const match = cup.rounds?.[round]?.[matchIndex]
+  if (!match || match.played) throw new Error('National Cup match is unavailable')
+  match.played = true
+  match.homeScore = Number(payload.homeScore)
+  match.awayScore = Number(payload.awayScore)
+  match.events = payload.events || []
+  match.mvp = payload.mvp || null
+  const random = createSeededRandom(`${cup.id}-${round}-${matchIndex}-penalties`)
+  match.winner = match.homeScore === match.awayScore
+    ? ([match.home, match.away].includes(payload.penaltyWinner) ? payload.penaltyWinner : (random() < 0.5 ? match.home : match.away))
+    : (match.homeScore > match.awayScore ? match.home : match.away)
+  if (match.homeScore === match.awayScore) match.decidedOnPenalties = true
+  const roundMatches = cup.rounds[round]
+  if (roundMatches.every(item => item.played)) {
+    if (Number(round) < 3) {
+      const winners = roundMatches.map(item => item.winner)
+      cup.round = Number(round) + 1
+      cup.rounds[cup.round] = Array.from({ length: winners.length / 2 }, (_, index) => ({ home: winners[index * 2], away: winners[index * 2 + 1], played: false }))
+    } else {
+      cup.status = 'completed'
+      cup.champion = match.winner
+      cup.championPlayerIds = cup.participants.find(item => item.id === match.winner)?.roster?.map(player => player.id) || []
+      cup.completedAt = new Date().toISOString()
+      const seasonIndex = (saveData.settings?.seasons || []).findIndex(item => String(item.id) === String(cup.seasonId))
+      // Add international goals, assists and MVPs before deciding annual awards.
+      if (seasonIndex >= 0) {
+        const internationalStats = { topScorers: {}, topAssists: {}, mostMvps: {}, playerSnapshots: {} }
+        Object.values(cup.rounds || {}).flat().forEach(cupMatch => {
+          ;(cupMatch.events || []).forEach(event => {
+            if (event.type === 'goal' && event.player?.id) internationalStats.topScorers[event.player.id] = (internationalStats.topScorers[event.player.id] || 0) + 1
+            if (event.type === 'goal' && event.assist?.id) internationalStats.topAssists[event.assist.id] = (internationalStats.topAssists[event.assist.id] || 0) + 1
+          })
+          if (cupMatch.mvp?.id) internationalStats.mostMvps[cupMatch.mvp.id] = (internationalStats.mostMvps[cupMatch.mvp.id] || 0) + 1
+        })
+        cup.participants.forEach(team => (team.roster || []).forEach(player => {
+          internationalStats.playerSnapshots[player.id] = {
+            id: player.id, name: player.name, photo_url: player.photo_url || null,
+            nationality: player.nationality || team.name, position: player.position || null,
+            overall: Number(player.overall ?? player.ovr ?? 0),
+            club: (saveData.teams || []).find(club => (club.roster || []).some(member => String(member.id) === String(player.id))) ? (() => { const club = (saveData.teams || []).find(item => (item.roster || []).some(member => String(member.id) === String(player.id))); return { id: club.club_id, name: club.club_name, short_name: club.short_name, badge_url: club.badge_url, badge_color: club.badge_color } })() : null,
+          }
+        }))
+        saveData.settings.seasons[seasonIndex].stats = mergeSeasonStats(saveData.settings.seasons[seasonIndex].stats, internationalStats)
+        finalizeAnnualAwards(saveData, seasonIndex)
+      }
+    }
+  }
+  cups[cupIndex] = cup
+  const nextState = { ...saveData, settings: { ...saveData.settings, nationalCups: cups } }
+  await updateDraftState(saveId, nextState)
+  return nextState
 }
 
 export async function advanceDraftLeagueWeek(saveId) {
@@ -718,6 +839,9 @@ export async function advanceDraftLeagueWeek(saveId) {
     saveData.teams = teams
   }
   seasons[seasonIndex] = season
+
+  // Careers without a club cup must still receive every season award.
+  if (saveData.settings?.hasCup === false && !season.nationalCupEnabled) finalizeAnnualAwards(saveData, seasonIndex)
 
   const nextState = { ...saveData, settings: { ...saveData.settings, seasons } }
   await updateDraftState(saveId, nextState)

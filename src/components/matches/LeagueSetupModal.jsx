@@ -37,6 +37,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
   const [nameSort, setNameSort] = useState(null)
   const [ovrSort, setOvrSort] = useState('desc')
   const [matchSize, setMatchSize] = useState(() => normalizeMatchSize(initialMatchSize))
+  const [nationalCupEnabled, setNationalCupEnabled] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -46,6 +47,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
     setNameSort(null)
     setOvrSort('desc')
     setMatchSize(normalizeMatchSize(initialMatchSize))
+    setNationalCupEnabled(false)
     if (teams) {
       setAllTeams(teams)
       const map = {}
@@ -138,7 +140,7 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
     if (selected.size !== slotsNeeded) return
     setSaving(true)
     const lockedClubIds = lockedTeams.map(t => t.club_id ?? t.id)
-    try { await onCreate([...lockedClubIds, ...selected], matchSize) }
+    try { await onCreate([...lockedClubIds, ...selected], matchSize, nationalCupEnabled) }
     finally { setSaving(false) }
   }
 
@@ -182,13 +184,17 @@ export default function LeagueSetupModal({ open, onClose, onCreate, lockedTeams 
           </span>
         </div>
 
-        {isNewSeason && step === 0 && (
-          <fieldset className="mx-6 mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-3 sm:mx-8">
+        {step === 0 && (
+          <fieldset className="mx-6 mb-4 space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-3 sm:mx-8">
             <legend className="px-1 text-xs font-bold text-[#0A1318]">Players on the pitch this season</legend>
             <div className="grid grid-cols-3 gap-2">
               {MATCH_SIZES.map(size => <button key={size} type="button" aria-pressed={matchSize === size} onClick={() => setMatchSize(size)} className={`min-h-10 rounded-xl text-sm font-bold transition-colors ${matchSize === size ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-500 ring-1 ring-gray-200 hover:text-[#FD5461]'}`}>{size}</button>)}
             </div>
             <p className="mt-2 text-center text-[11px] text-gray-400">The final starter slot is reserved for the goalkeeper.</p>
+            <button type="button" aria-pressed={nationalCupEnabled} onClick={() => setNationalCupEnabled(value => !value)} className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left transition-colors ${nationalCupEnabled ? 'bg-red-50 text-[#FD5461] ring-1 ring-[#FD5461]' : 'bg-white text-gray-600 ring-1 ring-gray-200'}`}>
+              <span><span className="block text-sm font-semibold">National Cup this season</span><span className="block text-[11px] text-gray-400">Optional 8-team knockout tournament</span></span>
+              <span className={`relative h-6 w-11 rounded-full ${nationalCupEnabled ? 'bg-[#FD5461]' : 'bg-gray-200'}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${nationalCupEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} /></span>
+            </button>
           </fieldset>
         )}
 

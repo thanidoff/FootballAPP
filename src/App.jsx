@@ -20,6 +20,7 @@ const DraftSquadsTab = lazy(() => import('./pages/DraftMode/Tabs/DraftSquadsTab'
 const DraftTransfersTab = lazy(() => import('./pages/DraftMode/Tabs/DraftTransfersTab'))
 const DraftMatchesTab = lazy(() => import('./pages/DraftMode/Tabs/DraftMatchesTab'))
 const DraftCupTab = lazy(() => import('./pages/DraftMode/Tabs/DraftCupTab'))
+const DraftNationalCupTab = lazy(() => import('./pages/DraftMode/Tabs/DraftNationalCupTab'))
 
 function PageFallback() {
   return <div role="status" aria-live="polite" className="mx-auto mt-20 h-1 w-28 overflow-hidden rounded-full bg-gray-100"><span className="block h-full w-1/2 animate-pulse rounded-full bg-[#FD5461]" /></div>
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="coach-transfers" element={<DraftTransfersTab />} />
               <Route path="matches" element={<DraftMatchesTab />} />
               <Route path="cup" element={<DraftCupTab />} />
+              <Route path="national-cup" element={<DraftNationalCupTab />} />
             </Route>
           </Route>
       </Routes>

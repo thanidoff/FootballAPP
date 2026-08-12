@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { loadDraftState } from '../../services/draftSave'
 import AnimatedTabs from '../../components/ui/AnimatedTabs'
-import { Banknote, LayoutDashboard, Medal, ShieldCheck, Trophy, Users } from 'lucide-react'
+import { Banknote, Flag, LayoutDashboard, Medal, ShieldCheck, Trophy, Users } from 'lucide-react'
 
 const TABS = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
@@ -10,7 +10,8 @@ const TABS = [
   { id: 'transfers', label: 'Player Market', icon: Banknote },
   { id: 'coach-transfers', label: 'Coach Market', icon: ShieldCheck },
   { id: 'matches', label: 'League', icon: Trophy },
-  { id: 'cup', label: 'Cup', icon: Medal }
+  { id: 'cup', label: 'Cup', icon: Medal },
+  { id: 'national-cup', label: 'National', icon: Flag }
 ]
 
 export default function DraftDashboardPage() {

@@ -98,6 +98,11 @@ export function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, 
     ['topScorers', 'Top Scorer', 'Most goals'],
     ['topAssists', 'Top Assists', 'Most assists'],
     ['mostMvps', 'Most MVP', 'Most MVP awards'],
+    ['ballonDor', "Ballon d'Or", 'Best player of the season'],
+    ['bestGK', 'Best Goalkeeper', 'Goalkeeper of the season'],
+    ['bestDEF', 'Best Defender', 'Defender of the season'],
+    ['bestMF', 'Best Midfielder', 'Midfielder of the season'],
+    ['bestFWD', 'Best Forward', 'Forward of the season'],
   ]
   const adjustMatchPrize = (key, diffMillions) => setPrizes(current => ({
     ...current,
@@ -373,6 +378,14 @@ function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
     { key: 'topAssists', label: 'Top Assists', unit: 'assists' },
     { key: 'mostMvps', label: 'Most MVP', unit: 'MVP awards' },
   ]
+  const annualAwardRows = Object.entries(season?.annualAwards || {})
+    .filter(([key, player]) => key !== 'finalizedAt' && player?.id)
+    .map(([key, player]) => ({
+      key,
+      label: ({ ballonDor: "Ballon d'Or", bestGK: 'Best Goalkeeper', bestDEF: 'Best Defender', bestMF: 'Best Midfielder', bestFWD: 'Best Forward' })[key] || key,
+      player,
+      payout: payouts.find(item => item.type === 'annual_award' && item.label === (({ ballonDor: "Ballon d'Or", bestGK: 'Goalkeeper of the Year', bestDEF: 'Defender of the Year', bestMF: 'Midfielder of the Year', bestFWD: 'Forward of the Year' })[key] || key)),
+    }))
   const awardRows = awardDefinitions.map(definition => {
     const statEntries = Object.entries(season?.stats?.[definition.key] || {})
     if (!statEntries.length) return null
@@ -426,6 +439,17 @@ function SeasonPrizeResults({ season, cup, allPlayers, teams }) {
           {placementRows.map(row => <div key={row.club_id} className="flex items-center gap-3 border-b border-gray-100 p-3 last:border-b-0"><RankBadge rank={row.position} /><PrizeClubBadge club={row} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-[#0A1318]">{row.club_name}</div><div className="mt-0.5 text-xs text-gray-500">{row.stats?.PTS || 0} PTS{row.position === 1 ? ' · League winner' : ''}</div></div><span className="shrink-0 text-sm font-semibold text-[#FD5461]">{formatPrize(row.amount)}</span></div>)}
         </div>
       </section>
+
+      {annualAwardRows.length > 0 && <section>
+        <div className="mb-3 flex items-center gap-2"><Medal size={18} className="text-[#FD5461]" /><h3 className="text-base font-semibold text-[#0A1318]">Season awards</h3></div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {annualAwardRows.map(row => <article key={row.key} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100">{row.player.photo_url ? <img src={row.player.photo_url} alt="" className="h-full w-full object-cover" /> : <Crown size={18} className="text-[#FD5461]" />}</div>
+            <div className="min-w-0 flex-1"><div className="text-xs font-medium text-[#FD5461]">{row.label}</div><div className="truncate text-sm font-semibold text-[#0A1318]">{row.player.name}</div><div className="text-xs text-gray-400">{row.player.club?.name || 'Outside league'}</div></div>
+            {row.payout?.amount > 0 && <span className="shrink-0 text-xs font-semibold text-green-600">+{formatPrize(row.payout.amount)}</span>}
+          </article>)}
+        </div>
+      </section>}
 
       <section>
         <div className="mb-1 flex items-center gap-2"><Crown size={18} className="text-[#FD5461]" /><h3 className="text-base font-semibold text-[#0A1318]">Player awards</h3></div>
@@ -769,7 +793,7 @@ export default function DraftMatchesTab() {
 
   const weekData = matchesConfig.find(w => w.week === selectedWeek)
 
-  async function handleGenerateSchedule(teamIds) {
+  async function handleGenerateSchedule(teamIds, requestedMatchSize, nationalCupEnabled = false) {
     setProcessing(true)
     try {
       const schedule = generateSchedule(teamIds)
@@ -786,7 +810,8 @@ export default function DraftMatchesTab() {
       const initialLeaguePrizes = saveData.settings?.customPrizes || DEFAULT_LEAGUE_PRIZES
       newSettings.seasons = [{
         id: 1,
-        matchSize: normalizeMatchSize(saveData.settings?.matchSize),
+        matchSize: normalizeMatchSize(requestedMatchSize, saveData.settings?.matchSize),
+        nationalCupEnabled,
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
@@ -826,7 +851,7 @@ export default function DraftMatchesTab() {
     }
   }
 
-  async function handleStartNewSeason(teamIds, requestedMatchSize) {
+  async function handleStartNewSeason(teamIds, requestedMatchSize, nationalCupEnabled = false) {
     setProcessing(true)
     try {
       const nextMatchSize = normalizeMatchSize(requestedMatchSize, seasonMatchSize)
@@ -866,6 +891,7 @@ export default function DraftMatchesTab() {
       newSettings.seasons.push({
         id: newSeasonId,
         matchSize: nextMatchSize,
+        nationalCupEnabled,
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },

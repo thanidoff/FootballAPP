@@ -7,7 +7,7 @@ import OvrBadge from '../components/ui/OvrBadge'
 import { completeMatch as completeMatchFriendly } from '../services/friendlyMatches'
 import { completeMatch as completeMatchWC } from '../services/worldCup'
 import { completeLeagueMatch } from '../services/league'
-import { completeDraftMatch, completeDraftCupMatch } from '../services/draftSave'
+import { completeDraftMatch, completeDraftCupMatch, completeDraftNationalCupMatch } from '../services/draftSave'
 import { getOVRTier } from '../utils/stats'
 import { simulateMatchSequences } from '../utils/matchEngine'
 import { getSimulationPace, normalizeMatchSize, orderStartingLineup } from '../utils/matchFormat'
@@ -882,14 +882,14 @@ export default function PreMatchPage() {
   const navigate = useNavigate()
   const { matchId } = useParams()
   // Support both URL param and legacy location.state
-  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds, saveId, matchIndex, currentWeek, cupRound, matchSize } = location.state ?? {}
+  const { homeClub, awayClub, duration, returnPath, nationalMode, allStarsTeamIds, saveId, matchIndex, currentWeek, cupRound, nationalCupRound, matchSize } = location.state ?? {}
   const starterCount = normalizeMatchSize(matchSize)
   const isTournament = location.pathname.includes('/world-cup/') || location.pathname.includes('/club-cup/')
   const isLeague = location.pathname.includes('/league/')
   const isDraft = location.pathname.includes('/matches/draft/prematch')
-  const isKnockoutMatch = isTournament || (isDraft && Boolean(cupRound))
+  const isKnockoutMatch = isTournament || (isDraft && Boolean(cupRound || nationalCupRound))
   const matchTitle = isDraft
-    ? (cupRound ? 'Cup Match' : 'League Match')
+    ? (nationalCupRound ? 'National Cup Match' : cupRound ? 'Cup Match' : 'League Match')
     : isTournament
       ? 'Tournament Match'
       : isLeague
@@ -899,7 +899,8 @@ export default function PreMatchPage() {
   let completeMatch = isLeague ? completeLeagueMatch : (isTournament ? completeMatchWC : completeMatchFriendly)
   if (isDraft) {
     completeMatch = async (_, payload) => {
-      if (cupRound) await completeDraftCupMatch(saveId, cupRound, matchIndex, payload)
+      if (nationalCupRound) await completeDraftNationalCupMatch(saveId, nationalCupRound, matchIndex, payload)
+      else if (cupRound) await completeDraftCupMatch(saveId, cupRound, matchIndex, payload)
       else await completeDraftMatch(saveId, currentWeek, matchIndex, payload)
     }
   }
