@@ -2018,7 +2018,7 @@ export default function DraftSquadsTab() {
       <Modal open={draftChoices.length > 0} onClose={() => { setDraftChoices([]); setSelectedDraftPlayerId(null) }} title="Draft Player · Choose 1 of 6" width="max-w-5xl">
         <div className="space-y-5">
           <p className="text-sm text-gray-500">Select one player for {team.club_name}. The $40M fee is charged only when you confirm.</p>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {draftChoices.map(player => {
               const selected = String(selectedDraftPlayerId) === String(player.id)
               return <div key={player.id} className={`rounded-2xl border-2 p-1 transition-all ${selected ? 'border-[#FD5461] bg-red-50 shadow-md' : 'border-transparent hover:border-gray-200'}`}>
