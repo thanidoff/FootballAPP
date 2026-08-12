@@ -67,7 +67,6 @@ function mergeExternalStatsOnce(saveData, season) {
     topAssists: Object.fromEntries(Object.entries(externalStats.topAssists || {}).filter(([id]) => clubPlayerIds.has(id))),
     mostMvps: Object.fromEntries(Object.entries(externalStats.mostMvps || {}).filter(([id]) => clubPlayerIds.has(id))),
     playerSnapshots: Object.fromEntries(Object.entries(externalStats.playerSnapshots || {}).filter(([id]) => clubPlayerIds.has(id))),
-    performance: externalStats.performance || {},
   }
   season.stats = mergeSeasonStats(season.stats, eligibleExternalStats)
   season.externalStatsMergedAt = new Date().toISOString()
@@ -708,7 +707,6 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
             topAssists: Object.fromEntries(Object.entries(outsideStats.topAssists || {}).filter(([id]) => clubPlayerIds.has(id))),
             mostMvps: Object.fromEntries(Object.entries(outsideStats.mostMvps || {}).filter(([id]) => clubPlayerIds.has(id))),
             playerSnapshots: Object.fromEntries(Object.entries(outsideStats.playerSnapshots || {}).filter(([id]) => clubPlayerIds.has(id))),
-            performance: outsideStats.performance || {},
           }))
           season.externalStatsMergedAt = new Date().toISOString()
         }

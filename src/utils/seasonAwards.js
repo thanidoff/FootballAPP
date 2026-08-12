@@ -28,7 +28,7 @@ const snapshot = (player, team) => ({
 
 export function generateOutsideLeagueStats(teams, season, freeAgents = []) {
   const leagueIds = new Set((season?.teamIds || []).map(String))
-  const stats = { topScorers: {}, topAssists: {}, mostMvps: {}, playerSnapshots: {}, performance: {} }
+  const stats = { topScorers: {}, topAssists: {}, mostMvps: {}, playerSnapshots: {} }
   const externalGroups = [
     ...(teams || []).filter(team => !leagueIds.has(String(team.club_id))).map(team => ({ team, players: team.roster || [] })),
     { team: null, players: freeAgents || [] },
@@ -39,7 +39,6 @@ export function generateOutsideLeagueStats(teams, season, freeAgents = []) {
       const ovr = Number(player.overall ?? player.ovr ?? 60)
       const quality = Math.max(0, (ovr - 55) / 45)
       const group = positionGroup(player.position)
-      const appearances = Math.max(8, Math.round(18 + random() * 16))
       const goals = Math.max(0, Math.round((group === 'FW' ? 3.5 : group === 'MF' ? 2.1 : group === 'DF' ? 0.8 : 0.15) * quality + random() * (group === 'FW' ? 8 : 4)))
       const assists = Math.max(0, Math.round((group === 'MF' ? 3.2 : group === 'FW' ? 2.1 : group === 'DF' ? 1.1 : 0.1) * quality + random() * 6))
       const mvps = Math.max(0, Math.round(quality * 1.8 + random() * (group === 'GK' ? 3 : 2)))
@@ -47,14 +46,6 @@ export function generateOutsideLeagueStats(teams, season, freeAgents = []) {
       if (assists) stats.topAssists[player.id] = assists
       if (mvps) stats.mostMvps[player.id] = mvps
       stats.playerSnapshots[player.id] = snapshot(player, team)
-      stats.performance[player.id] = {
-        appearances, goals, assists, mvps,
-        saves: group === 'GK' ? Math.round(appearances * (2.2 + random() * 2.8) * (0.75 + quality * 0.35)) : 0,
-        cleanSheets: group === 'GK' || group === 'DF' ? Math.round(appearances * (0.12 + quality * 0.22 + random() * 0.08)) : 0,
-        defensiveActions: group === 'DF' || group === 'MF' ? Math.round(appearances * (group === 'DF' ? 3.5 : 1.8) * (0.75 + quality * 0.45)) : 0,
-        chancesCreated: group === 'MF' || group === 'FW' ? Math.round(appearances * (group === 'MF' ? 1.8 : 0.9) * (0.7 + quality * 0.5)) : 0,
-        source: 'external',
-      }
     })
   })
   return stats
@@ -89,17 +80,10 @@ export function calculateAnnualAwards(stats, teams, season, cups = [], nationalC
 }
 
 export function mergeSeasonStats(base, ...sources) {
-  const result = { topScorers: {}, topAssists: {}, mostMvps: {}, mostFouls: {}, playerSnapshots: {}, performance: {} }
+  const result = { topScorers: {}, topAssists: {}, mostMvps: {}, mostFouls: {}, playerSnapshots: {} }
   ;[base, ...sources].filter(Boolean).forEach(source => {
     ;['topScorers', 'topAssists', 'mostMvps', 'mostFouls'].forEach(key => Object.entries(source[key] || {}).forEach(([id, value]) => { result[key][id] = (result[key][id] || 0) + (Number(value) || 0) }))
     Object.assign(result.playerSnapshots, source.playerSnapshots || {})
-    Object.entries(source.performance || {}).forEach(([id, metrics]) => {
-      const current = result.performance[id] || {}
-      result.performance[id] = { ...current, ...metrics }
-      ;['appearances', 'goals', 'assists', 'mvps', 'saves', 'cleanSheets', 'defensiveActions', 'chancesCreated'].forEach(key => {
-        result.performance[id][key] = (Number(current[key]) || 0) + (Number(metrics[key]) || 0)
-      })
-    })
   })
   return result
 }

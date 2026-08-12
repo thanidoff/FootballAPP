@@ -5,32 +5,8 @@ import { createSeededRandom } from './matchEngine'
 const positionGroup = position => position === 'GK' ? 'GK' : position === 'DEF' ? 'DEF' : position === 'MF' ? 'MF' : 'FWD'
 
 function buildPerformanceContext(teams, season) {
-  const performance = new Map(Object.entries(season?.stats?.performance || {}).map(([id, value]) => [String(id), { ...value }]))
-  const add = (id, key, amount = 1) => {
-    if (!id) return
-    const current = performance.get(String(id)) || {}
-    current[key] = (Number(current[key]) || 0) + amount
-    performance.set(String(id), current)
-  }
+  const performance = new Map()
   const playedMatches = (season?.matches || []).flatMap(week => week.matches || []).filter(match => match.played)
-  playedMatches.forEach(match => {
-    ;(match.events || []).forEach(event => {
-      if (event.type === 'save') add(event.goalkeeper?.id, 'saves')
-      if (event.type === 'blocked_shot') add(event.opponent?.id, 'defensiveActions')
-      if (event.type === 'dispossessed' || event.type === 'bad_pass' || event.type === 'turnover') add(event.opponent?.id, 'defensiveActions')
-      if (event.type === 'goal') {
-        add((event.player || event.scorer)?.id, 'goals')
-        add(event.assist?.id, 'assists')
-        add(event.assist?.id, 'chancesCreated')
-      }
-    })
-    add(match.mvp?.id, 'mvps')
-    ;[[match.home, match.awayScore], [match.away, match.homeScore]].forEach(([clubId, goalsConceded]) => {
-      if (Number(goalsConceded) !== 0) return
-      const club = teams.find(team => String(team.club_id) === String(clubId))
-      ;(club?.roster || []).filter(player => ['GK', 'DEF'].includes(player.position)).forEach(player => add(player.id, 'cleanSheets'))
-    })
-  })
   ;[['topScorers', 'goals'], ['topAssists', 'assists'], ['mostMvps', 'mvps']].forEach(([sourceKey, metricKey]) => {
     Object.entries(season?.stats?.[sourceKey] || {}).forEach(([id, value]) => {
       const current = performance.get(String(id)) || {}
@@ -60,33 +36,24 @@ function performanceDelta(player, metrics, random) {
   const assists = Number(metrics?.assists) || 0
   const mvps = Number(metrics?.mvps) || 0
   const group = positionGroup(player.position)
-  const stats = normalizeStats(player.stats)
-  const roleQuality = group === 'GK'
-    ? stats.SAV * 0.55 + stats.GKA * 0.3 + stats.PAS * 0.15
-    : group === 'DEF'
-      ? stats.DEF * 0.5 + stats.PHY * 0.25 + stats.PAC * 0.15 + stats.PAS * 0.1
-      : group === 'MF'
-        ? stats.PAS * 0.35 + stats.DRI * 0.25 + stats.DEF * 0.18 + stats.PHY * 0.12 + stats.SHO * 0.1
-        : stats.SHO * 0.42 + stats.DRI * 0.25 + stats.PAC * 0.18 + stats.PAS * 0.15
-  // Hidden seasonal impact stands in for saves, interceptions, progressive
-  // passes and off-ball work that this lightweight match engine does not store.
-  // Averaging three rolls keeps most seasons ordinary while retaining rare hot/cold form.
-  const seasonalForm = ((random() + random() + random()) / 3 - 0.5) * 1.5
-  const hiddenImpact = Math.max(0.35, Math.min(2.15, 0.45 + roleQuality / 100 * 0.9 + seasonalForm))
-  let recordedImpact = 0
-  if (group === 'GK') recordedImpact = (Number(metrics?.saves) || 0) / games * 0.38 + (Number(metrics?.cleanSheets) || 0) / games * 1.5 + mvps / games * 2.5
-  else if (group === 'DEF') recordedImpact = (Number(metrics?.defensiveActions) || 0) / games * 0.24 + (Number(metrics?.cleanSheets) || 0) / games * 1.1 + goals / games * 1.5 + assists / games + mvps / games * 2
-  else if (group === 'MF') recordedImpact = assists / games * 2.2 + goals / games * 1.5 + (Number(metrics?.chancesCreated) || 0) / games * 0.15 + (Number(metrics?.defensiveActions) || 0) / games * 0.1 + mvps / games * 2
-  else recordedImpact = goals / games * 2.8 + assists / games * 1.7 + (Number(metrics?.chancesCreated) || 0) / games * 0.08 + mvps / games * 2
-  const individual = hiddenImpact * 0.65 + recordedImpact * 0.65
-  metrics.simulatedImpact = Number(hiddenImpact.toFixed(2))
-  metrics.matchRating = Number(Math.max(5.5, Math.min(9.5, 5.8 + individual * 1.35)).toFixed(1))
+  const roll = random()
+  let form = 'Normal'
+  let delta = Math.floor(random() * 3) - 1
+  if (roll < 0.08) { form = 'Very Poor'; delta = -(Math.floor(random() * 4) + 2) }
+  else if (roll < 0.30) { form = 'Poor'; delta = -(Math.floor(random() * 3) + 1) }
+  else if (roll >= 0.90) { form = 'Excellent'; delta = Math.floor(random() * 4) + 2 }
+  else if (roll >= 0.65) { form = 'Good'; delta = Math.floor(random() * 3) + 1 }
   const age = Number(player.age) || 25
-  const ageCurve = age <= 20 ? 1.4 : age <= 23 ? 0.9 : age <= 27 ? 0.3 : age <= 30 ? 0 : age <= 33 ? -0.8 : -1.5
-  const teamEffect = ((Number(metrics?.teamPerformance) || 0.5) - 0.5) * 0.8
-  const formEffect = Math.max(-2.2, Math.min(2.5, individual - 1.15))
-  const variance = (random() - 0.5) * 1.6
-  return Math.max(-5, Math.min(5, Math.round(ageCurve + formEffect + teamEffect + variance)))
+  if (age <= 23 && random() < 0.45) delta += 1
+  if (age >= 31 && random() < Math.min(0.8, 0.3 + (age - 31) * 0.1)) delta -= 1
+  const attackingOutput = group === 'GK' || group === 'DEF'
+    ? mvps / games * 2 + goals / games + assists / games
+    : goals / games * 1.5 + assists / games * 1.2 + mvps / games * 1.5
+  if (attackingOutput >= 0.65) delta += 1
+  if ((Number(metrics?.teamPerformance) || 0.5) >= 0.8 && random() < 0.25) delta += 1
+  metrics.form = form
+  metrics.formRating = Number((5.7 + roll * 3.5).toFixed(1))
+  return Math.max(-5, Math.min(5, delta))
 }
 
 /**
@@ -141,9 +108,7 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     const random = createSeededRandom(`growth-${context.season?.id || 'initial'}-${player.id}`)
     const hasPerformance = (Number(metrics.appearances) || 0) > 0
     const coachBias = coachEffect.hasCoach ? Math.min(1, ((coachEffect.MGT || 0) * 0.65 + (coachEffect.PHY || 0) * 0.35) / 12) : 0
-    let deltaOvr = hasPerformance
-      ? performanceDelta(player, metrics, random) + (random() < coachBias ? 1 : 0)
-      : Math.round((random() - 0.5) * (isFreeAgent ? 4 : 3) + (coachEffect.hasCoach ? 0.5 : 0))
+    let deltaOvr = performanceDelta(player, metrics, random) + (random() < coachBias ? 1 : 0)
     deltaOvr = Math.max(-5, Math.min(5, deltaOvr))
 
     // Position-weighted probability pool for realistic growth/decline
@@ -192,8 +157,8 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
       clubName: team?.club_name || team?.name || null,
       clubBadge: team?.badge_url || null,
       developmentSource: isFreeAgent ? 'Free agent' : coachEffect.label,
-      performance: metrics,
-      growthReason: hasPerformance ? 'Season performance, age, team form and coaching' : 'Age, training and coaching',
+      performance: { form: metrics.form || 'Unrated', formRating: metrics.formRating || null },
+      growthReason: hasPerformance ? 'Seasonal form, age and coaching; match statistics have a small influence' : 'Seasonal form, age and coaching',
     }
 
     adjustmentsMap.set(player.id, { newStats, newOvr, adjustmentRecord })
