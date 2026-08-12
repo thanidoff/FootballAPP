@@ -1,6 +1,7 @@
 import { MOCK_PLAYERS, MOCK_COACHES } from '../data/mockGameData'
 import { simulateMatchSequences } from './matchEngine'
 import { normalizeMatchSize, orderStartingLineup } from './matchFormat'
+import { withDefaultContract } from './contracts'
 
 // Shuffle array using Fisher-Yates
 function shuffle(array) {
@@ -26,7 +27,7 @@ export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoach
       badge_url: club.badge_url,
       badge_color: club.badge_color,
       budget: club.startingBudget ?? startingBudget ?? 0,
-      roster: [...(club.startingRoster || [])],
+      roster: (club.startingRoster || []).map(player => withDefaultContract(player)),
       coaches: [],
       locked_player_ids: (club.startingRoster || []).map(player => player.id),
     }
@@ -110,7 +111,7 @@ export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex
       }
 
       if (foundIndex !== -1) {
-        team.roster.push(availablePlayers[foundIndex])
+        team.roster.push(withDefaultContract(availablePlayers[foundIndex]))
         availablePlayers.splice(foundIndex, 1)
       }
     }
@@ -120,7 +121,7 @@ export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex
     const coachCountNeeded = Math.min(coachPool.length, Math.floor(Math.random() * 2) + 1) // 1 or 2
     for (let c = 0; c < coachCountNeeded; c++) {
       if (coachPool.length > 0) {
-        const assignedCoach = { ...coachPool.shift(), club_id: team.club_id }
+        const assignedCoach = withDefaultContract({ ...coachPool.shift(), club_id: team.club_id })
         if (!team.coaches) team.coaches = []
         team.coaches.push(assignedCoach)
       }

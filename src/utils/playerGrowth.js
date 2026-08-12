@@ -1,4 +1,5 @@
 import { calculateOVR, normalizeStats } from './stats'
+import { getCoachEffects } from './coachEffects'
 
 /**
  * Generates seasonal player stat adjustments (growth / decline) for ~10 random players.
@@ -46,10 +47,14 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     const oldStats = normalizeStats(player.stats)
     const oldOvr = player.ovr || calculateOVR(player.position, oldStats)
 
-    // Generate delta between -5 and +5 (excluding 0 for meaningful change)
+    const coachEffect = getCoachEffects(team?.coaches || [])
+    // Coached players trend upward and are more stable. Free agents remain deliberately volatile.
+    const minDelta = isFreeAgent ? -7 : coachEffect.hasCoach ? -3 : -6
+    const maxDelta = isFreeAgent ? 5 : coachEffect.hasCoach ? 6 : 5
+    const developmentBias = coachEffect.hasCoach ? Math.round(((coachEffect.MGT || 0) * 0.65 + (coachEffect.PHY || 0) * 0.35) / 4) : 0
     let deltaOvr = 0
     while (deltaOvr === 0) {
-      deltaOvr = Math.floor(Math.random() * 11) - 5 // -5 to +5
+      deltaOvr = Math.max(minDelta, Math.min(maxDelta, Math.floor(Math.random() * (maxDelta - minDelta + 1)) + minDelta + developmentBias))
     }
 
     // Position-weighted probability pool for realistic growth/decline
@@ -93,6 +98,7 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
       newStats,
       clubName: team?.club_name || team?.name || null,
       clubBadge: team?.badge_url || null,
+      developmentSource: isFreeAgent ? 'Free agent' : coachEffect.label,
     }
 
     adjustmentsMap.set(player.id, { newStats, newOvr, adjustmentRecord })

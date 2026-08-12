@@ -3,6 +3,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom'
 import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
 import { generateMockRoster, generateSchedule, simulateMatch } from '../../../utils/draftLogic'
 import { getSeasonMatchSize, normalizeMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
+import { processSeasonContracts } from '../../../utils/contracts'
 import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
@@ -793,7 +794,8 @@ export default function DraftMatchesTab() {
         ...(previousSeason?.cupMatchPrizes || previousCup?.matchPrizes || {}),
       }
       
-      const { updatedTeams: adjustedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
+      const contracts = processSeasonContracts(newTeams, saveData.freeAgents || [], saveData.freeAgentsCoaches || [])
+      const { updatedTeams: adjustedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(contracts.teams, contracts.freeAgents)
       const updatedTeams = adjustedTeams.map(team => ({ ...team, roster: orderStartingLineup(team.roster || [], nextMatchSize) }))
 
       newSettings.seasons.push({
@@ -806,6 +808,11 @@ export default function DraftMatchesTab() {
         prizeSettings: inheritedLeaguePrizes,
         cupPrizeSettings: inheritedCupPrizes,
         cupMatchPrizes: inheritedCupMatchPrizes,
+        payrolls: contracts.payrolls,
+        expiredContracts: {
+          players: contracts.releasedPlayers.map(player => ({ id: player.id, name: player.name })),
+          coaches: contracts.releasedCoaches.map(coach => ({ id: coach.id, name: coach.name })),
+        },
         status: 'active'
       })
 
@@ -813,6 +820,7 @@ export default function DraftMatchesTab() {
         ...saveData,
         teams: updatedTeams,
         freeAgents: updatedFreeAgents,
+        freeAgentsCoaches: contracts.freeAgentsCoaches,
         settings: newSettings,
         currentWeek: 1
       }

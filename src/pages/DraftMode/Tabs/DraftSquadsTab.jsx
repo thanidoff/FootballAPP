@@ -24,6 +24,8 @@ import { useToast } from '../../../components/ui/Toast'
 import { fetchPlayers } from '../../../services/players'
 import { rollDraft } from '../../../utils/draftLogic'
 import { getSeasonMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
+import { getCoachEffects } from '../../../utils/coachEffects'
+import { annualWageFor, withDefaultContract } from '../../../utils/contracts'
 
 import { calculateOVR, getOVRTier } from '../../../utils/stats'
 
@@ -119,6 +121,45 @@ export default function DraftSquadsTab() {
       toast.success(`ยกเลิกสัญญา ${coach.name} เรียบร้อยแล้ว`)
     } catch (err) {
       toast.error(err.message || 'Failed to release coach')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  async function renewContract(person, kind) {
+    const wage = Number(person.contract?.annualWage || annualWageFor(person))
+    if ((Number(team.budget) || 0) < wage) {
+      toast.error('Club balance is too low for the renewal fee')
+      return
+    }
+    setProcessing(true)
+    try {
+      const renew = item => String(item.id) === String(person.id)
+        ? { ...withDefaultContract(item), contract: { ...withDefaultContract(item).contract, seasonsRemaining: 3 } }
+        : item
+      const updatedTeams = saveData.teams.map(item => String(item.club_id) === String(team.club_id)
+        ? {
+            ...item,
+            budget: (Number(item.budget) || 0) - wage,
+            roster: kind === 'player' ? (item.roster || []).map(renew) : item.roster,
+            coaches: kind === 'coach' ? (item.coaches || []).map(renew) : item.coaches,
+          }
+        : item)
+      const nextState = {
+        ...saveData,
+        teams: updatedTeams,
+        transferHistory: [...(saveData.transferHistory || []), {
+          id: `renewal-${kind}-${person.id}-${Date.now()}`,
+          type: 'expense', category: 'Contract', playerName: person.name,
+          fromClubId: team.club_id, fromName: team.club_name, toClubId: team.club_id, toName: team.club_name,
+          fee: wage, createdAt: new Date().toISOString(), title: `Renewed ${person.name} for 3 seasons`,
+        }],
+      }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      toast.success(`${person.name} renewed for 3 seasons`)
+    } catch (error) {
+      toast.error(error.message || 'Failed to renew contract')
     } finally {
       setProcessing(false)
     }
@@ -1108,7 +1149,7 @@ export default function DraftSquadsTab() {
   }, [selectedClubId])
 
   return (
-    <div className="flex flex-col items-start gap-6 md:flex-row">
+    <div className="flex w-full flex-col items-start gap-6 md:flex-row">
       {/* Team Selector Sidebar */}
       <div className={`w-full flex-shrink-0 transition-[width] duration-300 ease-out ${teamSelectorCollapsed ? 'md:w-14' : 'md:w-64'}`}>
         <div className={`mb-3 hidden h-9 items-center md:flex ${teamSelectorCollapsed ? 'justify-center' : 'justify-between'}`}>
@@ -1221,7 +1262,7 @@ export default function DraftSquadsTab() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full">
+      <div className="w-full min-w-0 flex-1">
         <div className="mb-6 flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
             {team.badge_url ? (
@@ -1436,7 +1477,16 @@ export default function DraftSquadsTab() {
                   No Coaches Assigned
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    {Object.entries(getCoachEffects(team.coaches || []).ratings).map(([key, value]) => (
+                      <div key={key} className="rounded-xl bg-slate-50 px-2 py-2 text-center">
+                        <div className="text-[10px] font-bold text-gray-400">{key}</div>
+                        <div className="font-heading text-sm font-black text-[#0A1318]">{Math.round(value)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs leading-5 text-gray-400">TAC controls tactics, ATT attack, DEF defence, MOT momentum, MGT player growth, and PHY fitness. Head coach contributes 70%.</p>
                   {(team.coaches || []).map((coach, coachIndex) => {
                     const roleLabel = coachIndex === 0 ? 'Head Coach' : 'Assistant Coach'
                     const roleBadge = coachIndex === 0 ? 'HC' : 'AC'
@@ -1694,6 +1744,26 @@ export default function DraftSquadsTab() {
                 <Pencil size={14} /> Adjust Budget
               </Button>
             </div>
+
+            <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs">
+              <div className="border-b border-gray-100 px-5 py-4">
+                <h2 className="font-heading text-base font-black uppercase text-[#0A1318]">Contracts</h2>
+                <p className="mt-0.5 text-xs text-gray-400">Wages are paid once per season. Renewing costs one season of wages and resets the deal to 3 seasons.</p>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {[...(team.roster || []).map(person => ({ person, kind: 'player' })), ...(team.coaches || []).map(person => ({ person, kind: 'coach' }))].map(({ person, kind }) => {
+                  const contract = withDefaultContract(person).contract
+                  return <div key={`${kind}-${person.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-[#0A1318]">{person.name}</div>
+                      <div className="mt-0.5 text-xs text-gray-400">{kind === 'coach' ? 'Coach' : person.position || 'Player'} · {contract.seasonsRemaining} season{contract.seasonsRemaining === 1 ? '' : 's'} left</div>
+                    </div>
+                    <div className="text-right"><div className="text-sm font-bold">{formatCurrency(contract.annualWage)}</div><div className="text-[10px] text-gray-400">per season</div></div>
+                    <Button size="sm" variant="outline" disabled={processing || contract.seasonsRemaining >= 3} onClick={() => renewContract(person, kind)}>Renew</Button>
+                  </div>
+                })}
+              </div>
+            </section>
 
             <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs">
               <div className="border-b border-gray-100 px-5 py-4 flex items-center justify-between">

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
-import { ArrowLeftRight, CalendarDays, ChartNoAxesColumn, Play, Plus, Search, Sparkles, Trophy } from 'lucide-react'
+import { ArrowLeftRight, CalendarDays, ChartNoAxesColumn, Crown, Play, Plus, Search, Sparkles, Trophy } from 'lucide-react'
 import LeagueStandingsTable from '../../../components/draft/LeagueStandingsTable'
 import Button from '../../../components/ui/Button'
 import SegmentedControl from '../../../components/ui/SegmentedControl'
@@ -204,6 +204,25 @@ export default function DraftOverviewTab() {
   const transfers = [...(saveData.transferHistory || [])]
     .sort((a, b) => (b.fee || 0) - (a.fee || 0) || new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
+  const legacy = useMemo(() => {
+    const players = new Map()
+    ;[...(saveData.freeAgents || []), ...(saveData.teams || []).flatMap(team => team.roster || [])].forEach(player => players.set(String(player.id), player))
+    const totals = { topScorers: {}, topAssists: {}, mostMvps: {} }
+    seasons.forEach(season => Object.keys(totals).forEach(key => Object.entries(season.stats?.[key] || {}).forEach(([id, value]) => {
+      totals[key][id] = (totals[key][id] || 0) + Number(value || 0)
+    })))
+    ;(saveData.settings?.cups || []).forEach(cup => Object.keys(totals).forEach(key => Object.entries(cup.stats?.[key] || {}).forEach(([id, value]) => {
+      totals[key][id] = (totals[key][id] || 0) + Number(value || 0)
+    })))
+    const ranking = key => Object.entries(totals[key]).map(([id, value]) => ({ id, value, player: players.get(id) })).sort((a, b) => b.value - a.value)
+    const hall = [...new Set([...Object.keys(totals.topScorers), ...Object.keys(totals.topAssists), ...Object.keys(totals.mostMvps)])]
+      .map(id => ({ id, player: players.get(id), score: (totals.topScorers[id] || 0) * 4 + (totals.topAssists[id] || 0) * 3 + (totals.mostMvps[id] || 0) * 6 }))
+      .sort((a, b) => b.score - a.score).slice(0, 5)
+    const champions = seasons.filter(season => season.status === 'completed' && season.champion).map(season => ({ label: `Season ${season.id} League`, team: (saveData.teams || []).find(team => String(team.club_id) === String(season.champion)) }))
+    ;(saveData.settings?.cups || []).filter(cup => cup.status === 'completed' && cup.champion).forEach(cup => champions.push({ label: cup.name || 'Cup', team: (saveData.teams || []).find(team => String(team.club_id) === String(cup.champion)) }))
+    return { goals: ranking('topScorers')[0], assists: ranking('topAssists')[0], mvps: ranking('mostMvps')[0], hall, champions, recordTransfer: transfers[0] }
+  }, [saveData.freeAgents, saveData.settings?.cups, saveData.teams, seasons, transfers])
+
   const teamById = id => (saveData.teams || []).find(team => team.club_id === id)
   const money = value => `$${((value || 0) / 1_000_000).toFixed(1)}M`
 
@@ -365,8 +384,8 @@ export default function DraftOverviewTab() {
           <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
             <header className="border-b border-gray-100 px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <h2 className="min-w-[180px] font-heading text-lg font-black uppercase tracking-wide text-[#0A1318]">{featureView === 'transfers' ? 'Season Transfers' : 'Player Leaders'}</h2>
-                <SegmentedControl items={[{ id: 'transfers', label: 'Transfers', icon: ArrowLeftRight }, { id: 'leaders', label: 'Leaders', icon: ChartNoAxesColumn }]} value={featureView} onChange={setFeatureView} ariaLabel="Dashboard feature" className="w-full sm:w-auto" />
+                <h2 className="min-w-[180px] font-heading text-lg font-black uppercase tracking-wide text-[#0A1318]">{featureView === 'transfers' ? 'Season Transfers' : featureView === 'leaders' ? 'Player Leaders' : 'Legacy & Hall of Fame'}</h2>
+                <SegmentedControl items={[{ id: 'transfers', label: 'Transfers', icon: ArrowLeftRight }, { id: 'leaders', label: 'Leaders', icon: ChartNoAxesColumn }, { id: 'legacy', label: 'Legacy', icon: Crown }]} value={featureView} onChange={setFeatureView} ariaLabel="Dashboard feature" className="w-full sm:w-auto" />
               </div>
               {featureView === 'leaders' && (
                 <div className="mt-4 space-y-3">
@@ -375,7 +394,22 @@ export default function DraftOverviewTab() {
                 </div>
               )}
             </header>
-            {featureView === 'transfers' ? (transfers.length ? (
+            {featureView === 'legacy' ? (
+              <div className="space-y-5 p-5">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[['All-time Goals', legacy.goals], ['All-time Assists', legacy.assists], ['Most MVPs', legacy.mvps]].map(([label, entry]) => <div key={label} className="rounded-2xl bg-[#0A1318] p-4 text-white"><div className="text-[10px] font-bold uppercase tracking-wider text-white/45">{label}</div><div className="mt-3 truncate text-sm font-bold">{entry?.player?.name || 'No record yet'}</div><div className="mt-1 font-heading text-3xl font-black text-[#FD5461]">{entry?.value || 0}</div></div>)}
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4">
+                  <div className="flex items-center gap-2"><Crown size={18} className="text-amber-500" /><h3 className="font-heading text-sm font-black uppercase">Hall of Fame</h3></div>
+                  <p className="mt-1 text-xs text-gray-400">Legacy score: goals ×4, assists ×3, MVPs ×6.</p>
+                  <div className="mt-3 space-y-2">{legacy.hall.map((entry, index) => <div key={entry.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2 shadow-xs"><span className="w-5 font-heading font-black text-amber-500">{index + 1}</span><span className="min-w-0 flex-1 truncate text-sm font-semibold">{entry.player?.name || `Player ${entry.id}`}</span><span className="font-heading font-black text-[#FD5461]">{entry.score}</span></div>)}{!legacy.hall.length && <div className="py-6 text-center text-sm text-gray-400">Play matches to create legends.</div>}</div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-gray-100 p-4"><div className="text-xs font-bold uppercase text-gray-400">Record Transfer</div><div className="mt-2 text-sm font-bold">{legacy.recordTransfer?.playerName || 'No transfer yet'}</div><div className="font-heading text-xl font-black text-[#FD5461]">{money(legacy.recordTransfer?.fee)}</div></div>
+                  <div className="rounded-2xl border border-gray-100 p-4"><div className="text-xs font-bold uppercase text-gray-400">Champions Archive</div><div className="mt-2 max-h-32 space-y-2 overflow-y-auto">{legacy.champions.map((entry, index) => <div key={`${entry.label}-${index}`} className="flex items-center gap-2 text-xs"><Trophy size={13} className="text-amber-500" /><span className="min-w-0 flex-1 truncate">{entry.label}</span><strong>{entry.team?.club_name || 'Unknown'}</strong></div>)}{!legacy.champions.length && <div className="text-sm text-gray-400">No champion crowned yet.</div>}</div></div>
+                </div>
+              </div>
+            ) : featureView === 'transfers' ? (transfers.length ? (
               <div className="w-full overflow-hidden">
                 <div className="grid grid-cols-[minmax(180px,2fr)_minmax(80px,1fr)_minmax(80px,1fr)_76px] gap-2 bg-white border-b border-gray-100 px-5 py-3 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400">
                   <span>Player</span><span>From</span><span>To</span><span className="text-right">Fee</span>

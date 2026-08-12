@@ -23,7 +23,7 @@ export default function DraftDashboardPage() {
   const fetchSave = useCallback(async (silent = false) => {
     if (!silent) setLoading(!saveData)
     try {
-      const data = await loadDraftState(saveId)
+      const data = await loadDraftState(saveId, { force: silent })
       if (!data) navigate('/draft')
       else setSaveData(data)
     } catch (err) {

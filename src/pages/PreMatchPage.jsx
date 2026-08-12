@@ -11,6 +11,7 @@ import { completeDraftMatch, completeDraftCupMatch } from '../services/draftSave
 import { getOVRTier } from '../utils/stats'
 import { simulateMatchSequences } from '../utils/matchEngine'
 import { getSimulationPace, normalizeMatchSize, orderStartingLineup } from '../utils/matchFormat'
+import { getCoachEffects } from '../utils/coachEffects'
 import { FIFA_NATIONS } from '../utils/fifaNations'
 import PlayerCard from '../components/ui/PlayerCard'
 import AllStarIcon from '../components/ui/AllStarIcon'
@@ -953,6 +954,8 @@ export default function PreMatchPage() {
       possessions: Math.max(1, Math.round(36 * getSimulationPace(starterCount) * segmentRatio)),
       startMinute,
       endMinute,
+      homeCoachEffect: getCoachEffects(homeCoaches),
+      awayCoachEffect: getCoachEffects(awayCoaches),
     })
 
     // ─── Tactical & Realistic Substitutions Generator (Minute 55' - 85') ───

@@ -56,7 +56,7 @@ function shooterWeight(player, isGk = false) {
   return position * (stat(player, 'SHO') * 0.55 + stat(player, 'DRI') * 0.25 + stat(player, 'PAC') * 0.15 + stat(player, 'PHY') * 0.05)
 }
 
-export function simulatePossession({ attacking, defending, team, minute, random }) {
+export function simulatePossession({ attacking, defending, team, minute, random, attackingEffect = {}, defendingEffect = {} }) {
   const attackingGoalkeeper = attacking.at(-1)
   const defendingGoalkeeper = defending.at(-1)
   const creator = weightedPick(attacking, (player) => creatorWeight(player, player.id === attackingGoalkeeper?.id), random)
@@ -67,14 +67,16 @@ export function simulatePossession({ attacking, defending, team, minute, random 
 
   const actionRoll = random()
   const action = actionRoll < 0.52 ? 'pass' : actionRoll < 0.82 ? 'dribble' : 'direct'
-  const attackPower = action === 'dribble'
+  const coachAttackBoost = (attackingEffect.ATT || 0) * 0.55 + (attackingEffect.TAC || 0) * 0.25 + (attackingEffect.MOT || 0) * 0.20
+  const coachDefenceBoost = (defendingEffect.DEF || 0) * 0.6 + (defendingEffect.TAC || 0) * 0.25 + (defendingEffect.PHY || 0) * 0.15
+  const attackPower = (action === 'dribble'
     ? stat(creator, 'DRI') * 0.55 + stat(creator, 'PAC') * 0.30 + stat(creator, 'PHY') * 0.15
     : action === 'direct'
       ? stat(creator, 'PAS') * 0.45 + stat(creator, 'PAC') * 0.35 + stat(creator, 'PHY') * 0.20
-      : stat(creator, 'PAS') * 0.60 + stat(creator, 'DRI') * 0.20 + stat(creator, 'PAC') * 0.20
-  const defensePower = action === 'dribble'
+      : stat(creator, 'PAS') * 0.60 + stat(creator, 'DRI') * 0.20 + stat(creator, 'PAC') * 0.20) + coachAttackBoost
+  const defensePower = (action === 'dribble'
     ? stat(defender, 'DEF') * 0.50 + stat(defender, 'PAC') * 0.25 + stat(defender, 'PHY') * 0.25
-    : stat(defender, 'DEF') * 0.55 + stat(defender, 'PAC') * 0.25 + stat(defender, 'PHY') * 0.20
+    : stat(defender, 'DEF') * 0.55 + stat(defender, 'PAC') * 0.25 + stat(defender, 'PHY') * 0.20) + coachDefenceBoost
   
   // Check for foul during contest
   const foulChance = clamp(0.12 + (stat(defender, 'PHY') - stat(creator, 'DRI')) / 250, 0.04, 0.22)
@@ -138,14 +140,16 @@ export function simulateMatchSequences(homePlayers, awayPlayers, options = {}) {
   const possessions = options.possessions ?? 40
   const startMinute = options.startMinute ?? 1
   const endMinute = options.endMinute ?? 90
-  const homeControl = teamControl(homePlayers)
-  const awayControl = teamControl(awayPlayers)
+  const homeEffect = options.homeCoachEffect || {}
+  const awayEffect = options.awayCoachEffect || {}
+  const homeControl = teamControl(homePlayers) + (homeEffect.TAC || 0) * 0.45 + (homeEffect.MOT || 0) * 0.2
+  const awayControl = teamControl(awayPlayers) + (awayEffect.TAC || 0) * 0.45 + (awayEffect.MOT || 0) * 0.2
   const homePossession = clamp(0.5 + (homeControl - awayControl) / 180 + 0.015, 0.35, 0.65)
   const events = []
   for (let index = 0; index < possessions; index += 1) {
     const homeAttacks = random() < homePossession
     const minute = Math.max(startMinute, Math.min(endMinute, Math.round(startMinute + ((index + random()) / possessions) * (endMinute - startMinute))))
-    events.push(simulatePossession({ attacking: homeAttacks ? homePlayers : awayPlayers, defending: homeAttacks ? awayPlayers : homePlayers, team: homeAttacks ? 'home' : 'away', minute, random }))
+    events.push(simulatePossession({ attacking: homeAttacks ? homePlayers : awayPlayers, defending: homeAttacks ? awayPlayers : homePlayers, team: homeAttacks ? 'home' : 'away', minute, random, attackingEffect: homeAttacks ? homeEffect : awayEffect, defendingEffect: homeAttacks ? awayEffect : homeEffect }))
   }
   return events.sort((a, b) => a.minute - b.minute)
 }

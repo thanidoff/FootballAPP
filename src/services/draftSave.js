@@ -1,9 +1,11 @@
 import { createSeededRandom } from '../utils/matchEngine'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { fetchCoaches } from './coaches'
+import { withDefaultContract } from '../utils/contracts'
 
 const STORAGE_KEY = 'football_manager_career_saves'
 export const MAX_CAREER_SAVES = 5
+const careerCache = new Map()
 
 // A career is a self-contained snapshot of the master Players/Clubs data.
 // Never retain object references supplied by the editor or another save.
@@ -180,7 +182,8 @@ export async function createDraftState(saveObj) {
   return id
 }
 
-export async function loadDraftState(saveId) {
+export async function loadDraftState(saveId, options = {}) {
+  if (!options.force && careerCache.has(saveId)) return cloneCareerSnapshot(careerCache.get(saveId))
   const data = (await readSaves()).find(save => save.id === saveId)
   if (!data) throw new Error('Career save not found')
   
@@ -228,7 +231,8 @@ export async function loadDraftState(saveId) {
     updateDraftState(saveId, saveData).catch(e => console.error("Auto-migrate failed", e))
   }
 
-  return saveData
+  careerCache.set(saveId, cloneCareerSnapshot(saveData))
+  return cloneCareerSnapshot(saveData)
 }
 
 export async function updateDraftState(saveId, saveObj) {
@@ -254,6 +258,14 @@ export async function updateDraftState(saveId, saveObj) {
     updated_at: new Date().toISOString(),
   }
   await writeSave(saves[index])
+  const normalized = {
+    ...saves[index],
+    freeAgents: saves[index].free_agents ?? [],
+    freeAgentsCoaches,
+    transferHistory,
+    currentWeek: saves[index].current_week ?? 1,
+  }
+  careerCache.set(saveId, cloneCareerSnapshot(normalized))
 }
 
 export async function updateDraftSeasonPrizeSettings(saveId, seasonId, prizes) {
@@ -284,6 +296,7 @@ export async function updateDraftCupPrizeSettings(saveId, cupId, placements) {
 }
 
 export async function deleteDraftState(saveId) {
+  careerCache.delete(saveId)
   if (!isSupabaseConfigured || import.meta.env.MODE === 'test') {
     writeLocalSaves(readLocalSaves().filter(save => save.id !== saveId))
     return
@@ -735,7 +748,7 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
     const releasedPlayer = { ...player, club_id: null, club: null }
     freeAgents.push(releasedPlayer)
   } else {
-    const storedPlayer = { ...player, club_id: targetClubId, market_value: fee }
+    const storedPlayer = withDefaultContract({ ...player, club_id: targetClubId, market_value: fee })
     delete storedPlayer.club
     teams[targetIndex].roster.push(storedPlayer)
   }
@@ -812,7 +825,7 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
     const releasedCoach = { ...coach, club_id: null, club: null }
     updatedFreeAgentsCoaches.push(releasedCoach)
   } else {
-    const storedCoach = { ...coach, club_id: targetClubId, market_value: fee }
+    const storedCoach = withDefaultContract({ ...coach, club_id: targetClubId, market_value: fee })
     delete storedCoach.club
     teams[targetIndex].coaches.push(storedCoach)
   }
