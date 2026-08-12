@@ -22,7 +22,6 @@ import { transferDraftPlayer, transferDraftCoach } from '../../../services/draft
 import CoachCard from '../../../components/ui/CoachCard'
 import { useToast } from '../../../components/ui/Toast'
 import { fetchPlayers } from '../../../services/players'
-import { rollDraft } from '../../../utils/draftLogic'
 import { getSeasonMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
 import { getCoachEffects } from '../../../utils/coachEffects'
 import { annualWageFor, withDefaultContract } from '../../../utils/contracts'
@@ -1325,45 +1324,7 @@ export default function DraftSquadsTab() {
             </div>
           </div>
           <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:shrink-0 sm:justify-start sm:gap-3">
-            {(!team.roster || team.roster.length === 0) && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={processing}
-                onClick={async () => {
-                  try {
-                    setProcessing(true)
-                    let availablePool = saveData.freeAgents || []
-                    if (!availablePool.length) {
-                      const allMaster = await fetchPlayers()
-                      const assignedIds = new Set()
-                      saveData.teams.forEach(t => (t.roster || []).forEach(p => assignedIds.add(String(p.id))))
-                      availablePool = allMaster.filter(p => !assignedIds.has(String(p.id)))
-                    }
-
-                    const { newTeams: updatedTeams, remainingPlayers } = rollDraft(saveData.teams, availablePool, teamIndex, undefined, matchSize)
-                    const draftedPlayers = updatedTeams?.[teamIndex]?.roster || []
-                    const draftedIds = new Set(draftedPlayers.map(p => String(p.id)))
-                    const updatedFreeAgents = (remainingPlayers || availablePool).filter(p => !draftedIds.has(String(p.id)))
-                    const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
-                    await updateDraftState(saveId, nextSave)
-      setSaveData(nextSave)
-      setLocalDraftRoster(orderedRoster)
-                    toast.success(`Drafted ${draftedPlayers.length} players for ${team.club_name}!`)
-                  } catch (err) {
-                    console.error('Failed to auto draft players', err)
-                    toast.error(err.message || 'Failed to auto draft players')
-                  } finally {
-                    setProcessing(false)
-                  }
-                }}
-                className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-[#FD5461] border-[#FD5461]/30 hover:bg-red-50/50"
-              >
-                <Dices size={16} /> Auto Draft Squad
-              </Button>
-            )}
-
-            {(team.roster?.length || 0) > 0 && (
+            {(
               <Button
                 size="sm"
                 variant="outline"

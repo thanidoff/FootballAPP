@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getDraftSaves, createDraftState, deleteDraftState } from '../../services/draftSave'
 import CareerSetupWizard from './CareerSetupWizard'
-import { generateInitialDraft } from '../../utils/draftLogic'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
@@ -46,15 +45,18 @@ export default function DraftSavesPage() {
 
   async function handleSetupComplete({ name, clubs, freeAgents, coaches, prizes, matchSize }) {
     try {
-      const { newTeams, remainingPlayers, remainingCoaches } = generateInitialDraft(clubs, freeAgents, undefined, coaches, matchSize)
-      const teams = newTeams.map(team => {
-        const originalClub = clubs.find(c => String(c.id) === String(team.club_id))
-        return {
-          ...team,
-          short_name: originalClub?.short_name || team.short_name || team.club_name?.slice(0, 3).toUpperCase(),
-          stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 },
-        }
-      })
+      const teams = clubs.map(club => ({
+        club_id: club.id,
+        club_name: club.name,
+        short_name: club.short_name || club.name?.slice(0, 3).toUpperCase(),
+        badge_url: club.badge_url,
+        badge_color: club.badge_color,
+        budget: club.startingBudget || 0,
+        roster: [],
+        coaches: [],
+        locked_player_ids: [],
+        stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 },
+      }))
       const saveId = await createDraftState({
         name,
         settings: {
@@ -69,8 +71,8 @@ export default function DraftSavesPage() {
           } : {}),
         },
         teams,
-        freeAgents: remainingPlayers,
-        freeAgentsCoaches: remainingCoaches,
+        freeAgents,
+        freeAgentsCoaches: coaches,
         currentWeek: 1,
       })
       setCreateOpen(false)

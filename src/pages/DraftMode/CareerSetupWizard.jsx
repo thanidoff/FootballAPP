@@ -116,11 +116,10 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
 
   function addClub(club) {
     if (selectedIds.includes(club.id)) return
-    const attachedPlayers = players.filter(player => player.club_id === club.id)
     setSelectedIds(ids => [...ids, club.id])
     setTeamSettings(settings => ({
       ...settings,
-      [club.id]: { budget: DEFAULT_BUDGET, roster: attachedPlayers },
+      [club.id]: { budget: DEFAULT_BUDGET, roster: [] },
     }))
   }
 
@@ -167,11 +166,10 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
       startingBudget: teamSettings[club.id]?.budget ?? DEFAULT_BUDGET,
       startingRoster: teamSettings[club.id]?.roster ?? [],
     }))
-    const attachedIds = new Set(configuredClubs.flatMap(club => club.startingRoster.map(player => player.id)))
     onComplete({
       name: saveName.trim(),
       clubs: configuredClubs,
-      freeAgents: players.filter(player => !attachedIds.has(player.id)),
+      freeAgents: players.map(player => ({ ...player, club_id: null, club: null })),
       coaches,
       matchSize,
       prizes: {
