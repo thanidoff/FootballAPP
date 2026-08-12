@@ -55,7 +55,7 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
     setForm(next)
     setMvDisplay(((Number(initialValues.market_value) || 0) / 1_000_000).toFixed(1))
     initialSnapshot.current = JSON.stringify(next)
-  }, [initialValues])
+  }, [initialValues?.id])
 
   useEffect(() => {
     onDirtyChange?.(JSON.stringify(form) !== initialSnapshot.current)

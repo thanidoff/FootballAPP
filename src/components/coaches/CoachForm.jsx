@@ -65,7 +65,7 @@ export default function CoachForm({ initialValues, onSubmit, loading, clubs = []
     setForm(nextForm)
     setMvDisplay(((Number(initialValues?.market_value) || 2000000) / 1_000_000).toFixed(1))
     initialSnapshot.current = JSON.stringify(nextForm)
-  }, [initialValues])
+  }, [initialValues?.id])
 
   const initialSnapshot = useRef(JSON.stringify(form))
 
