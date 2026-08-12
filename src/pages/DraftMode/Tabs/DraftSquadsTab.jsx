@@ -1177,7 +1177,7 @@ export default function DraftSquadsTab() {
 
       {/* Main Content */}
       <div className="flex-1 w-full">
-        <div className="flex items-center gap-3 sm:gap-4 mb-6 pb-4 border-b border-gray-100">
+        <div className="mb-6 flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
             {team.badge_url ? (
               <img src={team.badge_url} alt={team.club_name} className="w-9 h-9 sm:w-12 sm:h-12 shrink-0 object-contain" />
@@ -1193,7 +1193,7 @@ export default function DraftSquadsTab() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:shrink-0 sm:justify-start sm:gap-3">
             {(!team.roster || team.roster.length === 0) && (
               <Button
                 size="sm"
@@ -1282,7 +1282,7 @@ export default function DraftSquadsTab() {
                     setProcessing(false)
                   }
                 }}
-                className={`flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider ${
+                className={`min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 font-heading text-xs font-bold uppercase tracking-normal sm:flex-none sm:px-4 sm:tracking-wider ${
                   team.budget < 0 
                     ? 'opacity-40 border-gray-300 text-gray-400 cursor-not-allowed' 
                     : 'text-[#FD5461] border-[#FD5461]/30 hover:bg-red-50/50'
@@ -1296,7 +1296,7 @@ export default function DraftSquadsTab() {
         </div>
 
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <SegmentedControl className="w-full sm:w-fit" ariaLabel="Team details" value={activeSection} onChange={setActiveSection} items={[
+          <SegmentedControl compactOnMobile className="w-full sm:w-fit" ariaLabel="Team details" value={activeSection} onChange={setActiveSection} items={[
               { id: 'roster', label: 'Roster', icon: Users },
               { id: 'coaches', label: `Coaches (${(team.coaches || []).length}/2)`, icon: Users },
               { id: 'lineup', label: 'Lineup', icon: ShieldCheck },

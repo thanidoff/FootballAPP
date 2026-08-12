@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-export default function AnimatedTabs({ items, value, onChange, ariaLabel = 'Sections', className = '', itemClassName = '' }) {
+export default function AnimatedTabs({ items, value, onChange, ariaLabel = 'Sections', className = '', itemClassName = '', compactOnMobile = false }) {
   const containerRef = useRef(null)
   const itemRefs = useRef(new Map())
   const [indicator, setIndicator] = useState({ left: 0, width: 0, ready: false })
@@ -39,12 +39,18 @@ export default function AnimatedTabs({ items, value, onChange, ariaLabel = 'Sect
     <div ref={containerRef} role="tablist" aria-label={ariaLabel} className={`relative flex overflow-x-auto border-b border-gray-100 hide-scrollbar ${className}`}>
       {items.map(item => {
         const active = item.id === value
+        const Icon = item.icon
         const shared = {
           ref: node => node ? itemRefs.current.set(item.id, node) : itemRefs.current.delete(item.id),
           role: 'tab',
+          'aria-label': compactOnMobile ? item.label : undefined,
+          title: compactOnMobile ? item.label : undefined,
           'aria-selected': active,
           className: `relative z-10 flex min-h-11 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap px-4 pb-2 pt-1 text-sm ui-transition-normal transition-colors ${active ? 'font-semibold text-[#0A1318]' : 'font-normal text-gray-400 hover:text-gray-700'} ${itemClassName}`,
-          children: <span>{item.label}</span>,
+          children: <>
+            {Icon && <Icon size={18} strokeWidth={2} className={compactOnMobile ? 'shrink-0 sm:hidden' : 'shrink-0'} />}
+            <span className={compactOnMobile ? 'sr-only sm:not-sr-only' : ''}>{item.label}</span>
+          </>,
         }
         return item.to
           ? <Link key={item.id} to={item.to} {...shared} />

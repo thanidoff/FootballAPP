@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { loadDraftState } from '../../services/draftSave'
 import AnimatedTabs from '../../components/ui/AnimatedTabs'
-import { LogOut } from 'lucide-react'
+import { Banknote, LayoutDashboard, Medal, ShieldCheck, Trophy, Users } from 'lucide-react'
 
 const TABS = [
-  { id: 'overview', label: 'Dashboard' },
-  { id: 'squads', label: 'Squads' },
-  { id: 'transfers', label: 'Player Market' },
-  { id: 'coach-transfers', label: 'Coach Market' },
-  { id: 'matches', label: 'League' },
-  { id: 'cup', label: 'Cup' }
+  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'squads', label: 'Squads', icon: Users },
+  { id: 'transfers', label: 'Player Market', icon: Banknote },
+  { id: 'coach-transfers', label: 'Coach Market', icon: ShieldCheck },
+  { id: 'matches', label: 'League', icon: Trophy },
+  { id: 'cup', label: 'Cup', icon: Medal }
 ]
 
 export default function DraftDashboardPage() {
@@ -61,7 +61,7 @@ export default function DraftDashboardPage() {
   return (
     <div className="w-full py-0 sm:py-2">
       {/* Tabs Navigation */}
-      <AnimatedTabs items={TABS.map(tab => ({ ...tab, to: `/draft/${saveId}/${tab.id}` }))} value={currentTab} ariaLabel="Career sections" className="mb-8 gap-3" />
+      <AnimatedTabs compactOnMobile items={TABS.map(tab => ({ ...tab, to: `/draft/${saveId}/${tab.id}` }))} value={currentTab} ariaLabel="Career sections" className="mb-8 justify-between gap-0 sm:justify-start sm:gap-3" itemClassName="min-w-11 flex-1 px-2 sm:min-w-0 sm:flex-none sm:px-4" />
 
       {/* Tab Content via Outlet */}
       <div key={currentTab} className="bg-transparent ui-tab-content-enter">
