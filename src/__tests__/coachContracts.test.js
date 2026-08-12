@@ -18,6 +18,15 @@ describe('coach effects', () => {
 })
 
 describe('contracts', () => {
+  it('preserves renewal audit metadata when normalizing a contract', () => {
+    const person = {
+      name: 'Renewed Coach',
+      contract: { seasonsRemaining: 4, annualWage: 2_000_000, lastRenewedSeasonId: 3 },
+    }
+
+    expect(withDefaultContract(person).contract).toEqual(person.contract)
+  })
+
   it('provides balanced fallback market values from OVR', () => {
     expect(marketValueForOvr(79)).toBe(33_000_000)
     expect(marketValueForOvr(86)).toBe(62_000_000)

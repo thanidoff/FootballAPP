@@ -287,9 +287,15 @@ describe('complete career simulation', () => {
       const movable = state.teams[0].roster.at(-1)
       const destination = state.teams[1]
       if (destination.budget < 0) destination.budget = 1_000_000
+      const sourceBudgetBefore = state.teams[0].budget
+      const destinationBudgetBefore = destination.budget
+      const dealContractFee = contractFeeFor(annualWageFor(movable), 3)
       await updateDraftState(saveId, state)
       state = await transferDraftPlayer(saveId, movable.id, destination.club_id, 1_000_000, 3)
       expect(state.teams[1].roster.some(player => player.id === movable.id)).toBe(true)
+      expect(state.teams[0].budget).toBe(sourceBudgetBefore + 1_000_000)
+      expect(state.teams[1].budget).toBe(destinationBudgetBefore - 1_000_000 - dealContractFee)
+      expect(state.transferHistory.at(-1)).toMatchObject({ fee: 1_000_000, contractFee: dealContractFee })
 
       const contracts = processSeasonContracts(state.teams, state.freeAgents, state.freeAgentsCoaches || [])
       const external = applyExternalCompetitionIncome(

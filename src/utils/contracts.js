@@ -56,6 +56,7 @@ export function withDefaultContract(person, seasons = DEFAULT_CONTRACT_SEASONS) 
   return {
     ...person,
     contract: {
+      ...(person?.contract || {}),
       seasonsRemaining: Number(person?.contract?.seasonsRemaining ?? seasons),
       annualWage: Number(person?.contract?.annualWage ?? annualWageFor(person)),
     },
