@@ -234,15 +234,22 @@ export function PrizeSettingsForm({ prizes, setPrizes, cupPrizes, setCupPrizes, 
             <div key={competition} className="rounded-2xl border border-gray-200 bg-white p-3">
               <div className="text-sm font-semibold text-[#0A1318]">{label}</div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {['min', 'max'].map(edge => (
-                  <label key={edge} className="text-xs text-gray-400">
-                    {edge === 'min' ? 'Minimum' : 'Maximum'}
-                    <span className="mt-1 flex h-9 items-center rounded-lg border border-gray-200 px-2 focus-within:border-[#FD5461]">
-                      <input disabled={locked} type="number" min="0" step="1" value={externalIncome[competition][edge] / 1_000_000} onChange={event => setExternalIncome(competition, edge, event.target.value)} className="min-w-0 flex-1 bg-transparent text-right text-sm font-normal text-[#0A1318] outline-none disabled:bg-transparent" />
-                      <span className="ml-1 text-xs text-gray-400">M</span>
-                    </span>
-                  </label>
-                ))}
+                {['min', 'max'].map(edge => {
+                  const millions = externalIncome[competition][edge] / 1_000_000
+                  return (
+                    <div key={edge} className="text-xs text-gray-400">
+                      <label htmlFor={`external-${competition}-${edge}`}>{edge === 'min' ? 'Minimum' : 'Maximum'}</label>
+                      <div className="mt-1 flex items-center gap-1">
+                        <button type="button" disabled={locked} onClick={() => setExternalIncome(competition, edge, Math.max(0, millions - 1))} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">-1</button>
+                        <span className="flex h-9 min-w-0 flex-1 items-center rounded-lg border border-gray-200 px-2 focus-within:border-[#FD5461]">
+                          <input id={`external-${competition}-${edge}`} disabled={locked} type="number" min="0" step="1" value={millions} onChange={event => setExternalIncome(competition, edge, event.target.value)} className="min-w-0 flex-1 bg-transparent text-right text-sm font-normal text-[#0A1318] outline-none disabled:bg-transparent" />
+                          <span className="ml-1 text-xs text-gray-400">M</span>
+                        </span>
+                        <button type="button" disabled={locked} onClick={() => setExternalIncome(competition, edge, millions + 1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461] disabled:opacity-40">+1</button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))}
