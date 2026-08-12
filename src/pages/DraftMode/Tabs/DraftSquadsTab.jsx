@@ -89,6 +89,7 @@ export default function DraftSquadsTab() {
   const [agreedFee, setAgreedFee] = useState(0)
   const [feeDisplay, setFeeDisplay] = useState('0.0')
   const [contractSeasons, setContractSeasons] = useState(3)
+  const [annualWage, setAnnualWage] = useState(0)
 
   function openSigningModal(player) {
     setSigningPlayer(player)
@@ -96,13 +97,14 @@ export default function DraftSquadsTab() {
     setAgreedFee(player.market_value || 0)
     setFeeDisplay(((player.market_value || 0) / 1_000_000).toFixed(1))
     setContractSeasons(3)
+    setAnnualWage(annualWageFor(player))
   }
 
   async function handleSign() {
     if (!signingPlayer || !signingClubId) return
     setProcessing(true)
     try {
-      const nextSaveData = await transferDraftPlayer(saveId, signingPlayer.id, signingClubId, agreedFee, contractSeasons)
+      const nextSaveData = await transferDraftPlayer(saveId, signingPlayer.id, signingClubId, agreedFee, contractSeasons, annualWage)
       setSaveData(nextSaveData)
       setSigningPlayer(null)
       setSigningClubId('')
@@ -2020,7 +2022,7 @@ export default function DraftSquadsTab() {
               </div>
             </div>
 
-            <ContractTermsPanel person={signingPlayer} seasons={contractSeasons} onSeasonsChange={setContractSeasons} />
+            <ContractTermsPanel seasons={contractSeasons} onSeasonsChange={setContractSeasons} annualWage={annualWage} onAnnualWageChange={setAnnualWage} />
 
             {(() => {
               const selectedTeam = saveData.teams.find(t => t.club_id === signingClubId)

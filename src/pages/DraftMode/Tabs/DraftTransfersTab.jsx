@@ -26,6 +26,7 @@ import { fetchCoaches } from '../../../services/coaches'
 import { Check, Plus, Search, Sparkles, Users, UserCheck } from 'lucide-react'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import { annualWageFor } from '../../../utils/contracts'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
 
@@ -43,6 +44,7 @@ export default function DraftTransfersTab() {
   const [agreedFee, setAgreedFee] = useState(0)
   const [feeDisplay, setFeeDisplay] = useState('0.0')
   const [contractSeasons, setContractSeasons] = useState(3)
+  const [annualWage, setAnnualWage] = useState(0)
   const [editPlayer, setEditPlayer] = useState(null)
   const [editCoach, setEditCoach] = useState(null)
 
@@ -198,6 +200,7 @@ export default function DraftTransfersTab() {
     setAgreedFee(item.market_value || 0)
     setFeeDisplay(((item.market_value || 0) / 1_000_000).toFixed(1))
     setContractSeasons(3)
+    setAnnualWage(annualWageFor(item))
   }
 
   const handleSign = async () => {
@@ -206,8 +209,8 @@ export default function DraftTransfersTab() {
       setProcessing(true)
       const isCoach = signingItem.position === 'COACH'
       const nextSaveData = isCoach
-        ? await transferDraftCoach(saveId, signingItem.id, selectedClubId, agreedFee, contractSeasons)
-        : await transferDraftPlayer(saveId, signingItem.id, selectedClubId, agreedFee, contractSeasons)
+        ? await transferDraftCoach(saveId, signingItem.id, selectedClubId, agreedFee, contractSeasons, annualWage)
+        : await transferDraftPlayer(saveId, signingItem.id, selectedClubId, agreedFee, contractSeasons, annualWage)
       
       setSaveData(nextSaveData)
       setSigningItem(null)
@@ -515,7 +518,7 @@ export default function DraftTransfersTab() {
               </div>
             </div>
 
-            <ContractTermsPanel person={signingItem} seasons={contractSeasons} onSeasonsChange={setContractSeasons} />
+            <ContractTermsPanel seasons={contractSeasons} onSeasonsChange={setContractSeasons} annualWage={annualWage} onAnnualWageChange={setAnnualWage} />
 
             {(() => {
               const selectedTeam = saveData.teams.find(t => t.club_id === selectedClubId)

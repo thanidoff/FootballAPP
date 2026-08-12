@@ -710,7 +710,7 @@ export async function advanceDraftLeagueWeek(saveId) {
   return nextState
 }
 
-export async function transferDraftPlayer(saveId, playerId, targetClubId, agreedFee = null, contractSeasons = 3) {
+export async function transferDraftPlayer(saveId, playerId, targetClubId, agreedFee = null, contractSeasons = 3, annualWage = null) {
   const saveData = await loadDraftState(saveId)
   const teams = (saveData.teams || []).map(team => ({ ...team, roster: [...(team.roster || [])] }))
   const isFreeAgentTarget = !targetClubId || targetClubId === 'free' || targetClubId === 'free_agent'
@@ -748,7 +748,7 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
     const releasedPlayer = { ...player, club_id: null, club: null }
     freeAgents.push(releasedPlayer)
   } else {
-    const storedPlayer = withDefaultContract({ ...player, contract: null, club_id: targetClubId, market_value: fee }, contractSeasons)
+    const storedPlayer = withDefaultContract({ ...player, contract: { seasonsRemaining: contractSeasons, annualWage: annualWage ?? undefined }, club_id: targetClubId, market_value: fee }, contractSeasons)
     delete storedPlayer.club
     teams[targetIndex].roster.push(storedPlayer)
   }
@@ -769,7 +769,7 @@ export async function transferDraftPlayer(saveId, playerId, targetClubId, agreed
   return nextState
 }
 
-export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFee = null, contractSeasons = 3) {
+export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFee = null, contractSeasons = 3, annualWage = null) {
   const saveData = await loadDraftState(saveId)
   const teams = (saveData.teams || []).map(team => ({
     ...team,
@@ -825,7 +825,7 @@ export async function transferDraftCoach(saveId, coachId, targetClubId, agreedFe
     const releasedCoach = { ...coach, club_id: null, club: null }
     updatedFreeAgentsCoaches.push(releasedCoach)
   } else {
-    const storedCoach = withDefaultContract({ ...coach, contract: null, club_id: targetClubId, market_value: fee }, contractSeasons)
+    const storedCoach = withDefaultContract({ ...coach, contract: { seasonsRemaining: contractSeasons, annualWage: annualWage ?? undefined }, club_id: targetClubId, market_value: fee }, contractSeasons)
     delete storedCoach.club
     teams[targetIndex].coaches.push(storedCoach)
   }
