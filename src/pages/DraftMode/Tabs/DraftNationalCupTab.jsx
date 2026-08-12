@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { Check, Play, Trophy } from 'lucide-react'
-import { createDraftNationalCup } from '../../../services/draftSave'
+import { createDraftNationalCup, updateDraftState } from '../../../services/draftSave'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
@@ -21,7 +21,7 @@ export default function DraftNationalCupTab() {
   const [selected, setSelected] = useState([])
   const [saving, setSaving] = useState(false)
   const seasons = saveData.settings?.seasons || []
-  const season = [...seasons].reverse().find(item => item.status === 'completed') || seasons.find(item => item.status === 'active')
+  const season = seasons.find(item => item.status === 'active') || [...seasons].reverse().find(item => item.status === 'completed')
   const cups = saveData.settings?.nationalCups || []
   const cup = cups.find(item => item.status === 'active') || cups.at(-1)
   const nations = useMemo(() => {
@@ -40,6 +40,17 @@ export default function DraftNationalCupTab() {
     } finally { setSaving(false) }
   }
 
+  async function enableForCurrentSeason() {
+    if (!season) return
+    setSaving(true)
+    try {
+      const nextSeasons = seasons.map(item => String(item.id) === String(season.id) ? { ...item, nationalCupEnabled: true } : item)
+      const next = { ...saveData, settings: { ...saveData.settings, seasons: nextSeasons } }
+      await updateDraftState(saveId, next)
+      setSaveData(next)
+    } finally { setSaving(false) }
+  }
+
   function play(match, index, round) {
     navigate('/matches/draft/prematch', { state: {
       homeClub: participant(match.home), awayClub: participant(match.away), nationalMode: true,
@@ -48,7 +59,7 @@ export default function DraftNationalCupTab() {
     } })
   }
 
-  if (!season?.nationalCupEnabled) return <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-gray-300" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">No National Cup</h2><p className="mx-auto mt-2 max-w-md text-sm text-gray-500">This tournament is optional. Turn it on when creating the next season; the season can finish normally without it.</p></div>
+  if (!season?.nationalCupEnabled) return <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-gray-300" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">No National Cup</h2><p className="mx-auto mt-2 max-w-md text-sm text-gray-500">Optional for Season {season?.id || 1}. You can enable it now or finish the season without this tournament.</p><div className="mt-7 flex justify-center"><Button onClick={enableForCurrentSeason} disabled={saving || !season}>{saving ? 'Enabling...' : `Enable for Season ${season?.id || 1}`}</Button></div></div>
 
   if (!cup) return <><div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm"><Trophy size={32} className="mx-auto text-[#FD5461]" /><h2 className="mt-4 font-heading text-2xl font-black uppercase">National Cup</h2><p className="mx-auto mt-2 max-w-md text-sm text-gray-500">Choose 8 countries. Every match uses the season's {season.matchSize || 5}-player format.</p><div className="mt-7"><Button onClick={() => setSetupOpen(true)}>Select 8 teams</Button></div></div><Modal open={setupOpen} onClose={() => setSetupOpen(false)} title="Select National Teams" width="max-w-3xl"><div className="grid gap-2 sm:grid-cols-2">{nations.map(([name, count]) => { const active = selected.includes(name); return <button key={name} onClick={() => setSelected(value => active ? value.filter(item => item !== name) : value.length < 8 ? [...value, name] : value)} className={`flex items-center gap-3 rounded-2xl border p-3 text-left ${active ? 'border-[#FD5461] bg-red-50' : 'border-gray-200 bg-white'}`}><Flag name={name} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{name}</span><span className="text-xs text-gray-400">{count} players</span></span>{active && <Check size={18} className="text-[#FD5461]" />}</button>})}</div><Button onClick={createCup} disabled={selected.length !== 8 || saving} className="mt-5 w-full">{saving ? 'Creating...' : `Create tournament · ${selected.length}/8`}</Button></Modal></>
 

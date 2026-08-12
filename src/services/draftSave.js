@@ -697,8 +697,8 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
 
 export async function createDraftNationalCup(saveId, nationalities) {
   const saveData = await loadDraftState(saveId)
-  const season = [...(saveData.settings?.seasons || [])].reverse().find(item => item.status === 'completed')
-    || (saveData.settings?.seasons || []).find(item => item.status === 'active')
+  const season = (saveData.settings?.seasons || []).find(item => item.status === 'active')
+    || [...(saveData.settings?.seasons || [])].reverse().find(item => item.status === 'completed')
   if (!season?.nationalCupEnabled) throw new Error('National Cup is disabled for this season')
   if (!Array.isArray(nationalities) || nationalities.length !== 8) throw new Error('Select exactly 8 national teams')
   const allPlayers = [...(saveData.freeAgents || []), ...(saveData.teams || []).flatMap(team => team.roster || [])]
