@@ -1,4 +1,4 @@
-import { MOCK_PLAYERS, MOCK_COACHES } from '../data/mockGameData'
+import { MOCK_PLAYERS } from '../data/mockGameData'
 import { simulateMatchSequences } from './matchEngine'
 import { normalizeMatchSize, orderStartingLineup } from './matchFormat'
 import { withDefaultContract } from './contracts'
@@ -13,7 +13,7 @@ function shuffle(array) {
   return arr
 }
 
-export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoaches = MOCK_COACHES, matchSize = 5) {
+export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoaches = [], matchSize = 5) {
   const lockedIds = new Set(clubs.flatMap(club => (club.startingRoster || []).map(player => player.id)))
   const availablePlayers = allPlayers.filter(player => !lockedIds.has(player.id))
   const availableCoaches = [...allCoaches]
@@ -37,11 +37,11 @@ export function generateInitialDraft(clubs, allPlayers, startingBudget, allCoach
   return rollDraft(draftedTeams, availablePlayers, null, availableCoaches, matchSize)
 }
 
-export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex = null, currentAvailableCoaches = MOCK_COACHES, matchSize = 5) {
+export function rollDraft(currentTeams, currentAvailablePlayers, targetTeamIndex = null, currentAvailableCoaches = [], matchSize = 5) {
   const starterCount = normalizeMatchSize(matchSize)
   let newTeams = JSON.parse(JSON.stringify(currentTeams || []))
   let availablePlayers = [...(currentAvailablePlayers || [])]
-  let coachPool = shuffle(currentAvailableCoaches || MOCK_COACHES)
+  let coachPool = shuffle(currentAvailableCoaches || [])
 
   // Ensure every team has a valid roster array
   for (let team of newTeams) {

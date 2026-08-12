@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useOutletContext, useLocation } from 'react-router-dom'
 import { transferDraftPlayer, transferDraftCoach, updateDraftState } from '../../../services/draftSave'
 import PlayerCard from '../../../components/ui/PlayerCard'
@@ -25,7 +25,7 @@ import { fetchPlayers } from '../../../services/players'
 import { fetchCoaches } from '../../../services/coaches'
 import { Check, Plus, Search, Sparkles, Users, UserCheck } from 'lucide-react'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
-import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import { applySeasonalCoachAdjustments, applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
 import { annualWageFor } from '../../../utils/contracts'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
@@ -33,6 +33,8 @@ const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
 export default function DraftTransfersTab() {
   const { saveData, setSaveData, saveId } = useOutletContext()
   const toast = useToast()
+  const location = useLocation()
+  const isCoachMarket = location.pathname.includes('coach-transfers')
   
   const [processing, setProcessing] = useState(false)
   const [posFilter, setPosFilter] = useState('ALL')
@@ -54,17 +56,20 @@ export default function DraftTransfersTab() {
   const [managedPlayerIds, setManagedPlayerIds] = useState([])
   const [loadingPlayers, setLoadingPlayers] = useState(false)
 
-  const [fallbackCoaches, setFallbackCoaches] = useState([])
-
-  useEffect(() => {
-    fetchCoaches().then(setFallbackCoaches).catch(() => {})
-  }, [])
+  const [coachManagerOpen, setCoachManagerOpen] = useState(false)
+  const [masterCoaches, setMasterCoaches] = useState([])
+  const [managedCoachIds, setManagedCoachIds] = useState([])
+  const [loadingCoaches, setLoadingCoaches] = useState(false)
+  const [coachGrowthModalOpen, setCoachGrowthModalOpen] = useState(false)
+  const [previewCoachGrowthData, setPreviewCoachGrowthData] = useState(null)
+  const mockCleanupDone = useRef(false)
 
   const [growthModalOpen, setGrowthModalOpen] = useState(false)
   const [previewGrowthData, setPreviewGrowthData] = useState(null)
 
   const activeSeason = (saveData?.settings?.seasons || []).find(s => s.status === 'active') || saveData?.settings?.seasons?.[0]
   const seasonAdjustments = activeSeason?.seasonAdjustments || []
+  const coachSeasonAdjustments = activeSeason?.coachSeasonAdjustments || []
   const isGrowthLocked = activeSeason?.seasonAdjustmentsLocked || false
 
   function handleReshufflePreview(customCount) {
@@ -105,9 +110,29 @@ export default function DraftTransfersTab() {
   }
 
   const freeAgents = saveData?.freeAgents || []
-  const freeAgentsCoaches = (saveData?.freeAgentsCoaches && saveData.freeAgentsCoaches.length > 0)
-    ? saveData.freeAgentsCoaches
-    : fallbackCoaches
+  const freeAgentsCoaches = saveData?.freeAgentsCoaches || []
+
+  useEffect(() => {
+    if (!isCoachMarket || mockCleanupDone.current || !saveData) return
+    mockCleanupDone.current = true
+    fetchCoaches().then(async coaches => {
+      setMasterCoaches(coaches)
+      const masterIds = new Set(coaches.map(coach => String(coach.id)))
+      const updatedTeams = (saveData.teams || []).map(team => ({
+        ...team,
+        coaches: (team.coaches || []).filter(coach => masterIds.has(String(coach.id))),
+      }))
+      const assignedIds = new Set(updatedTeams.flatMap(team => (team.coaches || []).map(coach => String(coach.id))))
+      const updatedFreeCoaches = coaches.filter(coach => !assignedIds.has(String(coach.id))).map(coach => ({ ...coach, club: null, club_id: null }))
+      const beforeIds = [...(saveData.freeAgentsCoaches || []), ...(saveData.teams || []).flatMap(team => team.coaches || [])].map(coach => String(coach.id)).sort()
+      const afterIds = [...updatedFreeCoaches, ...updatedTeams.flatMap(team => team.coaches || [])].map(coach => String(coach.id)).sort()
+      if (JSON.stringify(beforeIds) === JSON.stringify(afterIds)) return
+      const nextState = { ...saveData, freeAgentsCoaches: updatedFreeCoaches, teams: updatedTeams }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      toast.success('Coach Market synced with Master Data')
+    }).catch(error => toast.error(error.message || 'Failed to sync Master Coaches'))
+  }, [isCoachMarket, saveData, saveId, setSaveData, toast])
   
   const cleanFreeAgents = useMemo(() => {
     return freeAgents.map(p => ({ ...p, club: null, club_id: null }))
@@ -358,8 +383,73 @@ export default function DraftTransfersTab() {
     }
   }
 
-  const location = useLocation()
-  const isCoachMarket = location.pathname.includes('coach-transfers')
+  async function openCoachManager() {
+    setCoachManagerOpen(true)
+    const activeIds = [
+      ...(saveData.freeAgentsCoaches || []).map(coach => String(coach.id)),
+      ...saveData.teams.flatMap(team => (team.coaches || []).map(coach => String(coach.id))),
+    ]
+    setManagedCoachIds(activeIds)
+    if (masterCoaches.length > 0) return
+    try {
+      setLoadingCoaches(true)
+      setMasterCoaches(await fetchCoaches())
+    } catch (error) {
+      console.error('Failed to load master coaches', error)
+      toast.error('Failed to load coach database')
+    } finally {
+      setLoadingCoaches(false)
+    }
+  }
+
+  async function saveManagedCoaches() {
+    setProcessing(true)
+    try {
+      const selected = new Set(managedCoachIds.map(String))
+      const existingById = new Map([
+        ...(saveData.freeAgentsCoaches || []),
+        ...saveData.teams.flatMap(team => team.coaches || []),
+      ].map(coach => [String(coach.id), coach]))
+      const updatedTeams = saveData.teams.map(team => ({
+        ...team,
+        coaches: (team.coaches || []).filter(coach => selected.has(String(coach.id))),
+      }))
+      const assignedIds = new Set(updatedTeams.flatMap(team => (team.coaches || []).map(coach => String(coach.id))))
+      const updatedFreeCoaches = masterCoaches
+        .filter(coach => selected.has(String(coach.id)) && !assignedIds.has(String(coach.id)))
+        .map(coach => ({ ...(existingById.get(String(coach.id)) || coach), club: null, club_id: null }))
+      const nextState = { ...saveData, teams: updatedTeams, freeAgentsCoaches: updatedFreeCoaches }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      setCoachManagerOpen(false)
+      toast.success('Coach pool updated from Master Data')
+    } catch (error) {
+      toast.error(error.message || 'Failed to update coach pool')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  function handleCoachReshufflePreview(customCount = 'all') {
+    setPreviewCoachGrowthData(applySeasonalCoachAdjustments(saveData.teams || [], saveData.freeAgentsCoaches || [], customCount))
+  }
+
+  async function handleConfirmCoachRatings() {
+    const target = previewCoachGrowthData || applySeasonalCoachAdjustments(saveData.teams || [], saveData.freeAgentsCoaches || [], 'all')
+    try {
+      const nextSettings = { ...saveData.settings, seasons: [...(saveData.settings?.seasons || [])] }
+      const index = nextSettings.seasons.findIndex(season => String(season.id) === String(activeSeason?.id))
+      if (index >= 0) nextSettings.seasons[index] = { ...nextSettings.seasons[index], coachSeasonAdjustments: target.seasonAdjustments }
+      const nextState = { ...saveData, teams: target.updatedTeams, freeAgentsCoaches: target.updatedFreeAgents, settings: nextSettings }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      setCoachGrowthModalOpen(false)
+      setPreviewCoachGrowthData(null)
+      toast.success('Coach ratings updated successfully')
+    } catch (error) {
+      toast.error(error.message || 'Failed to save coach ratings')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -375,7 +465,7 @@ export default function DraftTransfersTab() {
             { id: 'free', label: isCoachMarket ? `Free Agents (${cleanFreeCoaches.length})` : `Free Agents (${freeAgents.length})` },
           ]}
         />
-        {!isCoachMarket && (
+        {!isCoachMarket ? (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -395,6 +485,15 @@ export default function DraftTransfersTab() {
               className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
             >
               <Plus size={16} /> Manage Players
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => { handleCoachReshufflePreview('all'); setCoachGrowthModalOpen(true) }} className="flex items-center gap-2 rounded-xl border-[#FD5461]/30 font-heading text-xs font-bold uppercase tracking-wider text-[#FD5461] hover:bg-red-50/50">
+              <Sparkles size={16} /> Coach Ratings
+            </Button>
+            <Button variant="outline" size="sm" onClick={openCoachManager} className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider">
+              <Plus size={16} /> Manage Coaches
             </Button>
           </div>
         )}
@@ -615,6 +714,29 @@ export default function DraftTransfersTab() {
         )}
       </Modal>
 
+      <Modal open={coachManagerOpen} onClose={() => setCoachManagerOpen(false)} title="Manage Coaches" width="max-w-2xl">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">Choose coaches from Master Data for this career. Unselected coaches are removed from this save only.</p>
+          {loadingCoaches ? <div className="py-12 text-center text-sm text-gray-400">Loading coach database...</div> : (
+            <div className="max-h-[430px] overflow-y-auto rounded-2xl border border-gray-200 bg-white">
+              <div className="divide-y divide-gray-100">
+                {masterCoaches.map(coach => {
+                  const checked = managedCoachIds.includes(String(coach.id))
+                  const code = FIFA_NATIONS.find(nation => nation.name === coach.nationality)?.code
+                  return <label key={coach.id} className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50">
+                    <input type="checkbox" checked={checked} onChange={() => setManagedCoachIds(ids => checked ? ids.filter(id => id !== String(coach.id)) : [...ids, String(coach.id)])} className="h-4 w-4 accent-[#FD5461]" />
+                    {coach.photo_url ? <img src={coach.photo_url} alt="" className="h-10 w-10 rounded-full object-cover ring-1 ring-black/5" /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-400">{coach.name?.charAt(0)}</span>}
+                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-[#0A1318]">{coach.name}</div><div className="mt-1 flex items-center gap-2 text-xs text-gray-400">{code && <img src={`https://flagcdn.com/${code}.svg`} alt="" className="h-3 w-5 rounded-[2px] object-cover ring-1 ring-black/10" />}<span>{coach.nationality}</span><span>· {coach.age} yrs</span></div></div>
+                    <OvrBadge value={coach.ovr} size="md" />
+                  </label>
+                })}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3"><span className="text-xs text-gray-400">{managedCoachIds.length} selected</span><Button onClick={saveManagedCoaches} loading={processing} disabled={loadingCoaches}>Save Coach Pool</Button></div>
+        </div>
+      </Modal>
+
       {/* Modal: Seasonal Player Growth & Form */}
       <SeasonalGrowthModal
         open={growthModalOpen}
@@ -627,6 +749,16 @@ export default function DraftTransfersTab() {
         isLocked={isGrowthLocked}
         onReshufflePreview={handleReshufflePreview}
         onConfirmSave={handleConfirmSaveRatings}
+      />
+
+      <SeasonalGrowthModal
+        open={coachGrowthModalOpen}
+        onClose={() => { setCoachGrowthModalOpen(false); setPreviewCoachGrowthData(null) }}
+        seasonName={activeSeason?.name || `Season ${activeSeason?.season_number || 1}`}
+        adjustments={previewCoachGrowthData ? previewCoachGrowthData.seasonAdjustments : coachSeasonAdjustments}
+        onReshufflePreview={handleCoachReshufflePreview}
+        onConfirmSave={handleConfirmCoachRatings}
+        entityLabel="Coach"
       />
 
       <ScrollToTop />

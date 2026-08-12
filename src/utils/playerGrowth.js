@@ -147,3 +147,46 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     seasonAdjustments,
   }
 }
+
+export function applySeasonalCoachAdjustments(teams = [], freeAgents = [], count = 'all') {
+  const entries = [
+    ...teams.flatMap(team => (team.coaches || []).map(coach => ({ coach, teamId: team.club_id, clubName: team.club_name, clubBadge: team.badge_url }))),
+    ...freeAgents.map(coach => ({ coach, teamId: null, clubName: null, clubBadge: null })),
+  ]
+  const selected = count === 'all' || Number(count) >= entries.length
+    ? entries
+    : [...entries].sort(() => Math.random() - 0.5).slice(0, Math.max(1, Number(count) || 10))
+  const updates = new Map()
+  const seasonAdjustments = selected.map(({ coach, clubName, clubBadge }) => {
+    const oldStats = { ...coach.stats }
+    const keys = ['TAC', 'MGT', 'MOT', 'ATT', 'DEF', 'PHY']
+    const oldOvr = Number(coach.ovr) || Math.round(keys.reduce((sum, key) => sum + Number(oldStats[key] || 70), 0) / keys.length)
+    const newStats = { ...oldStats }
+    const direction = Math.random() < 0.62 ? 1 : -1
+    const steps = Math.floor(Math.random() * 5) + 2
+    for (let index = 0; index < steps; index += 1) {
+      const key = keys[Math.floor(Math.random() * keys.length)]
+      const current = Number(newStats[key] || 70)
+      const growthChance = current >= 120 ? 0.08 : current >= 110 ? 0.2 : current >= 100 ? 0.45 : 1
+      if (direction > 0 && Math.random() > growthChance) continue
+      newStats[key] = Math.max(30, Math.min(140, current + direction))
+    }
+    const newOvr = Math.round(keys.reduce((sum, key) => sum + Number(newStats[key] || 70), 0) / keys.length)
+    updates.set(String(coach.id), { newStats, newOvr })
+    return {
+      playerId: coach.id, name: coach.name, photo_url: coach.photo_url || null,
+      nationality: coach.nationality || null, position: 'COACH', oldOvr, newOvr,
+      deltaOvr: newOvr - oldOvr, oldStats, newStats, clubName, clubBadge,
+      developmentSource: clubName ? 'Club coach' : 'Free agent',
+    }
+  }).sort((a, b) => b.oldOvr - a.oldOvr)
+  const apply = coach => {
+    const update = updates.get(String(coach.id))
+    return update ? { ...coach, stats: update.newStats, ovr: update.newOvr } : coach
+  }
+  return {
+    updatedTeams: teams.map(team => ({ ...team, coaches: (team.coaches || []).map(apply) })),
+    updatedFreeAgents: freeAgents.map(apply),
+    seasonAdjustments,
+  }
+}

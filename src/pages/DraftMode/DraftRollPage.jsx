@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { fetchPlayers } from '../../services/players'
+import { fetchCoaches } from '../../services/coaches'
 import { generateInitialDraft, rollDraft } from '../../utils/draftLogic'
 import { createDraftState } from '../../services/draftSave'
 import PlayerCard from '../../components/ui/PlayerCard'
@@ -28,8 +29,8 @@ export default function DraftRollPage() {
 
     async function load() {
       try {
-        const allPlayers = await fetchPlayers() // Get all global players
-        const { newTeams, remainingPlayers, remainingCoaches } = generateInitialDraft(clubs, allPlayers)
+        const [allPlayers, allCoaches] = await Promise.all([fetchPlayers(), fetchCoaches()])
+        const { newTeams, remainingPlayers, remainingCoaches } = generateInitialDraft(clubs, allPlayers, undefined, allCoaches)
         setTeams(newTeams)
         setAvailablePool(remainingPlayers)
         setAvailableCoachesPool(remainingCoaches || [])

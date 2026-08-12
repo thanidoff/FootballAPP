@@ -16,7 +16,9 @@ export default function SeasonalGrowthModal({
   isLocked = false,
   onReshufflePreview,
   onConfirmSave,
+  entityLabel = 'Player',
 }) {
+  const entityPlural = entityLabel === 'Coach' ? 'Coaches' : `${entityLabel}s`
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [targetMode, setTargetMode] = useState('30') // '30', 'custom', 'all'
   const [customCountInput, setCustomCountInput] = useState('30')
@@ -41,13 +43,13 @@ export default function SeasonalGrowthModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={`Seasonal Player Growth & Form (${seasonName})`} width="max-w-2xl">
+      <Modal open={open} onClose={onClose} title={`Seasonal ${entityLabel} Growth & Form (${seasonName})`} width="max-w-2xl">
         <div className="space-y-4">
           {/* Rating Count Target Controls */}
           {!isLocked && onReshufflePreview && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-black/5">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target Players:</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target {entityPlural}:</span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -59,7 +61,7 @@ export default function SeasonalGrowthModal({
                       targetMode === '30' ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    30 Players
+                    30 {entityPlural}
                   </button>
 
                   <button
@@ -72,7 +74,7 @@ export default function SeasonalGrowthModal({
                       targetMode === 'all' ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    ALL Players
+                    ALL {entityPlural}
                   </button>
 
                   <button
@@ -168,7 +170,7 @@ export default function SeasonalGrowthModal({
               <Sparkles size={32} className="mb-2 text-[#FD5461]/60" />
               <p className="text-sm font-semibold text-gray-700">No seasonal rating adjustments generated yet</p>
               <p className="mt-1 max-w-sm text-xs text-gray-400">
-                Rating changes (-5 to +5 OVR) can be previewed and reshuffled before saving to this season.
+                {entityLabel} rating changes can be previewed and reshuffled before saving to this season.
               </p>
               {onReshufflePreview && (
                 <Button

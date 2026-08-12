@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Award, Check, ChevronDown, ChevronLeft, Crown, Flame, Medal, Minus, Plus, UserRound, X, Zap } from 'lucide-react'
 import { fetchClubs } from '../../services/clubs'
 import { fetchPlayers } from '../../services/players'
+import { fetchCoaches } from '../../services/coaches'
 import useOverlayBehavior from '../../hooks/useOverlayBehavior'
 import OvrBadge from '../../components/ui/OvrBadge'
 import PositionBadge from '../../components/ui/PositionBadge'
@@ -79,6 +80,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
   const [matchSize, setMatchSize] = useState(5)
   const [clubs, setClubs] = useState([])
   const [players, setPlayers] = useState([])
+  const [coaches, setCoaches] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
   const [teamSettings, setTeamSettings] = useState({})
   const [expandedId, setExpandedId] = useState(null)
@@ -98,10 +100,11 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
   const [cupMatchPrizes, setCupMatchPrizes] = useState(() => ({ ...DEFAULT_CUP_MATCH_PRIZES }))
 
   useEffect(() => {
-    Promise.all([fetchClubs(), fetchPlayers()])
-      .then(([clubData, playerData]) => {
+    Promise.all([fetchClubs(), fetchPlayers(), fetchCoaches()])
+      .then(([clubData, playerData, coachData]) => {
         setClubs(clubData.filter(club => !club.is_national))
         setPlayers(playerData)
+        setCoaches(coachData)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -169,6 +172,7 @@ export default function CareerSetupWizard({ initialName = '', onClose, onComplet
       name: saveName.trim(),
       clubs: configuredClubs,
       freeAgents: players.filter(player => !attachedIds.has(player.id)),
+      coaches,
       matchSize,
       prizes: {
         hasLeague,
