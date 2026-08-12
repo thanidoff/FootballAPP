@@ -91,6 +91,10 @@ export default function DraftSquadsTab() {
   const [contractSeasons, setContractSeasons] = useState(3)
   const [annualWage, setAnnualWage] = useState(0)
   const [wageCustomized, setWageCustomized] = useState(false)
+  const [renewingContract, setRenewingContract] = useState(null)
+  const [renewalSeasons, setRenewalSeasons] = useState(3)
+  const [renewalWage, setRenewalWage] = useState(0)
+  const [renewalWageCustomized, setRenewalWageCustomized] = useState(false)
 
   function openSigningModal(player) {
     setSigningPlayer(player)
@@ -138,12 +142,23 @@ export default function DraftSquadsTab() {
     }
   }
 
-  async function renewContract(person, kind) {
-    const wage = Number(person.contract?.annualWage || annualWageFor(person))
+  function openRenewalModal(person, kind) {
+    const current = withDefaultContract(person).contract
+    setRenewingContract({ person, kind, current })
+    setRenewalSeasons(Math.min(10, Math.max(1, Number(current.seasonsRemaining) || 3)))
+    setRenewalWage(Number(current.annualWage) || annualWageFor(person))
+    setRenewalWageCustomized(false)
+  }
+
+  async function renewContract() {
+    if (!renewingContract) return
+    const { person, kind } = renewingContract
+    const wage = Math.max(0, Number(renewalWage) || 0)
+    const seasons = Math.min(10, Math.max(1, Math.round(Number(renewalSeasons) || 1)))
     setProcessing(true)
     try {
       const renew = item => String(item.id) === String(person.id)
-        ? { ...withDefaultContract(item), contract: { ...withDefaultContract(item).contract, seasonsRemaining: 3 } }
+        ? { ...withDefaultContract(item), contract: { seasonsRemaining: seasons, annualWage: wage } }
         : item
       const updatedTeams = saveData.teams.map(item => String(item.club_id) === String(team.club_id)
         ? {
@@ -160,12 +175,13 @@ export default function DraftSquadsTab() {
           id: `renewal-${kind}-${person.id}-${Date.now()}`,
           type: 'expense', category: 'Contract', playerName: person.name,
           fromClubId: team.club_id, fromName: team.club_name, toClubId: team.club_id, toName: team.club_name,
-          fee: wage, createdAt: new Date().toISOString(), title: `Renewed ${person.name} for 3 seasons`,
+          fee: wage, createdAt: new Date().toISOString(), title: `Renewed ${person.name} for ${seasons} season${seasons === 1 ? '' : 's'}`,
         }],
       }
       await updateDraftState(saveId, nextState)
       setSaveData(nextState)
-      toast.success(`${person.name} renewed for 3 seasons`)
+      setRenewingContract(null)
+      toast.success(`${person.name} renewed for ${seasons} season${seasons === 1 ? '' : 's'}`)
     } catch (error) {
       toast.error(error.message || 'Failed to renew contract')
     } finally {
@@ -1779,19 +1795,61 @@ export default function DraftSquadsTab() {
                   <div className={`rounded-xl px-3 py-2.5 ${expiringContracts.length ? 'bg-red-50' : 'bg-gray-50'}`}><div className={`text-[10px] font-bold uppercase tracking-wider ${expiringContracts.length ? 'text-[#FD5461]' : 'text-gray-400'}`}>Expiring</div><div className="mt-1 text-base font-bold text-[#0A1318]">{expiringContracts.length} contract{expiringContracts.length === 1 ? '' : 's'}</div></div>
                   <div className="col-span-2 rounded-xl bg-gray-50 px-3 py-2.5 sm:col-span-1"><div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">After payroll</div><div className={`mt-1 text-base font-bold ${team.budget - annualPayroll < 0 ? 'text-red-600' : 'text-[#0A1318]'}`}>{formatCurrency(team.budget - annualPayroll)}</div></div>
                 </div>
-                <p className="mt-3 text-[11px] text-gray-400">Renew is available below 3 seasons. It charges one annual wage now and resets the contract to 3 seasons.</p>
+                <p className="mt-3 text-[11px] text-gray-400">Renew anytime. Choose 1–10 seasons and adjust the wage before confirming; one annual wage is charged now.</p>
               </div>
-              <div className="divide-y divide-gray-100">
-                {contractRows.map(({ person, kind, contract }) => {
-                  return <div key={`${kind}-${person.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-[#0A1318]">{person.name}</div>
-                      <div className={`mt-0.5 text-xs ${contract.seasonsRemaining <= 1 ? 'font-semibold text-[#FD5461]' : 'text-gray-400'}`}>{kind === 'coach' ? 'Coach' : person.position || 'Player'} · {contract.seasonsRemaining} season{contract.seasonsRemaining === 1 ? '' : 's'} left{contract.seasonsRemaining <= 1 ? ' · expires next season' : ''}</div>
+              <div className="overflow-x-auto">
+                <div className="divide-y divide-gray-100 sm:hidden">
+                  {contractRows.map(({ person, kind, contract }) => {
+                    const flagCode = FIFA_NATIONS.find(nation => nation.name === person.nationality)?.code
+                    return <div key={`mobile-${kind}-${person.id}`} className="px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        {person.photo_url ? <img src={person.photo_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-black/5" /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-400">{person.name?.charAt(0)}</span>}
+                        <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-[#0A1318]">{person.name}</div><div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-gray-400">{flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} alt={person.nationality || ''} className="h-3 w-5 shrink-0 rounded-[2px] object-cover ring-1 ring-black/10" />}<span className="truncate">{person.nationality || 'Unknown'}</span><span>·</span>{kind === 'coach' ? <span>Coach</span> : <PositionBadge position={person.position} />}</div></div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${contract.seasonsRemaining <= 1 ? 'bg-red-50 text-[#FD5461]' : contract.seasonsRemaining === 2 ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-600'}`}>{contract.seasonsRemaining} season{contract.seasonsRemaining === 1 ? '' : 's'}</span>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3"><div><div className="text-sm font-semibold tabular-nums text-[#0A1318]">{formatCurrency(contract.annualWage)}</div><div className="text-[10px] text-gray-400">per season</div></div><Button size="sm" variant="outline" disabled={processing} onClick={() => openRenewalModal(person, kind)}>Renew</Button></div>
                     </div>
-                    <div className="text-right"><div className="text-sm font-bold">{formatCurrency(contract.annualWage)}</div><div className="text-[10px] text-gray-400">per season</div></div>
-                    <Button size="sm" variant="outline" disabled={processing || contract.seasonsRemaining >= 3} title={contract.seasonsRemaining >= 3 ? 'Already on the maximum 3-season deal' : `Pay ${formatCurrency(contract.annualWage)} now`} onClick={() => renewContract(person, kind)}>Renew</Button>
-                  </div>
-                })}
+                  })}
+                </div>
+                <table className="hidden w-full border-collapse text-left text-xs sm:table">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/70 font-semibold uppercase tracking-wider text-gray-500">
+                      <th className="px-4 py-3 sm:px-5">Person</th>
+                      <th className="hidden px-4 py-3 sm:table-cell">Role</th>
+                      <th className="hidden px-4 py-3 lg:table-cell">Club</th>
+                      <th className="px-3 py-3">Contract</th>
+                      <th className="px-3 py-3 text-right">Wage</th>
+                      <th className="w-20 px-4 py-3 sm:px-5"><span className="sr-only">Action</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {contractRows.map(({ person, kind, contract }) => {
+                      const flagCode = FIFA_NATIONS.find(nation => nation.name === person.nationality)?.code
+                      const role = kind === 'coach' ? 'Coach' : person.position || 'Player'
+                      return <tr key={`${kind}-${person.id}`} className="transition-colors hover:bg-gray-50/60">
+                        <td className="px-4 py-3 sm:px-5">
+                          <div className="flex min-w-[150px] items-center gap-3">
+                            {person.photo_url ? <img src={person.photo_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-black/5" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 font-semibold text-gray-400">{person.name?.charAt(0)}</span>}
+                            <div className="min-w-0">
+                              <div className="max-w-[180px] truncate text-sm font-semibold text-[#0A1318]">{person.name}</div>
+                              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-gray-400">
+                                {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} alt={person.nationality || ''} className="h-3 w-5 rounded-[2px] object-cover ring-1 ring-black/10" />}
+                                <span className="truncate">{person.nationality || 'Unknown'}</span>
+                                {person.age && <span>· {person.age} yrs</span>}
+                                <span className="sm:hidden">· {role}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="hidden px-4 py-3 sm:table-cell">{kind === 'coach' ? <span className="inline-flex items-center gap-1.5 font-semibold text-gray-600"><ShieldCheck size={14} /> Coach</span> : <PositionBadge position={person.position} />}</td>
+                        <td className="hidden px-4 py-3 lg:table-cell"><span className="flex items-center gap-2 whitespace-nowrap">{team.badge_url ? <img src={team.badge_url} alt="" className="h-6 w-6 object-contain" /> : <span className="h-6 w-6 rounded-md" style={{ backgroundColor: team.badge_color || '#34414A' }} />}<span className="max-w-[140px] truncate text-gray-600">{team.club_name}</span></span></td>
+                        <td className="px-3 py-3"><span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 font-semibold ${contract.seasonsRemaining <= 1 ? 'bg-red-50 text-[#FD5461]' : contract.seasonsRemaining === 2 ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-600'}`}>{contract.seasonsRemaining} season{contract.seasonsRemaining === 1 ? '' : 's'}</span></td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right"><div className="text-sm font-semibold tabular-nums text-[#0A1318]">{formatCurrency(contract.annualWage)}</div><div className="text-[10px] text-gray-400">per season</div></td>
+                        <td className="px-4 py-3 text-right sm:px-5"><Button size="sm" variant="outline" disabled={processing} title={`Edit ${person.name}'s contract`} onClick={() => openRenewalModal(person, kind)}>Renew</Button></td>
+                      </tr>
+                    })}
+                  </tbody>
+                </table>
               </div>
             </section>
 
@@ -2063,6 +2121,33 @@ export default function DraftSquadsTab() {
             </Button>
           </div>
         )}
+      </Modal>
+
+      <Modal open={Boolean(renewingContract)} onClose={() => setRenewingContract(null)} title="Renew Contract" width="max-w-xl">
+        {renewingContract && (() => {
+          const { person, kind, current } = renewingContract
+          const flagCode = FIFA_NATIONS.find(nation => nation.name === person.nationality)?.code
+          const defaultWage = annualWageFor(person)
+          return <div className="space-y-5">
+            <div className="flex items-center gap-3 border-b border-gray-100 pb-5">
+              {person.photo_url ? <img src={person.photo_url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-black/5" /> : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gray-100 text-lg font-semibold text-gray-400">{person.name?.charAt(0)}</span>}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-base font-semibold text-[#0A1318]">{person.name}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                  {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} alt={person.nationality || ''} className="h-3.5 w-6 rounded-[2px] object-cover ring-1 ring-black/10" />}
+                  <span>{person.nationality || 'Unknown'}</span>
+                  <span>·</span>
+                  {kind === 'coach' ? <span className="inline-flex items-center gap-1"><ShieldCheck size={13} /> Coach</span> : <PositionBadge position={person.position} />}
+                  {person.age && <><span>·</span><span>{person.age} yrs</span></>}
+                </div>
+              </div>
+              <div className="text-right"><div className="text-[10px] uppercase tracking-wider text-gray-400">Current</div><div className="mt-1 text-sm font-semibold">{current.seasonsRemaining} season{current.seasonsRemaining === 1 ? '' : 's'} · {formatCurrency(current.annualWage)}</div></div>
+            </div>
+            <ContractTermsPanel seasons={renewalSeasons} onSeasonsChange={setRenewalSeasons} annualWage={renewalWage} suggestedWage={defaultWage} wageCustomized={renewalWageCustomized} paymentLabel="charged now" onAnnualWageChange={value => { setRenewalWage(value); setRenewalWageCustomized(true) }} onResetWage={() => { setRenewalWage(defaultWage); setRenewalWageCustomized(false) }} />
+            <div className="flex items-center justify-between border-t border-gray-100 pt-4 text-sm"><span className="text-gray-500">Pay now</span><span className="font-semibold tabular-nums text-[#0A1318]">{formatCurrency(renewalWage)}</span></div>
+            <Button className="w-full justify-center py-3" disabled={processing} onClick={renewContract}>{processing ? 'Saving...' : 'Confirm Renewal'}</Button>
+          </div>
+        })()}
       </Modal>
 
       {/* Release Confirmation Modal */}
