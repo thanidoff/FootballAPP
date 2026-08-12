@@ -889,7 +889,7 @@ export default function DraftMatchesTab() {
       
       const contracts = processSeasonContracts(newTeams, workingSaveData.freeAgents || [], workingSaveData.freeAgentsCoaches || [])
       const external = applyExternalCompetitionIncome(contracts.teams, previousSeason, newSettings.cups || [])
-      const { updatedTeams: adjustedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(external.teams, contracts.freeAgents)
+      const { updatedTeams: adjustedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(external.teams, contracts.freeAgents, 'all', { season: previousSeason })
       const updatedTeams = adjustedTeams.map(team => ({ ...team, roster: orderStartingLineup(team.roster || [], nextMatchSize) }))
 
       newSettings.seasons.push({

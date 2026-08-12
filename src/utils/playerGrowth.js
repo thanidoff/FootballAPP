@@ -1,5 +1,77 @@
 import { calculateOVR, normalizeStats } from './stats'
 import { getCoachEffects } from './coachEffects'
+import { createSeededRandom } from './matchEngine'
+
+const positionGroup = position => position === 'GK' ? 'GK' : position === 'DEF' ? 'DEF' : position === 'MF' ? 'MF' : 'FWD'
+
+function buildPerformanceContext(teams, season) {
+  const performance = new Map(Object.entries(season?.stats?.performance || {}).map(([id, value]) => [String(id), { ...value }]))
+  const add = (id, key, amount = 1) => {
+    if (!id) return
+    const current = performance.get(String(id)) || {}
+    current[key] = (Number(current[key]) || 0) + amount
+    performance.set(String(id), current)
+  }
+  const playedMatches = (season?.matches || []).flatMap(week => week.matches || []).filter(match => match.played)
+  playedMatches.forEach(match => {
+    ;(match.events || []).forEach(event => {
+      if (event.type === 'save') add(event.goalkeeper?.id, 'saves')
+      if (event.type === 'blocked_shot') add(event.opponent?.id, 'defensiveActions')
+      if (event.type === 'dispossessed' || event.type === 'bad_pass' || event.type === 'turnover') add(event.opponent?.id, 'defensiveActions')
+      if (event.type === 'goal') {
+        add((event.player || event.scorer)?.id, 'goals')
+        add(event.assist?.id, 'assists')
+        add(event.assist?.id, 'chancesCreated')
+      }
+    })
+    add(match.mvp?.id, 'mvps')
+    ;[[match.home, match.awayScore], [match.away, match.homeScore]].forEach(([clubId, goalsConceded]) => {
+      if (Number(goalsConceded) !== 0) return
+      const club = teams.find(team => String(team.club_id) === String(clubId))
+      ;(club?.roster || []).filter(player => ['GK', 'DEF'].includes(player.position)).forEach(player => add(player.id, 'cleanSheets'))
+    })
+  })
+  ;[['topScorers', 'goals'], ['topAssists', 'assists'], ['mostMvps', 'mvps']].forEach(([sourceKey, metricKey]) => {
+    Object.entries(season?.stats?.[sourceKey] || {}).forEach(([id, value]) => {
+      const current = performance.get(String(id)) || {}
+      current[metricKey] = Math.max(Number(current[metricKey]) || 0, Number(value) || 0)
+      performance.set(String(id), current)
+    })
+  })
+  const standings = season?.standings || []
+  const rankByClub = new Map(standings.map((row, index) => [String(row.club_id), standings.length <= 1 ? 0.5 : 1 - index / (standings.length - 1)]))
+  const appearancesByClub = new Map()
+  playedMatches.forEach(match => {
+    appearancesByClub.set(String(match.home), (appearancesByClub.get(String(match.home)) || 0) + 1)
+    appearancesByClub.set(String(match.away), (appearancesByClub.get(String(match.away)) || 0) + 1)
+  })
+  teams.forEach(team => (team.roster || []).forEach(player => {
+    const current = performance.get(String(player.id)) || {}
+    current.appearances = Number(current.appearances) || appearancesByClub.get(String(team.club_id)) || 0
+    current.teamPerformance = rankByClub.get(String(team.club_id)) ?? 0.5
+    performance.set(String(player.id), current)
+  }))
+  return performance
+}
+
+function performanceDelta(player, metrics, random) {
+  const games = Math.max(1, Number(metrics?.appearances) || 0)
+  const goals = Number(metrics?.goals) || 0
+  const assists = Number(metrics?.assists) || 0
+  const mvps = Number(metrics?.mvps) || 0
+  const group = positionGroup(player.position)
+  let individual = 0
+  if (group === 'GK') individual = (Number(metrics?.saves) || 0) / games * 0.55 + (Number(metrics?.cleanSheets) || 0) / games * 2.4 + mvps / games * 3.2
+  else if (group === 'DEF') individual = (Number(metrics?.defensiveActions) || 0) / games * 0.34 + (Number(metrics?.cleanSheets) || 0) / games * 1.6 + goals / games * 2.2 + assists / games * 1.4 + mvps / games * 2.4
+  else if (group === 'MF') individual = assists / games * 3.2 + goals / games * 2.1 + (Number(metrics?.chancesCreated) || 0) / games * 0.22 + (Number(metrics?.defensiveActions) || 0) / games * 0.13 + mvps / games * 2.5
+  else individual = goals / games * 3.5 + assists / games * 2.2 + (Number(metrics?.chancesCreated) || 0) / games * 0.12 + mvps / games * 2.5
+  const age = Number(player.age) || 25
+  const ageCurve = age <= 20 ? 1.4 : age <= 23 ? 0.9 : age <= 27 ? 0.3 : age <= 30 ? 0 : age <= 33 ? -0.8 : -1.5
+  const teamEffect = ((Number(metrics?.teamPerformance) || 0.5) - 0.5) * 0.8
+  const formEffect = Math.max(-2.2, Math.min(2.5, individual - 1.15))
+  const variance = (random() - 0.5) * 1.6
+  return Math.max(-5, Math.min(5, Math.round(ageCurve + formEffect + teamEffect + variance)))
+}
 
 /**
  * Generates seasonal player stat adjustments (growth / decline) for ~10 random players.
@@ -11,7 +83,7 @@ import { getCoachEffects } from './coachEffects'
  * @param {number} count Number of players to adjust (default 10)
  * @returns {Object} { updatedTeams, updatedFreeAgents, seasonAdjustments }
  */
-export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], count = 30) {
+export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], count = 30, context = {}) {
   // Collect all available players from teams and free agents
   const allPlayers = []
 
@@ -40,6 +112,7 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
 
   const adjustmentsMap = new Map() // playerId -> adjustment record
   const seasonAdjustments = []
+  const performance = buildPerformanceContext(teams, context.season)
 
   selectedEntries.forEach(entry => {
     const { player, teamId, isFreeAgent } = entry
@@ -48,14 +121,14 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     const oldOvr = player.ovr || calculateOVR(player.position, oldStats)
 
     const coachEffect = getCoachEffects(team?.coaches || [])
-    // Coached players trend upward and are more stable. Free agents remain deliberately volatile.
-    const minDelta = isFreeAgent ? -7 : coachEffect.hasCoach ? -3 : -6
-    const maxDelta = isFreeAgent ? 5 : coachEffect.hasCoach ? 6 : 5
-    const developmentBias = coachEffect.hasCoach ? Math.round(((coachEffect.MGT || 0) * 0.65 + (coachEffect.PHY || 0) * 0.35) / 4) : 0
-    let deltaOvr = 0
-    while (deltaOvr === 0) {
-      deltaOvr = Math.max(minDelta, Math.min(maxDelta, Math.floor(Math.random() * (maxDelta - minDelta + 1)) + minDelta + developmentBias))
-    }
+    const metrics = performance.get(String(player.id)) || {}
+    const random = createSeededRandom(`growth-${context.season?.id || 'initial'}-${player.id}`)
+    const hasPerformance = (Number(metrics.appearances) || 0) > 0
+    const coachBias = coachEffect.hasCoach ? Math.min(1, ((coachEffect.MGT || 0) * 0.65 + (coachEffect.PHY || 0) * 0.35) / 12) : 0
+    let deltaOvr = hasPerformance
+      ? performanceDelta(player, metrics, random) + (random() < coachBias ? 1 : 0)
+      : Math.round((random() - 0.5) * (isFreeAgent ? 4 : 3) + (coachEffect.hasCoach ? 0.5 : 0))
+    deltaOvr = Math.max(-5, Math.min(5, deltaOvr))
 
     // Position-weighted probability pool for realistic growth/decline
     const WEIGHTED_POOLS = {
@@ -71,17 +144,17 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     const newStats = { ...oldStats }
 
     // Stat adjustment points approx deltaOvr * 2.2 distributed
-    let pointsToDistribute = Math.round(deltaOvr * 2.2)
+    let pointsToDistribute = Math.round(deltaOvr * 12)
     const steps = Math.abs(pointsToDistribute)
     const stepDirection = deltaOvr > 0 ? 1 : -1
 
     for (let i = 0; i < steps; i++) {
-      const targetStat = statPool[Math.floor(Math.random() * statPool.length)]
+      const targetStat = statPool[Math.floor(random() * statPool.length)]
       const currentVal = newStats[targetStat] ?? 50
       // Elite ratings have diminishing returns: growth remains possible above
       // 100, but every additional point becomes progressively rarer.
       const growthChance = currentVal >= 120 ? 0.08 : currentVal >= 110 ? 0.2 : currentVal >= 100 ? 0.45 : currentVal >= 95 ? 0.75 : 1
-      if (stepDirection > 0 && Math.random() > growthChance) continue
+      if (stepDirection > 0 && random() > growthChance) continue
       const newVal = Math.max(30, Math.min(140, currentVal + stepDirection))
       newStats[targetStat] = newVal
     }
@@ -103,6 +176,8 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
       clubName: team?.club_name || team?.name || null,
       clubBadge: team?.badge_url || null,
       developmentSource: isFreeAgent ? 'Free agent' : coachEffect.label,
+      performance: metrics,
+      growthReason: hasPerformance ? 'Season performance, age, team form and coaching' : 'Age, training and coaching',
     }
 
     adjustmentsMap.set(player.id, { newStats, newOvr, adjustmentRecord })
