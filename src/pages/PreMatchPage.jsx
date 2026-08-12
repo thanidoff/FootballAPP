@@ -240,7 +240,7 @@ function PlayerRow({ player, club, isDragging, isOver, canDrop, onPointerDown, o
     <div
       onPointerDown={onPointerDown}
       style={{
-        touchAction: 'none',
+        touchAction: isDragging ? 'none' : 'pan-y',
         transform: animOffset ? `translate3d(0, ${animOffset}px, 0)` : undefined,
         transition: animOffset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms',
       }}
@@ -415,13 +415,34 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null, starterLimit 
 
   function handlePointerDown(fromIdx, e) {
     if (e.button !== undefined && e.button !== 0) return
-    e.preventDefault()
-    dragRef.current = { active: false, fromIdx, startX: e.clientX, startY: e.clientY }
+    const touchInput = e.pointerType === 'touch'
+    if (!touchInput) e.preventDefault()
+    dragRef.current = { active: false, armed: !touchInput, fromIdx, startX: e.clientX, startY: e.clientY, holdTimer: null }
+
+    const cleanup = () => {
+      if (dragRef.current.holdTimer) clearTimeout(dragRef.current.holdTimer)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onCancel)
+    }
+
+    if (touchInput) {
+      dragRef.current.holdTimer = setTimeout(() => {
+        dragRef.current.armed = true
+        navigator.vibrate?.(35)
+      }, 320)
+    }
 
     function onMove(e) {
       const dx = e.clientX - dragRef.current.startX
       const dy = e.clientY - dragRef.current.startY
-      if (!dragRef.current.active && Math.hypot(dx, dy) > 8) {
+      const distance = Math.hypot(dx, dy)
+      if (touchInput && !dragRef.current.armed && distance > 10) {
+        cleanup()
+        dragRef.current = { active: false, fromIdx: null, cachedRects: null }
+        return
+      }
+      if (!dragRef.current.active && dragRef.current.armed && distance > 8) {
         dragRef.current.active = true
         dragRef.current.cachedRects = slotRefs.current.map(el => {
           if (!el) return null
@@ -437,6 +458,7 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null, starterLimit 
         startScrollLoop()
       }
       if (dragRef.current.active) {
+        if (e.cancelable) e.preventDefault()
         scrollRef.current.x = e.clientX
         scrollRef.current.y = e.clientY
 
@@ -455,6 +477,7 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null, starterLimit 
     }
 
     function onUp(e) {
+      cleanup()
       stopScrollLoop()
       if (dragRef.current.active) {
         suppressClickRef.current = true
@@ -478,12 +501,19 @@ function useDrag(setSlots, suspendedIds = new Set(), onTap = null, starterLimit 
       dragRef.current = { active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null }
       setActiveDragIdx(null)
       setDragOver(null)
-      document.removeEventListener('pointermove', onMove)
-      document.removeEventListener('pointerup', onUp)
+    }
+
+    function onCancel() {
+      cleanup()
+      stopScrollLoop()
+      dragRef.current = { active: false, fromIdx: null, cachedRects: null }
+      setActiveDragIdx(null)
+      setDragOver(null)
     }
 
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onCancel)
   }
 
   function handleActivate(idx) {

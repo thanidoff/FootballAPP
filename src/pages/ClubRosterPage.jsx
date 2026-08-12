@@ -324,13 +324,34 @@ export default function ClubRosterPage() {
 
   function handlePointerDown(fromIdx, e) {
     if (e.button !== undefined && e.button !== 0) return
-    e.preventDefault()
-    dragRef.current = { active: false, fromIdx, startX: e.clientX, startY: e.clientY }
+    const touchInput = e.pointerType === 'touch'
+    if (!touchInput) e.preventDefault()
+    dragRef.current = { active: false, armed: !touchInput, fromIdx, startX: e.clientX, startY: e.clientY, holdTimer: null }
+
+    const cleanup = () => {
+      if (dragRef.current.holdTimer) clearTimeout(dragRef.current.holdTimer)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onCancel)
+    }
+
+    if (touchInput) {
+      dragRef.current.holdTimer = setTimeout(() => {
+        dragRef.current.armed = true
+        navigator.vibrate?.(35)
+      }, 320)
+    }
 
     function onMove(e) {
       const dx = e.clientX - dragRef.current.startX
       const dy = e.clientY - dragRef.current.startY
-      if (!dragRef.current.active && Math.hypot(dx, dy) > 8) {
+      const distance = Math.hypot(dx, dy)
+      if (touchInput && !dragRef.current.armed && distance > 10) {
+        cleanup()
+        dragRef.current = { active: false, fromIdx: null, cachedRects: null }
+        return
+      }
+      if (!dragRef.current.active && dragRef.current.armed && distance > 8) {
         dragRef.current.active = true
         // Cache rects on drag start
         dragRef.current.cachedRects = slotRefs.current.map(el => {
@@ -347,6 +368,7 @@ export default function ClubRosterPage() {
         startScrollLoop()
       }
       if (dragRef.current.active) {
+        if (e.cancelable) e.preventDefault()
         if (ghostRef.current) {
           ghostRef.current.style.transform = `translate(${e.clientX - 140}px, ${e.clientY - 50}px) rotate(2deg) scale(1.05)`
         }
@@ -368,6 +390,7 @@ export default function ClubRosterPage() {
     }
 
     function onUp(e) {
+      cleanup()
       stopScrollLoop()
       if (dragRef.current.active) {
         const toIdx = getSlotUnderPointer(e.clientX, e.clientY)
@@ -385,12 +408,19 @@ export default function ClubRosterPage() {
       dragRef.current = { active: false, fromIdx: null, startX: 0, startY: 0, cachedRects: null }
       setActiveDragIdx(null)
       setDragOver(null)
-      document.removeEventListener('pointermove', onMove)
-      document.removeEventListener('pointerup', onUp)
+    }
+
+    function onCancel() {
+      cleanup()
+      stopScrollLoop()
+      dragRef.current = { active: false, fromIdx: null, cachedRects: null }
+      setActiveDragIdx(null)
+      setDragOver(null)
     }
 
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onCancel)
   }
 
   async function handleRelease(player, slotIdx) {

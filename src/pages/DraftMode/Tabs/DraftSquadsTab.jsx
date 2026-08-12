@@ -47,6 +47,7 @@ export default function DraftSquadsTab() {
   const { saveData, setSaveData, saveId } = useOutletContext()
   const toast = useToast()
   const longPressTimer = useRef(null)
+  const mobilePlayerDrag = useRef({ active: false, fromIndex: null, targetIndex: null, startX: 0, startY: 0 })
   const [searchParams, setSearchParams] = useSearchParams()
   const [processing, setProcessing] = useState(false)
   const [editTeam, setEditTeam] = useState(null)
@@ -553,6 +554,47 @@ export default function DraftSquadsTab() {
   function dropPlayerAt(toIndex) {
     if (draggedPlayerIndex == null) return
     swapPlayer(draggedPlayerIndex, toIndex)
+    setDraggedPlayerIndex(null)
+    setDragTargetIndex(null)
+  }
+
+  function startMobilePlayerDrag(playerIndex, event) {
+    const touch = event.touches?.[0]
+    if (!touch) return
+    mobilePlayerDrag.current = { active: false, fromIndex: playerIndex, targetIndex: null, startX: touch.clientX, startY: touch.clientY }
+    clearTimeout(longPressTimer.current)
+    longPressTimer.current = setTimeout(() => {
+      mobilePlayerDrag.current.active = true
+      setDraggedPlayerIndex(playerIndex)
+      navigator.vibrate?.(35)
+    }, 320)
+  }
+
+  function moveMobilePlayerDrag(event) {
+    const touch = event.touches?.[0]
+    if (!touch) return
+    const gesture = mobilePlayerDrag.current
+    if (!gesture.active) {
+      if (Math.hypot(touch.clientX - gesture.startX, touch.clientY - gesture.startY) > 10) {
+        clearTimeout(longPressTimer.current)
+        mobilePlayerDrag.current = { active: false, fromIndex: null, targetIndex: null, startX: 0, startY: 0 }
+      }
+      return
+    }
+    if (event.cancelable) event.preventDefault()
+    const card = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-player-index]')
+    const targetIndex = Number(card?.getAttribute('data-player-index'))
+    if (Number.isInteger(targetIndex) && targetIndex !== gesture.fromIndex) {
+      gesture.targetIndex = targetIndex
+      setDragTargetIndex(targetIndex)
+    }
+  }
+
+  function endMobilePlayerDrag() {
+    clearTimeout(longPressTimer.current)
+    const { active, fromIndex, targetIndex } = mobilePlayerDrag.current
+    if (active && fromIndex != null && targetIndex != null) swapPlayer(fromIndex, targetIndex)
+    mobilePlayerDrag.current = { active: false, fromIndex: null, targetIndex: null, startX: 0, startY: 0 }
     setDraggedPlayerIndex(null)
     setDragTargetIndex(null)
   }
@@ -1519,35 +1561,10 @@ export default function DraftSquadsTab() {
                           e.preventDefault()
                           dropPlayerAt(playerIndex)
                         }}
-                        onTouchStart={() => {
-                          longPressTimer.current = setTimeout(() => {
-                            setDraggedPlayerIndex(playerIndex)
-                            if (navigator.vibrate) navigator.vibrate(50)
-                          }, 250)
-                        }}
-                        onTouchEnd={() => {
-                          if (longPressTimer.current) clearTimeout(longPressTimer.current)
-                          if (draggedPlayerIndex != null && dragTargetIndex != null) {
-                            dropPlayerAt(dragTargetIndex)
-                          } else {
-                            setDraggedPlayerIndex(null)
-                            setDragTargetIndex(null)
-                          }
-                        }}
-                        onTouchMove={(e) => {
-                          if (longPressTimer.current) clearTimeout(longPressTimer.current)
-                          if (draggedPlayerIndex != null && e.touches[0]) {
-                            const touch = e.touches[0]
-                            const elem = document.elementFromPoint(touch.clientX, touch.clientY)
-                            const card = elem?.closest('[data-player-index]')
-                            if (card) {
-                              const targetIdx = Number(card.getAttribute('data-player-index'))
-                              if (!isNaN(targetIdx) && targetIdx !== draggedPlayerIndex) {
-                                setDragTargetIndex(targetIdx)
-                              }
-                            }
-                          }
-                        }}
+                        onTouchStart={event => startMobilePlayerDrag(playerIndex, event)}
+                        onTouchEnd={endMobilePlayerDrag}
+                        onTouchCancel={endMobilePlayerDrag}
+                        onTouchMove={moveMobilePlayerDrag}
                         style={{
                           transform: `translate3d(0, ${offset}px, 0)`,
                           transition: offset ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1), border-color 200ms, background-color 200ms, box-shadow 200ms',
