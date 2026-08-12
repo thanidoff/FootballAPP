@@ -90,6 +90,7 @@ export default function DraftSquadsTab() {
   const [feeDisplay, setFeeDisplay] = useState('0.0')
   const [contractSeasons, setContractSeasons] = useState(3)
   const [annualWage, setAnnualWage] = useState(0)
+  const [wageCustomized, setWageCustomized] = useState(false)
 
   function openSigningModal(player) {
     setSigningPlayer(player)
@@ -98,7 +99,13 @@ export default function DraftSquadsTab() {
     setFeeDisplay(((player.market_value || 0) / 1_000_000).toFixed(1))
     setContractSeasons(3)
     setAnnualWage(annualWageFor(player))
+    setWageCustomized(false)
   }
+
+  const suggestedWage = annualWageFor({ market_value: agreedFee })
+  useEffect(() => {
+    if (!wageCustomized && signingPlayer) setAnnualWage(suggestedWage)
+  }, [suggestedWage, signingPlayer, wageCustomized])
 
   async function handleSign() {
     if (!signingPlayer || !signingClubId) return
@@ -2022,7 +2029,7 @@ export default function DraftSquadsTab() {
               </div>
             </div>
 
-            <ContractTermsPanel seasons={contractSeasons} onSeasonsChange={setContractSeasons} annualWage={annualWage} onAnnualWageChange={setAnnualWage} />
+            <ContractTermsPanel seasons={contractSeasons} onSeasonsChange={setContractSeasons} annualWage={annualWage} suggestedWage={suggestedWage} wageCustomized={wageCustomized} onAnnualWageChange={value => { setAnnualWage(value); setWageCustomized(true) }} onResetWage={() => { setAnnualWage(suggestedWage); setWageCustomized(false) }} />
 
             {(() => {
               const selectedTeam = saveData.teams.find(t => t.club_id === signingClubId)
