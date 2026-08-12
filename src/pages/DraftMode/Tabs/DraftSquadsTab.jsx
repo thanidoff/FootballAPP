@@ -95,6 +95,59 @@ export default function DraftSquadsTab() {
   const [renewalSeasons, setRenewalSeasons] = useState(3)
   const [renewalWage, setRenewalWage] = useState(0)
   const [renewalWageCustomized, setRenewalWageCustomized] = useState(false)
+  const [draftChoices, setDraftChoices] = useState([])
+  const [selectedDraftPlayerId, setSelectedDraftPlayerId] = useState(null)
+
+  function rollDraftChoices(pool = saveData.freeAgents || []) {
+    const shuffled = [...pool]
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1))
+      ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+    }
+    setDraftChoices(shuffled.slice(0, 5))
+    setSelectedDraftPlayerId(null)
+  }
+
+  async function openDraftChoices() {
+    if (team.budget < 0) {
+      toast.error('This club is in debt. Sell or release a player before drafting again.')
+      return
+    }
+    let pool = saveData.freeAgents || []
+    if (!pool.length) {
+      const allMaster = await fetchPlayers()
+      const assignedIds = new Set(saveData.teams.flatMap(item => (item.roster || []).map(player => String(player.id))))
+      pool = allMaster.filter(player => !assignedIds.has(String(player.id))).map(player => ({ ...player, club_id: null, club: null }))
+    }
+    if (!pool.length) {
+      toast.error('No available players in pool!')
+      return
+    }
+    rollDraftChoices(pool)
+  }
+
+  async function confirmDraftChoice() {
+    const player = draftChoices.find(item => String(item.id) === String(selectedDraftPlayerId))
+    if (!player) return
+    setProcessing(true)
+    try {
+      const draftedPlayer = withDefaultContract({ ...player, club_id: team.club_id, club: null })
+      const updatedTeams = saveData.teams.map(item => String(item.club_id) === String(team.club_id)
+        ? { ...item, budget: (item.budget || 0) - 40_000_000, roster: [...(item.roster || []), draftedPlayer] }
+        : item)
+      const updatedFreeAgents = (saveData.freeAgents || []).filter(item => String(item.id) !== String(player.id))
+      const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
+      await updateDraftState(saveId, nextSave)
+      setSaveData(nextSave)
+      setDraftChoices([])
+      setSelectedDraftPlayerId(null)
+      toast.success(`Drafted ${player.name} for $40M!`)
+    } catch (error) {
+      toast.error(error.message || 'Failed to draft player')
+    } finally {
+      setProcessing(false)
+    }
+  }
 
   function openSigningModal(person, kind = 'player') {
     setSigningPlayer(person)
@@ -1330,51 +1383,7 @@ export default function DraftSquadsTab() {
                 variant="outline"
                 disabled={processing || team.budget < 0}
                 title={team.budget < 0 ? 'Clear the club debt before drafting another player' : 'Draft a random player for $40M'}
-                onClick={async () => {
-                  if (team.budget < 0) {
-                    toast.error('This club is in debt. Sell or release a player before drafting again.')
-                    return
-                  }
-                  try {
-                    setProcessing(true)
-                    let availablePool = saveData.freeAgents || []
-                    if (!availablePool.length) {
-                      const allMaster = await fetchPlayers()
-                      const assignedIds = new Set()
-                      saveData.teams.forEach(t => (t.roster || []).forEach(p => assignedIds.add(String(p.id))))
-                      availablePool = allMaster.filter(p => !assignedIds.has(String(p.id)))
-                    }
-
-                    if (!availablePool.length) {
-                      toast.error('No available players in pool!')
-                      return
-                    }
-
-                    const randomIndex = Math.floor(Math.random() * availablePool.length)
-                    const randomPlayer = availablePool[randomIndex]
-
-                    const updatedTeams = saveData.teams.map((t, idx) => {
-                      if (idx !== teamIndex) return t
-                      return {
-                        ...t,
-                        budget: (t.budget || 0) - 40000000,
-                        roster: [...(t.roster || []), { ...randomPlayer, club_id: t.club_id }]
-                      }
-                    })
-
-                    const updatedFreeAgents = availablePool.filter(p => String(p.id) !== String(randomPlayer.id))
-                    const nextSave = { ...saveData, teams: updatedTeams, freeAgents: updatedFreeAgents }
-                    
-                    await updateDraftState(saveId, nextSave)
-                    setSaveData(nextSave)
-                    toast.success(`Drafted ${randomPlayer.name} (${randomPlayer.position} OVR ${randomPlayer.ovr}) for $40M!`)
-                  } catch (err) {
-                    console.error('Failed to draft random player', err)
-                    toast.error(err.message || 'Failed to draft random player')
-                  } finally {
-                    setProcessing(false)
-                  }
-                }}
+                onClick={openDraftChoices}
                 className={`min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 font-heading text-xs font-bold uppercase tracking-normal sm:flex-none sm:px-4 sm:tracking-wider ${
                   team.budget < 0 
                     ? 'opacity-40 border-gray-300 text-gray-400 cursor-not-allowed' 
@@ -2006,6 +2015,24 @@ export default function DraftSquadsTab() {
       </Modal>
 
       {/* Sign Player Modal */}
+      <Modal open={draftChoices.length > 0} onClose={() => { setDraftChoices([]); setSelectedDraftPlayerId(null) }} title="Draft Player · Choose 1 of 5" width="max-w-5xl">
+        <div className="space-y-5">
+          <p className="text-sm text-gray-500">Select one player for {team.club_name}. The $40M fee is charged only when you confirm.</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {draftChoices.map(player => {
+              const selected = String(selectedDraftPlayerId) === String(player.id)
+              return <div key={player.id} className={`rounded-2xl border-2 p-1 transition-all ${selected ? 'border-[#FD5461] bg-red-50 shadow-md' : 'border-transparent hover:border-gray-200'}`}>
+                <PlayerCard compact player={{ ...player, club_id: null, club: null }} onClick={() => setSelectedDraftPlayerId(player.id)} />
+              </div>
+            })}
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => rollDraftChoices(saveData.freeAgents || [])} disabled={processing}><Dices size={16} /> Reroll</Button>
+            <Button onClick={confirmDraftChoice} disabled={!selectedDraftPlayerId || processing}>{processing ? 'Selecting...' : 'Select Player · $40M'}</Button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal open={!!signingPlayer} onClose={() => { setSigningPlayer(null); setSigningClubId('') }} title={signingKind === 'coach' ? 'Sign Coach' : 'Sign Player'} width="max-w-md">
         {signingPlayer && (
           <div className="space-y-6">
