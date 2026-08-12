@@ -874,8 +874,11 @@ export async function advanceDraftLeagueWeek(saveId) {
       payouts.push({ clubId: team.club_id, clubName: team.club_name, amount: value, type, label, playerId })
     }
 
-    standings.slice(0, 5).forEach((row, index) => {
-      payClub(row.club_id, prizeSettings.placements[index], 'placement', `League position ${index + 1}`)
+    // Every league participant receives placement income. Clubs below the
+    // configured top five share the lowest placement prize instead of getting 0.
+    standings.forEach((row, index) => {
+      const amount = prizeSettings.placements[Math.min(index, prizeSettings.placements.length - 1)]
+      payClub(row.club_id, amount, 'placement', `League position ${index + 1}`)
     })
 
     season.prizeSettings = prizeSettings

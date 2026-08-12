@@ -2080,6 +2080,11 @@ export default function DraftSquadsTab() {
               value={signingClubId}
               onChange={setSigningClubId}
               clubs={[
+                ...(signingPlayer.club_id || signingPlayer.club?.id ? [{
+                  id: 'free_agent',
+                  name: 'Free Agent',
+                  short_name: 'FA',
+                }] : []),
                 ...saveData.teams.filter(t => t.club_id !== (signingPlayer.club_id || signingPlayer.club?.id)).map(t => ({
                   ...t,
                   id: t.club_id,
@@ -2099,7 +2104,11 @@ export default function DraftSquadsTab() {
               </div>
             </div>
 
-            <ContractTermsPanel seasons={contractSeasons} onSeasonsChange={setContractSeasons} annualWage={annualWage} suggestedWage={suggestedWage} wageCustomized={wageCustomized} onAnnualWageChange={value => { setAnnualWage(value); setWageCustomized(true) }} onResetWage={() => { setAnnualWage(suggestedWage); setWageCustomized(false) }} />
+            {signingClubId !== 'free_agent' && <ContractTermsPanel seasons={contractSeasons} onSeasonsChange={setContractSeasons} annualWage={annualWage} suggestedWage={suggestedWage} wageCustomized={wageCustomized} onAnnualWageChange={value => { setAnnualWage(value); setWageCustomized(true) }} onResetWage={() => { setAnnualWage(suggestedWage); setWageCustomized(false) }} />}
+
+            {signingClubId === 'free_agent' && (
+              <p className="text-sm font-medium text-[#FD5461]">Current club receives: ${formatCurrency(agreedFee)}</p>
+            )}
 
             {(() => {
               const selectedTeam = saveData.teams.find(t => t.club_id === signingClubId)
@@ -2117,7 +2126,7 @@ export default function DraftSquadsTab() {
               onClick={handleSign}
               disabled={!signingClubId || processing}
             >
-              {processing ? 'Processing...' : `Confirm Signing`}
+              {processing ? 'Processing...' : signingClubId === 'free_agent' ? 'Confirm External Sale' : 'Confirm Signing'}
             </Button>
           </div>
         )}
