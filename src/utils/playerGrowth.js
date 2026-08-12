@@ -78,6 +78,10 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
     for (let i = 0; i < steps; i++) {
       const targetStat = statPool[Math.floor(Math.random() * statPool.length)]
       const currentVal = newStats[targetStat] ?? 50
+      // Elite ratings have diminishing returns: growth remains possible above
+      // 100, but every additional point becomes progressively rarer.
+      const growthChance = currentVal >= 120 ? 0.08 : currentVal >= 110 ? 0.2 : currentVal >= 100 ? 0.45 : currentVal >= 95 ? 0.75 : 1
+      if (stepDirection > 0 && Math.random() > growthChance) continue
       const newVal = Math.max(30, Math.min(140, currentVal + stepDirection))
       newStats[targetStat] = newVal
     }

@@ -19,6 +19,7 @@ export default function Button({
   size = 'md',
   className = '',
   disabled,
+  loading = false,
   ...props
 }) {
   return (
@@ -31,9 +32,11 @@ export default function Button({
         disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none
         ${VARIANTS[variant]} ${SIZES[size]} ${className}
       `}
-      disabled={disabled}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
+      {loading && <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent opacity-70" />}
       {children}
     </button>
   )

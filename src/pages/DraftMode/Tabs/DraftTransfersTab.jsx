@@ -25,6 +25,7 @@ import { fetchCoaches } from '../../../services/coaches'
 import { Check, Plus, Search, Sparkles, Users, UserCheck } from 'lucide-react'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
 import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import { annualWageFor } from '../../../utils/contracts'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
 
@@ -41,6 +42,7 @@ export default function DraftTransfersTab() {
   const [selectedClubId, setSelectedClubId] = useState('')
   const [agreedFee, setAgreedFee] = useState(0)
   const [feeDisplay, setFeeDisplay] = useState('0.0')
+  const [contractSeasons, setContractSeasons] = useState(3)
   const [editPlayer, setEditPlayer] = useState(null)
   const [editCoach, setEditCoach] = useState(null)
 
@@ -195,6 +197,7 @@ export default function DraftTransfersTab() {
     setSelectedClubId('')
     setAgreedFee(item.market_value || 0)
     setFeeDisplay(((item.market_value || 0) / 1_000_000).toFixed(1))
+    setContractSeasons(3)
   }
 
   const handleSign = async () => {
@@ -203,8 +206,8 @@ export default function DraftTransfersTab() {
       setProcessing(true)
       const isCoach = signingItem.position === 'COACH'
       const nextSaveData = isCoach
-        ? await transferDraftCoach(saveId, signingItem.id, selectedClubId, agreedFee)
-        : await transferDraftPlayer(saveId, signingItem.id, selectedClubId, agreedFee)
+        ? await transferDraftCoach(saveId, signingItem.id, selectedClubId, agreedFee, contractSeasons)
+        : await transferDraftPlayer(saveId, signingItem.id, selectedClubId, agreedFee, contractSeasons)
       
       setSaveData(nextSaveData)
       setSigningItem(null)
@@ -510,6 +513,20 @@ export default function DraftTransfersTab() {
                 <div className="relative min-w-[90px] flex-1"><input type="number" min="0" step="0.1" value={feeDisplay} onChange={event => { setFeeDisplay(event.target.value); setAgreedFee(Math.max(0, Math.round(Number(event.target.value || 0) * 1_000_000))) }} onBlur={() => setFeeDisplay((agreedFee / 1_000_000).toFixed(1))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-8 text-center font-heading font-bold focus:border-[#FD5461] focus:outline-none" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">M</span></div>
                 {[5, 10].map(amount => <button key={amount} type="button" onClick={() => { const value = agreedFee + amount * 1_000_000; setAgreedFee(value); setFeeDisplay((value / 1_000_000).toFixed(1)) }} className="h-9 rounded-lg border border-gray-200 px-2 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+{amount}</button>)}
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div><div className="text-xs font-heading font-bold uppercase tracking-wider text-gray-500">Contract length</div><div className="mt-1 text-xs text-gray-400">Choose how long this signing stays.</div></div>
+                <Select value={String(contractSeasons)} onChange={event => setContractSeasons(Number(event.target.value))} reserveErrorSpace={false} className="min-h-10 w-28 rounded-xl py-1.5 text-sm">
+                  {[1, 2, 3, 5].map(years => <option key={years} value={years}>{years} season{years > 1 ? 's' : ''}</option>)}
+                </Select>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 border-t border-gray-200 pt-3 text-xs">
+                <div><div className="text-gray-400">Wage each season</div><strong className="mt-1 block text-sm text-[#0A1318]">${formatCurrency(annualWageFor(signingItem))}</strong></div>
+                <div><div className="text-gray-400">Total wages</div><strong className="mt-1 block text-sm text-[#0A1318]">${formatCurrency(annualWageFor(signingItem) * contractSeasons)}</strong></div>
+              </div>
+              <p className="mt-3 text-[11px] leading-4 text-gray-400">Pay the transfer fee now. Wages are deducted automatically when a new season begins. When the contract reaches 0, the player or coach becomes a Free Agent.</p>
             </div>
 
             {(() => {

@@ -1486,7 +1486,7 @@ export default function DraftSquadsTab() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs leading-5 text-gray-400">TAC controls tactics, ATT attack, DEF defence, MOT momentum, MGT player growth, and PHY fitness. Head coach contributes 70%.</p>
+                  <p className="text-xs leading-5 text-gray-400">The head coach provides the full effect. An assistant only adds up to 20% of skills above 70, so one good coach is enough and a second coach is a smaller upgrade—not double power.</p>
                   {(team.coaches || []).map((coach, coachIndex) => {
                     const roleLabel = coachIndex === 0 ? 'Head Coach' : 'Assistant Coach'
                     const roleBadge = coachIndex === 0 ? 'HC' : 'AC'

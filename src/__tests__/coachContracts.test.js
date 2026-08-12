@@ -3,13 +3,13 @@ import { getCoachEffects } from '../utils/coachEffects'
 import { annualWageFor, processSeasonContracts, withDefaultContract } from '../utils/contracts'
 
 describe('coach effects', () => {
-  it('weights the head coach at 70% and assistant at 30%', () => {
+  it('uses the head coach fully and applies only a small assistant bonus', () => {
     const result = getCoachEffects([
       { name: 'Head', stats: { TAC: 100, ATT: 100, DEF: 100, MOT: 100, MGT: 100, PHY: 100 } },
-      { name: 'Assistant', stats: { TAC: 50, ATT: 50, DEF: 50, MOT: 50, MGT: 50, PHY: 50 } },
+      { name: 'Assistant', stats: { TAC: 100, ATT: 100, DEF: 100, MOT: 100, MGT: 100, PHY: 100 } },
     ])
-    expect(result.ratings.TAC).toBe(85)
-    expect(result.TAC).toBe(5)
+    expect(result.ratings.TAC).toBe(106)
+    expect(result.TAC).toBe(9)
   })
 
   it('returns neutral effects when a team has no coach', () => {
