@@ -79,9 +79,9 @@ describe('complete career simulation', () => {
     const negotiatedFee = 60_500_000
     let state = await transferDraftPlayer(saveId, signing.id, teamIds[0], negotiatedFee)
     expect(state.teams[0].roster.some(player => player.id === signing.id)).toBe(true)
-    expect(state.teams[0].roster.find(player => player.id === signing.id).market_value).toBe(signing.market_value)
-    const signingFee = contractFeeFor(annualWageFor(signing), 3, { freeAgent: true })
-    expect(state.teams[0].budget).toBe(500_000_000 - signingFee)
+    expect(state.teams[0].roster.find(player => player.id === signing.id).market_value).toBe(negotiatedFee)
+    const signingFee = contractFeeFor(annualWageFor(signing), 3)
+    expect(state.teams[0].budget).toBe(500_000_000 - negotiatedFee - signingFee)
     expect(state.freeAgents.some(player => player.id === signing.id)).toBe(false)
     expect(state.transferHistory).toHaveLength(1)
 
@@ -90,8 +90,8 @@ describe('complete career simulation', () => {
     state.teams[0].budget = 1_000_000
     await updateDraftState(saveId, state)
     state = await transferDraftPlayer(saveId, freeAgents[1].id, teamIds[0], 20_000_000)
-    const secondSigningFee = contractFeeFor(annualWageFor(freeAgents[1]), 3, { freeAgent: true })
-    expect(state.teams[0].budget).toBe(1_000_000 - secondSigningFee)
+    const secondSigningFee = contractFeeFor(annualWageFor(freeAgents[1]), 3)
+    expect(state.teams[0].budget).toBe(1_000_000 - 20_000_000 - secondSigningFee)
     await expect(transferDraftPlayer(saveId, freeAgents[2].id, teamIds[0], 1_000_000))
       .rejects.toThrow('in debt')
 
@@ -341,8 +341,8 @@ describe('career transfer budget protection', () => {
 
     let state = await transferDraftCoach(saveId, coach.id, teams[0].club_id, 25_000_000)
     expect(state.teams[0].coaches.map(item => item.id)).toContain(coach.id)
-    const signingFee = contractFeeFor(annualWageFor(coach), 3, { freeAgent: true })
-    expect(state.teams[0].budget).toBe(1_000_000 - signingFee)
+    const signingFee = contractFeeFor(annualWageFor(coach), 3)
+    expect(state.teams[0].budget).toBe(1_000_000 - 25_000_000 - signingFee)
     expect(state.freeAgentsCoaches).toHaveLength(1)
     await expect(transferDraftCoach(saveId, secondCoach.id, teams[0].club_id, 1_000_000)).rejects.toThrow('in debt')
 

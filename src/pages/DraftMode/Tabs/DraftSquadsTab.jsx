@@ -1164,7 +1164,7 @@ export default function DraftSquadsTab() {
           date: t.createdAt || new Date(timestamp).toISOString(),
           timestamp,
         })
-        if ((t.contractFee || 0) > 0) logs.push({ id: `contract-signing-${index}`, title: `Contract fee: ${t.playerName}`, category: 'Contracts', seasonLabel: `Season ${t.seasonId || 1}`, seasonNum: t.seasonId || 1, amount: t.contractFee, type: 'expense', description: t.fromClubId ? 'Signing and registration fee' : 'Free Agent signing and registration fee', date: t.createdAt || new Date(timestamp).toISOString(), timestamp: timestamp + 1 })
+        if ((t.contractFee || 0) > 0) logs.push({ id: `contract-signing-${index}`, title: `Contract fee: ${t.playerName}`, category: 'Contracts', seasonLabel: `Season ${t.seasonId || 1}`, seasonNum: t.seasonId || 1, amount: t.contractFee, type: 'expense', description: t.fromClubId ? 'Signing and registration fee' : 'External market signing and registration fee', date: t.createdAt || new Date(timestamp).toISOString(), timestamp: timestamp + 1 })
       }
       if (isSeller) {
         logs.push({
