@@ -28,6 +28,7 @@ import { getCoachEffects } from '../../../utils/coachEffects'
 import { annualWageFor, withDefaultContract } from '../../../utils/contracts'
 
 import { calculateOVR, getOVRTier } from '../../../utils/stats'
+import ContractTermsPanel from '../../../components/draft/ContractTermsPanel'
 
 const TIER_STYLES = {
   special: 'bg-[#FD5461] text-white',
@@ -87,19 +88,21 @@ export default function DraftSquadsTab() {
   const [signingClubId, setSigningClubId] = useState('')
   const [agreedFee, setAgreedFee] = useState(0)
   const [feeDisplay, setFeeDisplay] = useState('0.0')
+  const [contractSeasons, setContractSeasons] = useState(3)
 
   function openSigningModal(player) {
     setSigningPlayer(player)
     setSigningClubId('')
     setAgreedFee(player.market_value || 0)
     setFeeDisplay(((player.market_value || 0) / 1_000_000).toFixed(1))
+    setContractSeasons(3)
   }
 
   async function handleSign() {
     if (!signingPlayer || !signingClubId) return
     setProcessing(true)
     try {
-      const nextSaveData = await transferDraftPlayer(saveId, signingPlayer.id, signingClubId, agreedFee)
+      const nextSaveData = await transferDraftPlayer(saveId, signingPlayer.id, signingClubId, agreedFee, contractSeasons)
       setSaveData(nextSaveData)
       setSigningPlayer(null)
       setSigningClubId('')
@@ -2016,6 +2019,8 @@ export default function DraftSquadsTab() {
                 {[5, 10].map(amount => <button key={amount} type="button" onClick={() => { const value = agreedFee + amount * 1_000_000; setAgreedFee(value); setFeeDisplay((value / 1_000_000).toFixed(1)) }} className="h-9 rounded-lg border border-gray-200 px-2 text-xs font-bold text-gray-500 hover:border-[#FD5461] hover:text-[#FD5461]">+{amount}</button>)}
               </div>
             </div>
+
+            <ContractTermsPanel person={signingPlayer} seasons={contractSeasons} onSeasonsChange={setContractSeasons} />
 
             {(() => {
               const selectedTeam = saveData.teams.find(t => t.club_id === signingClubId)
