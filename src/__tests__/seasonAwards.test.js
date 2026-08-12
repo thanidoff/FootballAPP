@@ -43,6 +43,19 @@ describe('season awards', () => {
     expect(result.seasonAdjustments[0].performance.saves).toBe(110)
   })
 
+  it('gives low-scoring positions a seeded hidden-impact rating', () => {
+    const defender = { id: 'quiet-def', name: 'Quiet Defender', position: 'DEF', age: 25, ovr: 84, stats: { PAC: 82, SHO: 45, PAS: 80, DRI: 72, DEF: 89, PHY: 88 } }
+    const midfielder = { id: 'quiet-mf', name: 'Quiet Midfielder', position: 'MF', age: 25, ovr: 84, stats: { PAC: 80, SHO: 75, PAS: 91, DRI: 88, DEF: 82, PHY: 80 } }
+    const season = { id: 5, standings: [{ club_id: 'club' }], matches: [], stats: { performance: { 'quiet-def': { appearances: 20 }, 'quiet-mf': { appearances: 20 } } } }
+    const first = applySeasonalPlayerAdjustments([{ club_id: 'club', roster: [defender, midfielder], coaches: [] }], [], 'all', { season })
+    const second = applySeasonalPlayerAdjustments([{ club_id: 'club', roster: [defender, midfielder], coaches: [] }], [], 'all', { season })
+    expect(first.seasonAdjustments).toEqual(second.seasonAdjustments)
+    first.seasonAdjustments.forEach(adjustment => {
+      expect(adjustment.performance.simulatedImpact).toBeGreaterThan(0)
+      expect(adjustment.performance.matchRating).toBeGreaterThanOrEqual(5.5)
+    })
+  })
+
   it('selects annual and positional winners from combined competitions', () => {
     const stats = mergeSeasonStats({
       topScorers: { fwd: 8 }, topAssists: { fwd: 4 }, mostMvps: { fwd: 3, gk: 5 },

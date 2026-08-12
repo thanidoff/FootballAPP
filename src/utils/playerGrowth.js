@@ -60,11 +60,27 @@ function performanceDelta(player, metrics, random) {
   const assists = Number(metrics?.assists) || 0
   const mvps = Number(metrics?.mvps) || 0
   const group = positionGroup(player.position)
-  let individual = 0
-  if (group === 'GK') individual = (Number(metrics?.saves) || 0) / games * 0.55 + (Number(metrics?.cleanSheets) || 0) / games * 2.4 + mvps / games * 3.2
-  else if (group === 'DEF') individual = (Number(metrics?.defensiveActions) || 0) / games * 0.34 + (Number(metrics?.cleanSheets) || 0) / games * 1.6 + goals / games * 2.2 + assists / games * 1.4 + mvps / games * 2.4
-  else if (group === 'MF') individual = assists / games * 3.2 + goals / games * 2.1 + (Number(metrics?.chancesCreated) || 0) / games * 0.22 + (Number(metrics?.defensiveActions) || 0) / games * 0.13 + mvps / games * 2.5
-  else individual = goals / games * 3.5 + assists / games * 2.2 + (Number(metrics?.chancesCreated) || 0) / games * 0.12 + mvps / games * 2.5
+  const stats = normalizeStats(player.stats)
+  const roleQuality = group === 'GK'
+    ? stats.SAV * 0.55 + stats.GKA * 0.3 + stats.PAS * 0.15
+    : group === 'DEF'
+      ? stats.DEF * 0.5 + stats.PHY * 0.25 + stats.PAC * 0.15 + stats.PAS * 0.1
+      : group === 'MF'
+        ? stats.PAS * 0.35 + stats.DRI * 0.25 + stats.DEF * 0.18 + stats.PHY * 0.12 + stats.SHO * 0.1
+        : stats.SHO * 0.42 + stats.DRI * 0.25 + stats.PAC * 0.18 + stats.PAS * 0.15
+  // Hidden seasonal impact stands in for saves, interceptions, progressive
+  // passes and off-ball work that this lightweight match engine does not store.
+  // Averaging three rolls keeps most seasons ordinary while retaining rare hot/cold form.
+  const seasonalForm = ((random() + random() + random()) / 3 - 0.5) * 1.5
+  const hiddenImpact = Math.max(0.35, Math.min(2.15, 0.45 + roleQuality / 100 * 0.9 + seasonalForm))
+  let recordedImpact = 0
+  if (group === 'GK') recordedImpact = (Number(metrics?.saves) || 0) / games * 0.38 + (Number(metrics?.cleanSheets) || 0) / games * 1.5 + mvps / games * 2.5
+  else if (group === 'DEF') recordedImpact = (Number(metrics?.defensiveActions) || 0) / games * 0.24 + (Number(metrics?.cleanSheets) || 0) / games * 1.1 + goals / games * 1.5 + assists / games + mvps / games * 2
+  else if (group === 'MF') recordedImpact = assists / games * 2.2 + goals / games * 1.5 + (Number(metrics?.chancesCreated) || 0) / games * 0.15 + (Number(metrics?.defensiveActions) || 0) / games * 0.1 + mvps / games * 2
+  else recordedImpact = goals / games * 2.8 + assists / games * 1.7 + (Number(metrics?.chancesCreated) || 0) / games * 0.08 + mvps / games * 2
+  const individual = hiddenImpact * 0.65 + recordedImpact * 0.65
+  metrics.simulatedImpact = Number(hiddenImpact.toFixed(2))
+  metrics.matchRating = Number(Math.max(5.5, Math.min(9.5, 5.8 + individual * 1.35)).toFixed(1))
   const age = Number(player.age) || 25
   const ageCurve = age <= 20 ? 1.4 : age <= 23 ? 0.9 : age <= 27 ? 0.3 : age <= 30 ? 0 : age <= 33 ? -0.8 : -1.5
   const teamEffect = ((Number(metrics?.teamPerformance) || 0.5) - 0.5) * 0.8
