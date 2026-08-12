@@ -85,6 +85,7 @@ export default function DraftSquadsTab() {
   }, [suppressTransition])
 
   const [signingPlayer, setSigningPlayer] = useState(null)
+  const [signingKind, setSigningKind] = useState('player')
   const [signingClubId, setSigningClubId] = useState('')
   const [agreedFee, setAgreedFee] = useState(0)
   const [feeDisplay, setFeeDisplay] = useState('0.0')
@@ -96,13 +97,14 @@ export default function DraftSquadsTab() {
   const [renewalWage, setRenewalWage] = useState(0)
   const [renewalWageCustomized, setRenewalWageCustomized] = useState(false)
 
-  function openSigningModal(player) {
-    setSigningPlayer(player)
+  function openSigningModal(person, kind = 'player') {
+    setSigningPlayer(person)
+    setSigningKind(kind)
     setSigningClubId('')
-    setAgreedFee(player.market_value || 0)
-    setFeeDisplay(((player.market_value || 0) / 1_000_000).toFixed(1))
+    setAgreedFee(person.market_value || 0)
+    setFeeDisplay(((person.market_value || 0) / 1_000_000).toFixed(1))
     setContractSeasons(3)
-    setAnnualWage(annualWageFor(player))
+    setAnnualWage(annualWageFor(person))
     setWageCustomized(false)
   }
 
@@ -115,14 +117,16 @@ export default function DraftSquadsTab() {
     if (!signingPlayer || !signingClubId) return
     setProcessing(true)
     try {
-      const nextSaveData = await transferDraftPlayer(saveId, signingPlayer.id, signingClubId, agreedFee, contractSeasons, annualWage)
+      const nextSaveData = signingKind === 'coach'
+        ? await transferDraftCoach(saveId, signingPlayer.id, signingClubId, agreedFee, contractSeasons, annualWage)
+        : await transferDraftPlayer(saveId, signingPlayer.id, signingClubId, agreedFee, contractSeasons, annualWage)
       setSaveData(nextSaveData)
       setSigningPlayer(null)
       setSigningClubId('')
       toast.success(`${signingPlayer.name} transferred successfully`)
     } catch (error) {
-      console.error('Failed to transfer player', error)
-      toast.error('Failed to transfer player')
+      console.error(`Failed to transfer ${signingKind}`, error)
+      toast.error(error.message || `Failed to transfer ${signingKind}`)
     } finally {
       setProcessing(false)
     }
@@ -1462,6 +1466,16 @@ export default function DraftSquadsTab() {
                   }}
                   onEdit={() => setEditCoach(coach)}
                   onRelease={() => handleReleaseCoach(coach)}
+                  onSign={() => openSigningModal({
+                    ...coach,
+                    club: {
+                      id: team.club_id,
+                      name: team.club_name,
+                      short_name: team.short_name,
+                      badge_url: team.badge_url,
+                      badge_color: team.badge_color,
+                    },
+                  }, 'coach')}
                 />
               ))}
             </div>
@@ -2031,7 +2045,7 @@ export default function DraftSquadsTab() {
       </Modal>
 
       {/* Sign Player Modal */}
-      <Modal open={!!signingPlayer} onClose={() => { setSigningPlayer(null); setSigningClubId('') }} title="Sign Player" width="max-w-md">
+      <Modal open={!!signingPlayer} onClose={() => { setSigningPlayer(null); setSigningClubId('') }} title={signingKind === 'coach' ? 'Sign Coach' : 'Sign Player'} width="max-w-md">
         {signingPlayer && (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl p-4 flex items-center justify-between gap-3 border border-gray-100">
@@ -2071,7 +2085,7 @@ export default function DraftSquadsTab() {
               {/* OVR & Position Badge */}
               <div className="flex flex-col items-center gap-1 shrink-0">
                 <OvrBadge value={signingPlayer.ovr} size="md" />
-                <PositionBadge position={signingPlayer.position} />
+                <PositionBadge position={signingKind === 'coach' ? 'COACH' : signingPlayer.position} />
               </div>
             </div>
 
@@ -2090,7 +2104,7 @@ export default function DraftSquadsTab() {
                   id: t.club_id,
                   name: `${t.club_name}  ·  $${formatCurrency(t.budget)}  ·  ${t.roster?.length || 0} players`,
                   short_name: t.short_name || t.club_name.slice(0, 3).toUpperCase(),
-                  disabled: t.budget < 0,
+                  disabled: t.budget < 0 || (signingKind === 'coach' && (t.coaches?.length || 0) >= 2),
                 }))
               ]}
             />
