@@ -247,19 +247,25 @@ export default function DraftTransfersTab() {
         stats: form.stats,
         ovr,
         photo_url: form.photo?.preview || editCoach.photo_url || null,
-        club_id: editCoach.club?.id || editCoach.club_id || null,
+        club_id: form.club_id || null,
       }
+      delete updatedCoach.club
 
-      let newTeams = saveData.teams || []
-      let newFreeCoaches = saveData.freeAgentsCoaches || saveData.coaches || []
-
-      const targetClubId = editCoach.club?.id || editCoach.club_id
+      const targetClubId = form.club_id || null
+      let newTeams = (saveData.teams || []).map(item => ({
+        ...item,
+        coaches: (item.coaches || []).filter(coach => String(coach.id) !== String(editCoach.id)),
+      }))
+      let newFreeCoaches = (saveData.freeAgentsCoaches || saveData.coaches || []).filter(coach => String(coach.id) !== String(editCoach.id))
       if (targetClubId) {
-        newTeams = newTeams.map(item => item.club_id === targetClubId
-          ? { ...item, coaches: (item.coaches || []).map(c => String(c.id) === String(editCoach.id) ? updatedCoach : c) }
+        const target = newTeams.find(item => String(item.club_id) === String(targetClubId))
+        if (!target) throw new Error('Selected club is not available in this save')
+        if ((target.coaches || []).length >= 2) throw new Error('This club already has 2 coaches')
+        newTeams = newTeams.map(item => String(item.club_id) === String(targetClubId)
+          ? { ...item, coaches: [...item.coaches, updatedCoach] }
           : item)
       } else {
-        newFreeCoaches = newFreeCoaches.map(c => String(c.id) === String(editCoach.id) ? updatedCoach : c)
+        newFreeCoaches.push({ ...updatedCoach, club_id: null })
       }
 
       const nextState = {
@@ -274,6 +280,56 @@ export default function DraftTransfersTab() {
     } catch (err) {
       console.error('Failed to update coach in save', err)
       toast.error(err.message || 'Failed to update coach')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  async function handlePlayerUpdate(form) {
+    if (!editPlayer) return
+    setProcessing(true)
+    try {
+      const updatedPlayer = {
+        ...editPlayer,
+        name: form.name || editPlayer.name,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        nationality: form.nationality,
+        age: form.age,
+        position: form.position,
+        market_value: form.market_value,
+        stats: form.stats,
+        ovr: calculateOVR(form.position, form.stats),
+        photo_url: form.photo?.preview || editPlayer.photo_url || null,
+        club_id: form.club_id || null,
+      }
+      delete updatedPlayer.club
+
+      const sourceClubId = editPlayer.club?.id || editPlayer.club_id || null
+      const targetClubId = form.club_id || null
+      let newTeams = (saveData.teams || []).map(team => ({
+        ...team,
+        roster: (team.roster || []).filter(player => String(player.id) !== String(editPlayer.id)),
+      }))
+      let newFreeAgents = (saveData.freeAgents || []).filter(player => String(player.id) !== String(editPlayer.id))
+      if (targetClubId) {
+        const targetExists = newTeams.some(team => String(team.club_id) === String(targetClubId))
+        if (!targetExists) throw new Error('Selected club is not available in this save')
+        newTeams = newTeams.map(team => String(team.club_id) === String(targetClubId)
+          ? { ...team, roster: [...team.roster, updatedPlayer] }
+          : team)
+      } else {
+        newFreeAgents.push({ ...updatedPlayer, club_id: null })
+      }
+
+      const nextState = { ...saveData, teams: newTeams, freeAgents: newFreeAgents }
+      await updateDraftState(saveId, nextState)
+      setSaveData(nextState)
+      setEditPlayer(null)
+      toast.success(sourceClubId !== targetClubId ? 'Player updated and moved in this save' : 'Player updated in this save')
+    } catch (err) {
+      console.error('Failed to update player in save', err)
+      toast.error(err.message || 'Failed to update player')
     } finally {
       setProcessing(false)
     }
@@ -421,6 +477,20 @@ export default function DraftTransfersTab() {
       )}
 
       {/* Edit Coach Modal */}
+      <Modal
+        open={Boolean(editPlayer)}
+        onClose={() => setEditPlayer(null)}
+        title="Edit Player"
+        width="max-w-xl"
+      >
+        {editPlayer && <PlayerForm
+          initialValues={editPlayer}
+          onSubmit={handlePlayerUpdate}
+          loading={processing}
+          clubs={saveData.teams.map(team => ({ id: team.club_id, name: team.club_name, badge_url: team.badge_url, badge_color: team.badge_color }))}
+        />}
+      </Modal>
+
       <Modal
         open={Boolean(editCoach)}
         onClose={() => setEditCoach(null)}

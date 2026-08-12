@@ -16,8 +16,20 @@ import OvrBadge from '../ui/OvrBadge'
 const POS_COLORS = { GK: '#f59e0b', DEF: '#3b82f6', MF: '#22c55e', FWD: '#FD5461' }
 
 export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [], onDirtyChange }) {
+  const parseFormState = (values) => {
+    if (!values) return null
+    const nameParts = String(values.name || '').trim().split(/\s+/).filter(Boolean)
+    return {
+      ...values,
+      first_name: values.first_name ?? nameParts[0] ?? '',
+      last_name: values.last_name ?? nameParts.slice(1).join(' '),
+      club_id: values.club_id ?? values.club?.id ?? '',
+      photo: values.photo || (values.photo_url ? { preview: values.photo_url } : null),
+      stats: normalizeStats(values.stats),
+    }
+  }
   const [form, setForm] = useState(() => {
-    if (initialValues) return { ...initialValues, stats: normalizeStats(initialValues.stats) }
+    if (initialValues) return parseFormState(initialValues)
     const pos = 'FWD'
     return {
       first_name: '',
@@ -36,6 +48,14 @@ export default function PlayerForm({ initialValues, onSubmit, loading, clubs = [
     initialValues ? (initialValues.market_value / 1_000_000).toFixed(1) : ''
   )
   const initialSnapshot = useRef(JSON.stringify(initialValues ? { ...initialValues, stats: normalizeStats(initialValues.stats) } : null))
+
+  useEffect(() => {
+    if (!initialValues) return
+    const next = parseFormState(initialValues)
+    setForm(next)
+    setMvDisplay(((Number(initialValues.market_value) || 0) / 1_000_000).toFixed(1))
+    initialSnapshot.current = JSON.stringify(next)
+  }, [initialValues])
 
   useEffect(() => {
     onDirtyChange?.(JSON.stringify(form) !== initialSnapshot.current)

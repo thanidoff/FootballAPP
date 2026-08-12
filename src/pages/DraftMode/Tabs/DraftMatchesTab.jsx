@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
-import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
+import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, finalizeDraftSeasonAwards, updateDraftCupPrizeSettings, updateDraftSeasonPrizeSettings, updateDraftState } from '../../../services/draftSave'
 import { generateMockRoster, generateSchedule, simulateMatch } from '../../../utils/draftLogic'
 import { getSeasonMatchSize, normalizeMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
 import { applyExternalCompetitionIncome, processSeasonContracts } from '../../../utils/contracts'
@@ -854,17 +854,21 @@ export default function DraftMatchesTab() {
   async function handleStartNewSeason(teamIds, requestedMatchSize, nationalCupEnabled = false) {
     setProcessing(true)
     try {
+      const previousSeasonToClose = [...(saveData.settings?.seasons || [])].reverse().find(season => season.status === 'completed')
+      const workingSaveData = previousSeasonToClose
+        ? await finalizeDraftSeasonAwards(saveId, previousSeasonToClose.id)
+        : saveData
       const nextMatchSize = normalizeMatchSize(requestedMatchSize, seasonMatchSize)
       const schedule = generateSchedule(teamIds)
       
       // Reset team stats
-      const teamMap = new Map(saveData.teams.map(team => [team.club_id, team]))
+      const teamMap = new Map(workingSaveData.teams.map(team => [team.club_id, team]))
       const selectedIds = new Set(teamIds)
       const newTeams = [...teamMap.values()].map(t => selectedIds.has(t.club_id) ? ({
         ...t, stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
       }) : t)
 
-      const newSettings = { ...saveData.settings }
+      const newSettings = { ...workingSaveData.settings }
       const newSeasonId = (newSettings.seasons.length > 0 ? Math.max(...newSettings.seasons.map(s => s.id)) : 0) + 1
       const previousSeason = newSettings.seasons[newSettings.seasons.length - 1]
       const inheritedLeaguePrizes = {
@@ -883,7 +887,7 @@ export default function DraftMatchesTab() {
         ...(previousSeason?.cupMatchPrizes || previousCup?.matchPrizes || {}),
       }
       
-      const contracts = processSeasonContracts(newTeams, saveData.freeAgents || [], saveData.freeAgentsCoaches || [])
+      const contracts = processSeasonContracts(newTeams, workingSaveData.freeAgents || [], workingSaveData.freeAgentsCoaches || [])
       const external = applyExternalCompetitionIncome(contracts.teams, previousSeason, newSettings.cups || [])
       const { updatedTeams: adjustedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(external.teams, contracts.freeAgents)
       const updatedTeams = adjustedTeams.map(team => ({ ...team, roster: orderStartingLineup(team.roster || [], nextMatchSize) }))
@@ -909,7 +913,7 @@ export default function DraftMatchesTab() {
       })
 
       const newSaveData = {
-        ...saveData,
+        ...workingSaveData,
         teams: updatedTeams,
         freeAgents: updatedFreeAgents,
         freeAgentsCoaches: contracts.freeAgentsCoaches,

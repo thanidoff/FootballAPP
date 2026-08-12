@@ -57,12 +57,18 @@ function normalizeLeaguePrizes(prizes) {
   }
 }
 
-function finalizeAnnualAwards(saveData, seasonIndex) {
-  const season = saveData.settings?.seasons?.[seasonIndex]
-  if (!season || season.annualAwards?.finalizedAt) return
+function mergeExternalStatsOnce(saveData, season) {
+  if (season.externalStatsMergedAt) return
   const externalStats = season.externalPlayerStats || generateOutsideLeagueStats(saveData.teams || [], season)
   season.externalPlayerStats = externalStats
   season.stats = mergeSeasonStats(season.stats, externalStats)
+  season.externalStatsMergedAt = new Date().toISOString()
+}
+
+function finalizeAnnualAwards(saveData, seasonIndex) {
+  const season = saveData.settings?.seasons?.[seasonIndex]
+  if (!season || season.annualAwards?.finalizedAt) return
+  mergeExternalStatsOnce(saveData, season)
   const awards = calculateAnnualAwards(season.stats, saveData.teams || [], season, saveData.settings?.cups || [], saveData.settings?.nationalCups || [])
   const prizeSettings = normalizeLeaguePrizes(season.prizeSettings)
   const teams = (saveData.teams || []).map(team => ({ ...team }))
@@ -79,6 +85,43 @@ function finalizeAnnualAwards(saveData, seasonIndex) {
   season.prizePayouts = [...(season.prizePayouts || []), ...payouts]
   saveData.settings.seasons[seasonIndex] = season
   saveData.teams = teams
+}
+
+function finalizeStatLeaderAwards(saveData, seasonIndex) {
+  const season = saveData.settings?.seasons?.[seasonIndex]
+  if (!season || season.awardsPaidAt) return
+  mergeExternalStatsOnce(saveData, season)
+  const settings = normalizeLeaguePrizes(season.prizeSettings)
+  const teams = (saveData.teams || []).map(team => ({ ...team }))
+  const payouts = []
+  const labels = { topScorers: 'Top Scorer', topAssists: 'Top Assists', mostMvps: 'Most MVP' }
+  Object.entries(labels).forEach(([key, label]) => {
+    const entries = Object.entries(season.stats?.[key] || {})
+    const max = Math.max(0, ...entries.map(([, value]) => Number(value) || 0))
+    if (!max) return
+    entries.filter(([, value]) => Number(value) === max).forEach(([playerId]) => {
+      const clubId = season.stats?.playerSnapshots?.[playerId]?.club?.id
+      const team = teams.find(item => String(item.club_id) === String(clubId))
+      const amount = Math.max(0, Number(settings.awards[key]) || 0)
+      if (!team || !amount) return
+      team.budget = (team.budget || 0) + amount
+      payouts.push({ clubId: team.club_id, clubName: team.club_name, amount, type: 'player_award', label, playerId, scope: 'all_competitions' })
+    })
+  })
+  season.prizePayouts = [...(season.prizePayouts || []), ...payouts]
+  season.awardsPaidAt = new Date().toISOString()
+  saveData.settings.seasons[seasonIndex] = season
+  saveData.teams = teams
+}
+
+export async function finalizeDraftSeasonAwards(saveId, seasonId) {
+  const saveData = await loadDraftState(saveId)
+  const seasonIndex = (saveData.settings?.seasons || []).findIndex(season => String(season.id) === String(seasonId))
+  if (seasonIndex < 0) return saveData
+  finalizeStatLeaderAwards(saveData, seasonIndex)
+  finalizeAnnualAwards(saveData, seasonIndex)
+  await updateDraftState(saveId, saveData)
+  return loadDraftState(saveId)
 }
 
 function readLocalSaves() {
@@ -648,10 +691,12 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
           }
         })
 
-        const outsideStats = season.externalPlayerStats || generateOutsideLeagueStats(saveData.teams || [], season)
-        season.externalPlayerStats = outsideStats
-        const withOutsideStats = mergeSeasonStats(combined, outsideStats)
-        Object.assign(combined, withOutsideStats)
+        if (!season.externalStatsMergedAt) {
+          const outsideStats = season.externalPlayerStats || generateOutsideLeagueStats(saveData.teams || [], season)
+          season.externalPlayerStats = outsideStats
+          Object.assign(combined, mergeSeasonStats(combined, outsideStats))
+          season.externalStatsMergedAt = new Date().toISOString()
+        }
         const prizeSettings = normalizeLeaguePrizes(season.prizeSettings)
         const awardLabels = { topScorers: 'Top Scorer', topAssists: 'Top Assists', mostMvps: 'Most MVP' }
         const awardPayouts = []

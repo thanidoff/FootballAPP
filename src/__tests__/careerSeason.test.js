@@ -4,8 +4,11 @@ import { generateMockRoster, generateSchedule } from '../utils/draftLogic'
 import { applyExternalCompetitionIncome, processSeasonContracts, withDefaultContract } from '../utils/contracts'
 import {
   completeDraftCupMatch,
+  completeDraftNationalCupMatch,
   completeDraftMatch,
   createDraftState,
+  createDraftNationalCup,
+  finalizeDraftSeasonAwards,
   loadDraftState,
   transferDraftCoach,
   transferDraftPlayer,
@@ -337,6 +340,67 @@ describe('career transfer budget protection', () => {
     state = await transferDraftCoach(saveId, coach.id, 'free_agent', 0)
     expect(state.teams[0].coaches).toHaveLength(0)
     expect(state.freeAgentsCoaches.map(item => item.id)).toContain(coach.id)
+  })
+})
+
+describe('season reward closing', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('pays editable player and annual awards exactly once when a cup is skipped', async () => {
+    const teams = makeTeams(2)
+    const winner = teams[0].roster[0]
+    const saveId = await createDraftState({
+      name: 'Skipped cup rewards', teams, freeAgents: [], currentWeek: 1,
+      settings: { seasons: [{
+        id: 1, status: 'completed', teamIds: teams.map(team => team.club_id), champion: teams[0].club_id,
+        stats: {
+          topScorers: { [winner.id]: 9 }, topAssists: { [winner.id]: 7 }, mostMvps: { [winner.id]: 5 },
+          playerSnapshots: { [winner.id]: { ...winner, club: { id: teams[0].club_id, name: teams[0].club_name } } },
+        },
+        prizeSettings: { awards: { topScorers: 21_000_000, topAssists: 22_000_000, mostMvps: 23_000_000, ballonDor: 24_000_000, bestGK: 5_000_000, bestDEF: 6_000_000, bestMF: 7_000_000, bestFWD: 8_000_000 } },
+      }], cups: [] },
+    })
+    const before = teams[0].budget
+    let state = await finalizeDraftSeasonAwards(saveId, 1)
+    const afterFirst = state.teams[0].budget
+    expect(afterFirst).toBeGreaterThan(before)
+    expect(state.settings.seasons[0].prizePayouts.some(payout => payout.amount === 21_000_000)).toBe(true)
+    expect(state.settings.seasons[0].prizePayouts.some(payout => payout.amount === 24_000_000)).toBe(true)
+    state = await finalizeDraftSeasonAwards(saveId, 1)
+    expect(state.teams[0].budget).toBe(afterFirst)
+  })
+})
+
+describe('career national cup', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('uses the season match size and completes an 8-team tournament', async () => {
+    const nations = ['Argentina', 'Brazil', 'England', 'France', 'Germany', 'Italy', 'Japan', 'Thailand']
+    const roster = nations.flatMap((nationality, nationIndex) => ['FWD', 'MF', 'GK'].map((position, index) => ({
+      id: `${nationIndex}-${index}`, name: `${nationality} ${position}`, nationality, position,
+      ovr: 80 + nationIndex, overall: 80 + nationIndex, stats: { PAC: 80, SHO: 80, PAS: 80, DRI: 80, DEF: 80, PHY: 80, SAV: 80, GKA: 80 },
+    })))
+    const team = { club_id: 'career-club', club_name: 'Career Club', budget: 100_000_000, roster, stats: emptyStats() }
+    const saveId = await createDraftState({
+      name: 'National cup QA', teams: [team], freeAgents: [], currentWeek: 1,
+      settings: { seasons: [{ id: 1, status: 'active', nationalCupEnabled: true, matchSize: 3, teamIds: [], matches: [], stats: {} }], nationalCups: [] },
+    })
+    let state = await createDraftNationalCup(saveId, nations)
+    expect(state.settings.nationalCups[0].participants).toHaveLength(8)
+    expect(state.settings.nationalCups[0].participants.every(country => country.roster.length >= 3)).toBe(true)
+    expect(state.settings.nationalCups[0].participants.every(country => country.roster[2].position === 'GK')).toBe(true)
+    for (let round = 1; round <= 3; round += 1) {
+      state = await loadDraftState(saveId)
+      const matches = state.settings.nationalCups[0].rounds[round]
+      for (let index = 0; index < matches.length; index += 1) {
+        const home = state.settings.nationalCups[0].participants.find(country => country.id === matches[index].home)
+        await completeDraftNationalCupMatch(saveId, round, index, { homeScore: 1, awayScore: 0, events: [{ type: 'goal', player: home.roster[0] }], mvp: home.roster[0] })
+      }
+    }
+    state = await loadDraftState(saveId)
+    expect(state.settings.nationalCups[0].status).toBe('completed')
+    expect(state.settings.nationalCups[0].championPlayerIds).toHaveLength(3)
+    expect(state.settings.seasons[0].annualAwards.finalizedAt).toBeTruthy()
   })
 })
 
