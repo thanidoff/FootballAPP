@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { calculateAnnualAwards, generateOutsideLeagueStats, mergeSeasonStats } from '../utils/seasonAwards'
-import { applySeasonalPlayerAdjustments } from '../utils/playerGrowth'
+import { applySeasonalPlayerAdjustments, rollbackUnconfirmedSeasonalPlayerAdjustments } from '../utils/playerGrowth'
 
 const teams = [
   { club_id: 'league', club_name: 'League FC', roster: [{ id: 'fwd', name: 'Forward', position: 'FW', overall: 90 }, { id: 'gk', name: 'Keeper', position: 'GK', overall: 91 }] },
@@ -8,6 +8,28 @@ const teams = [
 ]
 
 describe('season awards', () => {
+  it('rolls back legacy auto-applied ratings until the user confirms them', () => {
+    const oldStats = { PAC: 80, SHO: 80, PAS: 80, DRI: 80, DEF: 80, PHY: 80, SAV: 50, GKA: 50 }
+    const newStats = { ...oldStats, SHO: 84 }
+    const saveData = {
+      teams: [{ club_id: 'club', roster: [{ id: 'p1', name: 'Player', position: 'FWD', stats: newStats, ovr: 82 }] }],
+      freeAgents: [],
+      settings: { seasons: [{ id: 2, status: 'active', seasonAdjustmentsLocked: false, seasonAdjustments: [{ playerId: 'p1', oldOvr: 80, newOvr: 82, oldStats, newStats }] }] },
+    }
+    const result = rollbackUnconfirmedSeasonalPlayerAdjustments(saveData)
+    expect(result.changed).toBe(true)
+    expect(result.restored).toBe(1)
+    expect(result.saveData.teams[0].roster[0]).toMatchObject({ ovr: 80, stats: oldStats })
+    expect(result.saveData.settings.seasons[0].seasonAdjustments).toEqual([])
+  })
+
+  it('keeps ratings that were explicitly saved', () => {
+    const saveData = { settings: { seasons: [{ status: 'active', seasonAdjustmentsLocked: true, seasonAdjustments: [{ playerId: 'p1' }] }] } }
+    const result = rollbackUnconfirmedSeasonalPlayerAdjustments(saveData)
+    expect(result.changed).toBe(false)
+    expect(result.saveData).toBe(saveData)
+  })
+
   it('generates stable outside-league statistics without including league clubs', () => {
     const season = { id: 2, teamIds: ['league'] }
     const first = generateOutsideLeagueStats(teams, season)

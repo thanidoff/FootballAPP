@@ -4,6 +4,7 @@ import { fetchCoaches } from './coaches'
 import { annualWageFor, contractFeeFor, withDefaultContract } from '../utils/contracts'
 import { ANNUAL_AWARD_DEFINITIONS, calculateAnnualAwards, generateOutsideLeagueStats, mergeSeasonStats } from '../utils/seasonAwards'
 import { getSeasonMatchSize, orderStartingLineup } from '../utils/matchFormat'
+import { rollbackUnconfirmedSeasonalPlayerAdjustments } from '../utils/playerGrowth'
 
 const STORAGE_KEY = 'football_manager_career_saves'
 export const MAX_CAREER_SAVES = 5
@@ -373,6 +374,12 @@ export async function loadDraftState(saveId, options = {}) {
       cups: saveData.settings.cups.map(cup => cup.seasonId == null ? { ...cup, seasonId: latestSeason.id } : cup),
     }
     updateDraftState(saveId, saveData).catch(e => console.error('Cup season migration failed', e))
+  }
+
+  const ratingsRollback = rollbackUnconfirmedSeasonalPlayerAdjustments(saveData)
+  if (ratingsRollback.changed) {
+    saveData = ratingsRollback.saveData
+    updateDraftState(saveId, saveData).catch(e => console.error('Unconfirmed ratings rollback failed', e))
   }
 
   careerCache.set(saveId, cloneCareerSnapshot(saveData))

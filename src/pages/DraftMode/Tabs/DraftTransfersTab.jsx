@@ -72,13 +72,20 @@ export default function DraftTransfersTab() {
   const coachSeasonAdjustments = activeSeason?.coachSeasonAdjustments || []
   const isGrowthLocked = activeSeason?.seasonAdjustmentsLocked || false
 
+  const growthSourceSeason = (() => {
+    const seasons = saveData?.settings?.seasons || []
+    const index = seasons.findIndex(season => String(season.id) === String(activeSeason?.id))
+    return index > 0 ? seasons[index - 1] : null
+  })()
+
   function handleReshufflePreview(customCount) {
-    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], customCount)
+    if (isGrowthLocked) return
+    const result = applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], customCount, { season: growthSourceSeason })
     setPreviewGrowthData(result)
   }
 
   async function handleConfirmSaveRatings() {
-    const target = previewGrowthData || (seasonAdjustments.length === 0 ? applySeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || []) : null)
+    const target = previewGrowthData
     if (!target) return
 
     try {
@@ -472,7 +479,7 @@ export default function DraftTransfersTab() {
               variant="outline"
               size="sm"
               onClick={() => {
-                handleReshufflePreview(30)
+                if (!isGrowthLocked) handleReshufflePreview(30)
                 setGrowthModalOpen(true)
               }}
               className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-[#FD5461] border-[#FD5461]/30 hover:bg-red-50/50"

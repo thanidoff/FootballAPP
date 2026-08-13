@@ -4,7 +4,6 @@ import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_CUP_PRIZES, DEFAULT_LEAGUE_PRIZES, fi
 import { generateMockRoster, generateSchedule, simulateMatch } from '../../../utils/draftLogic'
 import { getSeasonMatchSize, normalizeMatchSize, orderStartingLineup } from '../../../utils/matchFormat'
 import { applyExternalCompetitionIncome, processSeasonContracts } from '../../../utils/contracts'
-import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
 import LeagueSetupModal from '../../../components/matches/LeagueSetupModal'
@@ -804,8 +803,6 @@ export default function DraftMatchesTab() {
         stats: { PTS: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0 }
       }) : t)
 
-      const { updatedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(newTeams, saveData.freeAgents || [])
-
       const newSettings = { ...saveData.settings }
       const initialLeaguePrizes = saveData.settings?.customPrizes || DEFAULT_LEAGUE_PRIZES
       newSettings.seasons = [{
@@ -815,7 +812,8 @@ export default function DraftMatchesTab() {
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
-        seasonAdjustments,
+        seasonAdjustments: [],
+        seasonAdjustmentsLocked: false,
         prizeSettings: {
           placements: [...(initialLeaguePrizes.placements || DEFAULT_LEAGUE_PRIZES.placements)],
           awards: { ...DEFAULT_LEAGUE_PRIZES.awards, ...(initialLeaguePrizes.awards || {}) },
@@ -832,8 +830,8 @@ export default function DraftMatchesTab() {
 
       const newSaveData = {
         ...saveData,
-        teams: updatedTeams,
-        freeAgents: updatedFreeAgents,
+        teams: newTeams,
+        freeAgents: saveData.freeAgents || [],
         settings: newSettings,
         currentWeek: 1
       }
@@ -889,8 +887,7 @@ export default function DraftMatchesTab() {
       
       const contracts = processSeasonContracts(newTeams, workingSaveData.freeAgents || [], workingSaveData.freeAgentsCoaches || [])
       const external = applyExternalCompetitionIncome(contracts.teams, previousSeason, newSettings.cups || [])
-      const { updatedTeams: adjustedTeams, updatedFreeAgents, seasonAdjustments } = applySeasonalPlayerAdjustments(external.teams, contracts.freeAgents, 'all', { season: previousSeason })
-      const updatedTeams = adjustedTeams.map(team => ({ ...team, roster: orderStartingLineup(team.roster || [], nextMatchSize) }))
+      const updatedTeams = external.teams.map(team => ({ ...team, roster: orderStartingLineup(team.roster || [], nextMatchSize) }))
 
       newSettings.seasons.push({
         id: newSeasonId,
@@ -899,7 +896,8 @@ export default function DraftMatchesTab() {
         teamIds,
         matches: schedule,
         stats: { topScorers: {}, topAssists: {}, mostMvps: {} },
-        seasonAdjustments,
+        seasonAdjustments: [],
+        seasonAdjustmentsLocked: false,
         prizeSettings: inheritedLeaguePrizes,
         cupPrizeSettings: inheritedCupPrizes,
         cupMatchPrizes: inheritedCupMatchPrizes,
@@ -915,7 +913,7 @@ export default function DraftMatchesTab() {
       const newSaveData = {
         ...workingSaveData,
         teams: updatedTeams,
-        freeAgents: updatedFreeAgents,
+        freeAgents: contracts.freeAgents,
         freeAgentsCoaches: contracts.freeAgentsCoaches,
         settings: newSettings,
         currentWeek: 1

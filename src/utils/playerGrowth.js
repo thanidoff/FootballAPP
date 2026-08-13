@@ -201,6 +201,46 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
   }
 }
 
+// Older saves wrote a generated ratings preview into the roster as soon as a
+// season started. Unconfirmed previews must be reversible: ratings only become
+// real after the user presses Save Ratings in the growth modal.
+export function rollbackUnconfirmedSeasonalPlayerAdjustments(saveData) {
+  const seasons = saveData?.settings?.seasons || []
+  const seasonIndex = seasons.findIndex(season => season.status === 'active')
+  const targetIndex = seasonIndex >= 0 ? seasonIndex : seasons.length - 1
+  const season = seasons[targetIndex]
+  const adjustments = season?.seasonAdjustments || []
+  if (!season || season.seasonAdjustmentsLocked === true || adjustments.length === 0) {
+    return { saveData, changed: false }
+  }
+
+  const rollbackById = new Map(adjustments.map(adjustment => [String(adjustment.playerId), adjustment]))
+  let restored = 0
+  const restorePlayer = player => {
+    const adjustment = rollbackById.get(String(player.id))
+    if (!adjustment?.oldStats || !adjustment?.newStats) return player
+    if (Number(player.ovr) !== Number(adjustment.newOvr)) return player
+    restored += 1
+    return { ...player, stats: { ...adjustment.oldStats }, ovr: adjustment.oldOvr }
+  }
+
+  const nextSeasons = seasons.map((item, index) => index === targetIndex
+    ? { ...item, seasonAdjustments: [], seasonAdjustmentsLocked: false }
+    : item)
+  const nextTeams = (saveData.teams || []).map(team => ({ ...team, roster: (team.roster || []).map(restorePlayer) }))
+  const nextFreeAgents = (saveData.freeAgents || []).map(restorePlayer)
+  return {
+    changed: true,
+    restored,
+    saveData: {
+      ...saveData,
+      teams: nextTeams,
+      freeAgents: nextFreeAgents,
+      settings: { ...saveData.settings, seasons: nextSeasons },
+    },
+  }
+}
+
 export function applySeasonalCoachAdjustments(teams = [], freeAgents = [], count = 'all') {
   const entries = [
     ...teams.flatMap(team => (team.coaches || []).map(coach => ({ coach, teamId: team.club_id, clubName: team.club_name, clubBadge: team.badge_url }))),
