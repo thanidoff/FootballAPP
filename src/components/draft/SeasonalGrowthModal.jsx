@@ -17,6 +17,7 @@ export default function SeasonalGrowthModal({
   onReshufflePreview,
   onConfirmSave,
   entityLabel = 'Player',
+  saveData = null,
 }) {
   const entityPlural = entityLabel === 'Coach' ? 'Coaches' : `${entityLabel}s`
   const [selectedPlayer, setSelectedPlayer] = useState(null)
@@ -261,7 +262,9 @@ export default function SeasonalGrowthModal({
       {/* Player Profile Details Modal */}
       {selectedPlayer && (
         <PlayerProfileModal
+          open
           player={selectedPlayer}
+          saveData={saveData}
           onClose={() => setSelectedPlayer(null)}
         />
       )}

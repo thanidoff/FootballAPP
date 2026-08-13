@@ -749,6 +749,7 @@ export default function DraftTransfersTab() {
         isLocked={isGrowthLocked}
         onReshufflePreview={handleReshufflePreview}
         onConfirmSave={handleConfirmSaveRatings}
+        saveData={saveData}
       />
 
       <SeasonalGrowthModal

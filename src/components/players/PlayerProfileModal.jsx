@@ -8,6 +8,7 @@ import { STATS_BY_POSITION } from '../../utils/stats'
 import Spinner from '../ui/Spinner'
 import { Trophy } from 'lucide-react'
 import { ArrowLeft } from 'lucide-react'
+import { buildDraftPlayerProfileData, resolveDraftPlayer } from '../../utils/draftPlayerProfile'
 
 const NATION_CODE = Object.fromEntries(FIFA_NATIONS.map(n => [n.name, n.code]))
 
@@ -41,7 +42,7 @@ function ClubBadge({ club, size = 'sm' }) {
   )
 }
 
-export default function PlayerProfileModal({ player, open, onClose, onEdit, onRelease, historyLoader = fetchPlayerHistory, editing = false, editContent, onBackEdit }) {
+export default function PlayerProfileModal({ player, open, onClose, onEdit, onRelease, historyLoader = fetchPlayerHistory, saveData = null, editing = false, editContent, onBackEdit }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('stats') // 'stats' | 'history' | 'awards'
@@ -49,16 +50,20 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
   useEffect(() => {
     if (open && player) {
       setLoading(true)
-      historyLoader(player.id)
+      const loader = saveData
+        ? Promise.resolve(buildDraftPlayerProfileData(saveData, player.id))
+        : historyLoader(player.id)
+      loader
         .then(setData)
         .finally(() => setLoading(false))
     }
-  }, [historyLoader, open, player])
+  }, [historyLoader, open, player, saveData])
 
   if (!player) return null
 
-  const flagCode = FIFA_NATIONS.find(n => n.name === player.nationality)?.code
-  const statKeys = STATS_BY_POSITION[player.position] || []
+  const shownPlayer = saveData ? resolveDraftPlayer(saveData, player) : player
+  const flagCode = FIFA_NATIONS.find(n => n.name === shownPlayer.nationality)?.code
+  const statKeys = STATS_BY_POSITION[shownPlayer.position] || []
 
   return (
     <Modal open={open} onClose={onClose} title={editing ? <span className="flex items-center gap-2"><button type="button" onClick={onBackEdit} className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-slate-100 hover:text-[#0A1318]" aria-label="Back to player profile"><ArrowLeft size={19} /></button><span>Edit Player</span></span> : 'Player Profile'} width="max-w-2xl">
@@ -67,41 +72,41 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
         {/* Photo and Basic Info */}
         <div className="flex flex-col items-center gap-2 flex-shrink-0">
           <div className="w-28 h-28 rounded-2xl overflow-hidden">
-            {player.photo_url ? (
-              <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" />
+            {shownPlayer.photo_url ? (
+              <img src={shownPlayer.photo_url} alt={shownPlayer.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-4xl font-heading font-black text-gray-300 bg-gray-100 rounded-2xl">
-                {player.name.charAt(0)}
+                {shownPlayer.name.charAt(0)}
               </div>
             )}
           </div>
           <div className={`w-12 h-10 rounded-xl flex flex-col items-center justify-center -mt-6 z-10 shadow-md border-2 border-white
-            ${player.ovr >= 85 ? 'bg-[#FD5461] text-white' : player.ovr >= 75 ? 'bg-[#0A1318] text-white' : 'bg-gray-400 text-white'}`}>
-            <span className="text-sm font-bold leading-none">{player.ovr}</span>
-            <span className="text-[7px] font-black uppercase tracking-tighter opacity-80 mt-0.5">{player.position}</span>
+            ${shownPlayer.ovr >= 85 ? 'bg-[#FD5461] text-white' : shownPlayer.ovr >= 75 ? 'bg-[#0A1318] text-white' : 'bg-gray-400 text-white'}`}>
+            <span className="text-sm font-bold leading-none">{shownPlayer.ovr}</span>
+            <span className="text-[7px] font-black uppercase tracking-tighter opacity-80 mt-0.5">{shownPlayer.position}</span>
           </div>
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="min-w-0">
-              <h2 className="text-2xl font-heading font-black uppercase tracking-tight text-gray-900 truncate">{player.name}</h2>
+              <h2 className="text-2xl font-heading font-black uppercase tracking-tight text-gray-900 truncate">{shownPlayer.name}</h2>
               <div className="flex items-center gap-3 mt-2">
                 <div className="flex items-center gap-1.5">
                   {flagCode && <img src={`https://flagcdn.com/${flagCode}.svg`} className="h-3 w-5 object-cover rounded-sm" alt="" />}
-                  <span className="text-sm font-medium text-gray-600">{player.nationality}</span>
+                  <span className="text-sm font-medium text-gray-600">{shownPlayer.nationality}</span>
                 </div>
                 <span className="w-1 h-1 rounded-full bg-gray-300" />
-                <span className="text-sm font-medium text-gray-600">{player.age} years old</span>
+                <span className="text-sm font-medium text-gray-600">{shownPlayer.age} years old</span>
                 <span className="w-1 h-1 rounded-full bg-gray-300" />
-                <PositionBadge position={player.position} />
+                <PositionBadge position={shownPlayer.position} />
               </div>
             </div>
 
             <div className="flex gap-2">
               {onEdit && (
                 <button
-                  onClick={() => { if (editContent) onEdit(player); else { onClose(); onEdit(player) } }}
+                  onClick={() => { if (editContent) onEdit(shownPlayer); else { onClose(); onEdit(shownPlayer) } }}
                   className="p-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                   title="Edit Player"
                 >
@@ -113,7 +118,7 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
               )}
               {onRelease && (
                 <button
-                  onClick={() => { onClose(); onRelease(player) }}
+                  onClick={() => { onClose(); onRelease(shownPlayer) }}
                   className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
                   title="Release Player"
                 >
@@ -131,16 +136,16 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
             <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
               <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 block mb-1">Current Club</span>
               <div className="flex items-center gap-2">
-                <ClubBadge club={player.club} size="sm" />
+                <ClubBadge club={shownPlayer.club} size="sm" />
                 <span className="font-heading font-bold text-sm text-gray-900 truncate">
-                  {player.club ? player.club.name : 'Free Agent'}
+                  {shownPlayer.club ? shownPlayer.club.name : 'Free Agent'}
                 </span>
               </div>
             </div>
             <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
               <span className="text-[10px] font-heading font-black uppercase tracking-widest text-gray-400 block mb-1">Market Value</span>
               <span className="font-heading font-black text-lg text-gray-900">
-                ${new Intl.NumberFormat().format(player.market_value)}
+                ${new Intl.NumberFormat().format(shownPlayer.market_value)}
               </span>
             </div>
           </div>
@@ -168,7 +173,7 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
         {tab === 'stats' && (
           <div className="grid grid-cols-1 gap-y-3">
             {statKeys.map(key => (
-              <StatBar key={key} label={key} value={player.stats[key]} />
+              <StatBar key={key} label={key} value={shownPlayer.stats?.[key] || 0} />
             ))}
           </div>
         )}
@@ -236,7 +241,7 @@ export default function PlayerProfileModal({ player, open, onClose, onEdit, onRe
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 font-medium mr-1">Achieved with</span>
                     <ClubBadge club={a.club} size="sm" />
-                    <span className="text-xs font-heading font-bold text-gray-700">{a.club.short_name}</span>
+                    <span className="text-xs font-heading font-bold text-gray-700">{a.club?.short_name || a.club?.name || '—'}</span>
                   </div>
                 </div>
               ))

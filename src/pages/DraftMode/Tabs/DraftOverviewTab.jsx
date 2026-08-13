@@ -486,7 +486,7 @@ export default function DraftOverviewTab() {
         </div>
       </div>
 
-      <PlayerProfileModal open={Boolean(selectedPlayer)} player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
+      <PlayerProfileModal open={Boolean(selectedPlayer)} player={selectedPlayer} saveData={saveData} onClose={() => setSelectedPlayer(null)} />
       <SeasonalGrowthModal
         open={growthModalOpen}
         onClose={() => {
@@ -498,6 +498,7 @@ export default function DraftOverviewTab() {
         isLocked={isGrowthLocked}
         onReshufflePreview={handleReshufflePreview}
         onConfirmSave={handleConfirmSaveRatings}
+        saveData={saveData}
       />
     </>
   )

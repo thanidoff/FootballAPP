@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { DEFAULT_CUP_MATCH_PRIZES, DEFAULT_LEAGUE_PRIZES, updateDraftState } from '../../../services/draftSave'
 import { fetchClubs } from '../../../services/clubs'
@@ -1221,39 +1221,6 @@ export default function DraftSquadsTab() {
     return logsWithBalance
   }, [team, seasons, cups, saveData])
 
-  const loadSavePlayerHistory = useCallback(async (playerId) => {
-    const id = String(playerId)
-    const historyByClub = new Map()
-    const awards = []
-    const currentClub = saveData.teams.find(item => (item.roster || []).some(player => String(player.id) === id))
-    const fallbackClub = currentClub ? { id: currentClub.club_id, name: currentClub.club_name, short_name: currentClub.short_name || currentClub.club_name?.slice(0, 3).toUpperCase(), badge_url: currentClub.badge_url, badge_color: currentClub.badge_color } : null
-    const ensureHistory = club => {
-      if (!club) return null
-      const key = String(club.id)
-      if (!historyByClub.has(key)) historyByClub.set(key, { club, stats: { goal: 0, assist: 0, mvp: 0, yellow_card: 0, red_card: 0 } })
-      return historyByClub.get(key)
-    }
-    seasons.forEach((season, seasonIndex) => {
-      const snapshot = season.stats?.playerSnapshots?.[playerId] || season.stats?.playerSnapshots?.[id]
-      const club = snapshot?.club || fallbackClub
-      const history = ensureHistory(club)
-      if (history) {
-        history.stats.goal += season.stats?.topScorers?.[playerId] || season.stats?.topScorers?.[id] || 0
-        history.stats.assist += season.stats?.topAssists?.[playerId] || season.stats?.topAssists?.[id] || 0
-        history.stats.mvp += season.stats?.mostMvps?.[playerId] || season.stats?.mostMvps?.[id] || 0
-        ;(season.matches || []).forEach(week => (week.matches || []).forEach(match => (match.events || []).forEach(event => {
-          if (event.type !== 'foul' || String(event.player?.id) !== id) return
-          history.stats[event.card === 'red' ? 'red_card' : 'yellow_card'] += 1
-        })))
-      }
-      ;[['topScorers', 'top_scorer'], ['topAssists', 'top_assist'], ['mostMvps', 'most_mvp']].forEach(([key, awardType]) => {
-        const entries = Object.entries(season.stats?.[key] || {}).sort((a, b) => b[1] - a[1])
-        if (entries[0] && String(entries[0][0]) === id && entries[0][1] > 0 && club) awards.push({ season_name: `Season ${seasonIndex + 1}`, award_type: awardType, club })
-      })
-    })
-    return { history: [...historyByClub.values()], awards }
-  }, [saveData.teams, seasons])
-
   const teamItemRefs = useRef(new Map())
 
   useEffect(() => {
@@ -2030,7 +1997,7 @@ export default function DraftSquadsTab() {
           <div className="mt-5 shrink-0 border-t border-gray-100 bg-white pt-4"><Button className="w-full" onClick={saveManagedClubs} disabled={processing || loadingClubs || !managedClubIds.length}>{processing ? 'Saving...' : `Save ${managedClubIds.length} clubs`}</Button></div>
         </div>
       </Modal>
-      <PlayerProfileModal player={profilePlayer} open={Boolean(profilePlayer)} onClose={() => requestLeavePlayerEditor('close')} onEdit={openPlayerEditor} onRelease={openReleaseModal} historyLoader={loadSavePlayerHistory} editing={Boolean(editPlayer)} onBackEdit={() => requestLeavePlayerEditor('back')} editContent={editPlayer ? <PlayerForm key={editPlayer.id} initialValues={editPlayerInitial} onSubmit={handlePlayerUpdate} onDirtyChange={setEditDirty} loading={processing} clubs={[{ id: team.club_id, name: team.club_name, short_name: team.short_name, badge_url: team.badge_url, badge_color: team.badge_color }]} /> : null} />
+      <PlayerProfileModal player={profilePlayer} open={Boolean(profilePlayer)} saveData={saveData} onClose={() => requestLeavePlayerEditor('close')} onEdit={openPlayerEditor} onRelease={openReleaseModal} editing={Boolean(editPlayer)} onBackEdit={() => requestLeavePlayerEditor('back')} editContent={editPlayer ? <PlayerForm key={editPlayer.id} initialValues={editPlayerInitial} onSubmit={handlePlayerUpdate} onDirtyChange={setEditDirty} loading={processing} clubs={[{ id: team.club_id, name: team.club_name, short_name: team.short_name, badge_url: team.badge_url, badge_color: team.badge_color }]} /> : null} />
       <Modal open={Boolean(discardAction)} onClose={() => setDiscardAction(null)} title="Discard unsaved changes?">
         <p className="text-sm text-gray-500">Your edits have not been saved. If you go back now, these changes will be lost.</p>
         <div className="mt-6 flex justify-end gap-3"><Button variant="outline" onClick={() => setDiscardAction(null)}>Keep editing</Button><Button onClick={confirmDiscardPlayerChanges}>Discard changes</Button></div>

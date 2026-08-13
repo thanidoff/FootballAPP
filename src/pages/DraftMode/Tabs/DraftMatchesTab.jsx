@@ -1471,7 +1471,7 @@ export default function DraftMatchesTab() {
         <SeasonRewardSummary season={seasonData} cup={seasonCup} allPlayers={allPlayers} teams={saveData.teams || []} onContinue={() => { setRewardSummaryOpen(false); setNewSeasonSetupOpen(true) }} />
       </Modal>
 
-      <PlayerProfileModal open={Boolean(selectedPlayer)} player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
+      <PlayerProfileModal open={Boolean(selectedPlayer)} player={selectedPlayer} saveData={saveData} onClose={() => setSelectedPlayer(null)} />
     </div>
   )
 }
