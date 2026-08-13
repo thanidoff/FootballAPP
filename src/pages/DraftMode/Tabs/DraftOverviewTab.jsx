@@ -139,10 +139,22 @@ export default function DraftOverviewTab() {
       })
     }
 
-    const scopedSeasons = statScope === 'league' ? (activeSeason ? [activeSeason] : []) : seasons
-    scopedSeasons.forEach(season => (season.matches || []).forEach(week => (week.matches || []).forEach(match => processEvents(match.events))))
+    const selectedSeasonIds = new Set((statScope === 'league' ? (activeSeason ? [activeSeason] : []) : seasons).map(season => String(season.id)))
+    const processMatch = match => {
+      if (!match?.played) return
+      processEvents(match.events)
+    }
+    seasons
+      .filter(season => selectedSeasonIds.has(String(season.id)))
+      .forEach(season => (season.matches || []).forEach(week => (week.matches || []).forEach(processMatch)))
+    ;[...(saveData.settings?.cups || []), ...(saveData.settings?.nationalCups || [])]
+      .filter(competition => selectedSeasonIds.has(String(competition.seasonId)))
+      .forEach(competition => Object.values(competition.rounds || {}).flat().filter(Boolean).forEach(processMatch))
 
-    const eligibleTeams = statScope === 'league' ? leagueTeams : (saveData.teams || [])
+    // A season leaderboard covers league, club cups, national cups and simulated
+    // outside-league results. Limiting candidates to league clubs hides valid cup
+    // and international performers whose clubs are not in the domestic league.
+    const eligibleTeams = saveData.teams || []
     const positionByClub = new Map(standings.map((team, index) => [String(team.club_id), index]))
     const seen = new Set()
     const eligiblePlayers = [
@@ -369,7 +381,7 @@ export default function DraftOverviewTab() {
               </div>
               {featureView === 'leaders' && (
                 <div className="mt-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex gap-1 overflow-x-auto hide-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">{STAT_FILTERS.map(filter => <button key={filter.key} onClick={() => setStatFilter(filter.key)} className={`min-h-9 cursor-pointer whitespace-nowrap rounded-full px-4 text-xs font-medium transition-colors ${statFilter === filter.key ? 'bg-[#FD5461] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{filter.label}</button>)}</div><div className="w-52"><Select value={statScope} onChange={event => setStatScope(event.target.value)} reserveErrorSpace={false} className="min-h-10 rounded-xl py-1.5 text-sm"><option value="league">This season (League & Cup)</option><option value="career">All seasons</option></Select></div></div>
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex gap-1 overflow-x-auto hide-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">{STAT_FILTERS.map(filter => <button key={filter.key} onClick={() => setStatFilter(filter.key)} className={`min-h-9 cursor-pointer whitespace-nowrap rounded-full px-4 text-xs font-medium transition-colors ${statFilter === filter.key ? 'bg-[#FD5461] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{filter.label}</button>)}</div><div className="w-52"><Select value={statScope} onChange={event => setStatScope(event.target.value)} reserveErrorSpace={false} className="min-h-10 rounded-xl py-1.5 text-sm"><option value="league">This season (All competitions)</option><option value="career">All seasons</option></Select></div></div>
                   <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 transition-colors focus-within:border-[#FD5461]"><Search size={16} className="shrink-0 text-gray-400" /><input value={leaderSearch} onChange={event => setLeaderSearch(event.target.value)} placeholder="Search players or clubs..." className="ui-inner-input min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400" /></label>
                 </div>
               )}
