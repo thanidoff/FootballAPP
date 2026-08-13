@@ -26,6 +26,8 @@ export function aggregateCareerLeaderStats({ seasons = [], cups = [], nationalCu
   const selectedIds = new Set((seasonId == null ? seasons : seasons.filter(season => String(season.id) === String(seasonId))).map(season => String(season.id)))
   const seasonById = new Map(seasons.map(season => [String(season.id), season]))
   const rebuiltSeasonIds = new Set()
+  const fallbackSeasonId = [...seasons].reverse().find(season => selectedIds.has(String(season.id)))?.id
+  const competitionSeasonId = competition => String(competition.seasonId ?? fallbackSeasonId ?? '')
 
   seasons.filter(season => selectedIds.has(String(season.id))).forEach(season => {
     const leagueMatches = (season.matches || []).flatMap(week => week.matches || []).filter(match => match?.played)
@@ -48,18 +50,19 @@ export function aggregateCareerLeaderStats({ seasons = [], cups = [], nationalCu
   // flow. Only live competitions need to be layered on top of that canonical
   // snapshot, which also keeps older saves whose match events are incomplete.
   const needsLiveLayer = competition => {
-    if (!selectedIds.has(String(competition.seasonId))) return false
+    const resolvedSeasonId = competitionSeasonId(competition)
+    if (!selectedIds.has(resolvedSeasonId)) return false
     if (competition.status !== 'completed') return true
     if (competition.statsMergedAt) return false
-    const season = seasonById.get(String(competition.seasonId))
+    const season = seasonById.get(resolvedSeasonId)
     // Legacy recovery: the old settlement flow skipped merging a club cup when
     // league awards had already been paid before that cup was completed.
     const awardsAt = Date.parse(season?.awardsPaidAt || '')
     const completedAt = Date.parse(competition.completedAt || '')
     return Number.isFinite(awardsAt) && Number.isFinite(completedAt) && completedAt >= awardsAt
   }
-  cups.filter(cup => rebuiltSeasonIds.has(String(cup.seasonId)) || needsLiveLayer(cup)).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
-  nationalCups.filter(cup => rebuiltSeasonIds.has(String(cup.seasonId)) || (cup.status !== 'completed' && selectedIds.has(String(cup.seasonId)))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
+  cups.filter(cup => rebuiltSeasonIds.has(competitionSeasonId(cup)) || needsLiveLayer(cup)).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
+  nationalCups.filter(cup => rebuiltSeasonIds.has(competitionSeasonId(cup)) || (cup.status !== 'completed' && selectedIds.has(competitionSeasonId(cup)))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
 
   return metrics
 }

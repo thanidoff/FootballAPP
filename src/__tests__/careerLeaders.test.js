@@ -68,7 +68,7 @@ describe('career leader aggregation', () => {
         stats: { topScorers: { 'league-player': 99 } },
       }],
       cups: [{
-        seasonId: 1,
+        seasonId: null,
         status: 'completed',
         statsMergedAt: '2026-01-02T00:00:00.000Z',
         rounds: { 1: [match([goal('noel-noa'), goal('noel-noa'), goal('noel-noa')], 'noel-noa')] },

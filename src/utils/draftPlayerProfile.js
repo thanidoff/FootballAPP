@@ -32,6 +32,8 @@ export function buildDraftPlayerProfileData(saveData, playerId) {
   const currentTeam = (saveData?.teams || []).find(team => (team.roster || []).some(player => String(player.id) === id))
   const fallbackClub = clubView(currentTeam)
   const history = new Map()
+  const fallbackSeasonId = seasons[seasons.length - 1]?.id
+  const competitionSeasonId = competition => String(competition.seasonId ?? fallbackSeasonId ?? '')
 
   const ensureHistory = club => {
     if (!club) return null
@@ -86,8 +88,8 @@ export function buildDraftPlayerProfileData(saveData, playerId) {
 
   seasons.forEach(season => {
     ;(season.matches || []).forEach(week => (week.matches || []).forEach(match => includeMatch(match, season.id)))
-    cups.filter(cup => String(cup.seasonId) === String(season.id)).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(match, season.id, cup)))
-    nationalCups.filter(cup => String(cup.seasonId) === String(season.id)).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(match, season.id, cup)))
+    cups.filter(cup => competitionSeasonId(cup) === String(season.id)).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(match, season.id, cup)))
+    nationalCups.filter(cup => competitionSeasonId(cup) === String(season.id)).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(match, season.id, cup)))
 
     const totals = aggregateCareerLeaderStats({ seasons, cups, nationalCups, seasonId: season.id })
     const raw = rawTotal(season.id)

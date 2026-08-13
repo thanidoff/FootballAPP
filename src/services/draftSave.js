@@ -365,6 +365,16 @@ export async function loadDraftState(saveId, options = {}) {
     updateDraftState(saveId, saveData).catch(e => console.error("Auto-migrate failed", e))
   }
 
+  const latestSeason = saveData.settings?.seasons?.[saveData.settings.seasons.length - 1]
+  const hasUnscopedCups = Boolean(latestSeason && (saveData.settings?.cups || []).some(cup => cup.seasonId == null))
+  if (hasUnscopedCups) {
+    saveData.settings = {
+      ...saveData.settings,
+      cups: saveData.settings.cups.map(cup => cup.seasonId == null ? { ...cup, seasonId: latestSeason.id } : cup),
+    }
+    updateDraftState(saveId, saveData).catch(e => console.error('Cup season migration failed', e))
+  }
+
   careerCache.set(saveId, cloneCareerSnapshot(saveData))
   return cloneCareerSnapshot(saveData)
 }
@@ -691,7 +701,12 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
         saveData.teams = teams
       }
 
-      const seasonIndex = (saveData.settings?.seasons || []).findIndex(season => String(season.id) === String(cup.seasonId))
+      const availableSeasons = saveData.settings?.seasons || []
+      let seasonIndex = availableSeasons.findIndex(season => String(season.id) === String(cup.seasonId))
+      if (seasonIndex < 0 && cup.seasonId == null && availableSeasons.length) {
+        seasonIndex = availableSeasons.length - 1
+        cup.seasonId = availableSeasons[seasonIndex].id
+      }
       const season = saveData.settings?.seasons?.[seasonIndex]
       const alreadyPaidAwards = season?.awardsPaidAt || season?.prizePayouts?.some(payout => payout.type === 'player_award')
       if (season && !cup.statsMergedAt) {

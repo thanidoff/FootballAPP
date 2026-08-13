@@ -268,9 +268,10 @@ export default function DraftCupTab() {
     const firstRound = Array.from({ length: selectionTarget / 2 }, (_, index) => ({ home: shuffled[index * 2], away: shuffled[index * 2 + 1], played: false }))
     const selectedQualifierIds = selected.filter(id => qualifiedIds.includes(id))
     const selectedInvitedIds = selected.filter(id => !qualifiedIds.includes(id))
+    const targetSeason = completedLeague || leagueSeasons.find(season => season.status === 'active') || leagueSeasons[leagueSeasons.length - 1]
     const newCup = {
       id: cupId,
-      seasonId: completedLeague?.id || null,
+      seasonId: targetSeason?.id ?? null,
       number: cups.length + 1,
       status: 'active', round: startingRound, qualifiedIds: selectedQualifierIds, invitedIds: selectedInvitedIds,
       rounds: { [startingRound]: firstRound },
