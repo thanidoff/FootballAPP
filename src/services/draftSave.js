@@ -686,6 +686,7 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
     } else {
       cup.status = 'completed'
       cup.champion = match.winner
+      cup.championPlayerIds = (saveData.teams || []).find(team => String(team.club_id) === String(match.winner))?.roster?.map(player => player.id) || []
       cup.completedAt = new Date().toISOString()
       if (!cup.prizesPaidAt) {
         const loser = item => item.winner === item.home ? item.away : item.home

@@ -49,4 +49,19 @@ describe('draft player profile', () => {
     }
     expect(buildDraftPlayerProfileData(saveData, 'p1').awards.map(item => item.award_type)).toEqual(["Ballon d'Or", 'Top Scorer'])
   })
+
+  it('includes league, club cup and national cup champion medals', () => {
+    const player = { id: 'p1', name: 'Champion' }
+    const saveData = {
+      teams: [{ club_id: 'barca', club_name: 'Barcelona', roster: [player] }],
+      settings: {
+        seasons: [{ id: 1, status: 'completed', champion: 'barca', stats: { playerSnapshots: { p1: { ...player, club: { id: 'barca', name: 'Barcelona' } } } } }],
+        cups: [{ id: 'cup', seasonId: 1, status: 'completed', champion: 'barca', championPlayerIds: ['p1'] }],
+        nationalCups: [{ id: 'national', seasonId: 1, status: 'completed', champion: 'nation:Argentina', championPlayerIds: ['p1'], participants: [{ id: 'nation:Argentina', name: 'Argentina', roster: [player] }] }],
+      },
+    }
+    expect(buildDraftPlayerProfileData(saveData, 'p1').awards.map(item => item.award_type).sort()).toEqual([
+      'Cup Champion', 'League Champion', 'National Cup Champion',
+    ])
+  })
 })

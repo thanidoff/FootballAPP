@@ -112,6 +112,27 @@ export function buildDraftPlayerProfileData(saveData, playerId) {
     awards.push({ season_name: season.name || `Season ${seasonIndex + 1}`, award_type: label, club: clubView(club) || fallbackClub })
   }
   seasons.forEach((season, seasonIndex) => {
+    const seasonClub = season.stats?.playerSnapshots?.[id]?.club || season.externalPlayerStats?.playerSnapshots?.[id]?.club
+    if (season.champion && String(seasonClub?.id ?? '') === String(season.champion)) {
+      const team = (saveData?.teams || []).find(item => String(item.club_id) === String(season.champion))
+      addAward(season, seasonIndex, 'League Champion', team || seasonClub, 'league-champion')
+    }
+
+    cups.filter(cup => competitionSeasonId(cup) === String(season.id) && cup.status === 'completed').forEach(cup => {
+      const championTeam = (saveData?.teams || []).find(item => String(item.club_id) === String(cup.champion))
+      const wasChampion = String(seasonClub?.id ?? '') === String(cup.champion)
+        || (cup.championPlayerIds || []).some(playerId => String(playerId) === id)
+        || (championTeam?.roster || []).some(player => String(player.id) === id)
+      if (wasChampion) addAward(season, seasonIndex, 'Cup Champion', championTeam || seasonClub, `cup-champion-${cup.id || cup.name || ''}`)
+    })
+
+    nationalCups.filter(cup => competitionSeasonId(cup) === String(season.id) && cup.status === 'completed').forEach(cup => {
+      const champion = (cup.participants || []).find(item => String(item.id) === String(cup.champion))
+      const wasChampion = (cup.championPlayerIds || []).some(playerId => String(playerId) === id)
+        || (champion?.roster || []).some(player => String(player.id) === id)
+      if (wasChampion) addAward(season, seasonIndex, 'National Cup Champion', { ...champion, club_id: champion?.id, club_name: champion?.name, is_national: true }, `national-champion-${cup.id || cup.name || ''}`)
+    })
+
     ;(season.prizePayouts || []).filter(payout => String(payout.playerId) === id && ['player_award', 'annual_award'].includes(payout.type)).forEach(payout => {
       const team = (saveData?.teams || []).find(item => String(item.club_id) === String(payout.clubId))
       addAward(season, seasonIndex, payout.label, team || { id: payout.clubId, name: payout.clubName }, `${payout.type}-${payout.label}`)
