@@ -59,4 +59,24 @@ describe('career leader aggregation', () => {
     })
     expect(result.topScorers.p1).toBe(5)
   })
+
+  it('shows a non-league player who scored in a completed club cup', () => {
+    const result = aggregateCareerLeaderStats({
+      seasons: [{
+        id: 1,
+        matches: [{ week: 1, matches: [match([goal('league-player')], null)] }],
+        stats: { topScorers: { 'league-player': 99 } },
+      }],
+      cups: [{
+        seasonId: 1,
+        status: 'completed',
+        statsMergedAt: '2026-01-02T00:00:00.000Z',
+        rounds: { 1: [match([goal('noel-noa'), goal('noel-noa'), goal('noel-noa')], 'noel-noa')] },
+      }],
+      seasonId: 1,
+    })
+    expect(result.topScorers['league-player']).toBe(1)
+    expect(result.topScorers['noel-noa']).toBe(3)
+    expect(result.mostMvps['noel-noa']).toBe(1)
+  })
 })
