@@ -72,6 +72,47 @@ function mergeExternalStatsOnce(saveData, season) {
   season.externalStatsMergedAt = new Date().toISOString()
 }
 
+function collectClubCupStats(saveData, cup) {
+  const teams = saveData.teams || []
+  const stats = { topScorers: {}, topAssists: {}, mostMvps: {}, mostFouls: {}, playerSnapshots: {} }
+  const snapshotPlayer = (player, clubId) => {
+    if (!player?.id || stats.playerSnapshots[player.id]) return
+    const club = teams.find(team => String(team.club_id) === String(clubId))
+      || teams.find(team => (team.roster || []).some(member => String(member.id) === String(player.id)))
+    stats.playerSnapshots[player.id] = {
+      id: player.id,
+      name: player.name,
+      photo_url: player.photo_url || null,
+      nationality: player.nationality || null,
+      position: player.position || null,
+      club: club ? { id: club.club_id, name: club.club_name, short_name: club.short_name || club.club_name?.slice(0, 3).toUpperCase(), badge_url: club.badge_url || null, badge_color: club.badge_color || null } : null,
+    }
+  }
+  Object.values(cup.rounds || {}).flat().filter(Boolean).forEach(match => {
+    ;(match.events || []).forEach(event => {
+      const clubId = event.team === 'home' ? match.home : event.team === 'away' ? match.away : null
+      if (event.type === 'goal' && event.player) {
+        snapshotPlayer(event.player, clubId)
+        stats.topScorers[event.player.id] = (stats.topScorers[event.player.id] || 0) + 1
+      }
+      if (event.type === 'goal' && event.assist) {
+        snapshotPlayer(event.assist, clubId)
+        stats.topAssists[event.assist.id] = (stats.topAssists[event.assist.id] || 0) + 1
+      }
+      if (event.type === 'foul' && event.player) {
+        snapshotPlayer(event.player, clubId)
+        stats.mostFouls[event.player.id] = (stats.mostFouls[event.player.id] || 0) + 1
+      }
+    })
+    if (match.mvp) {
+      const clubId = [match.home, match.away].find(teamId => teams.find(team => String(team.club_id) === String(teamId))?.roster?.some(player => String(player.id) === String(match.mvp.id)))
+      snapshotPlayer(match.mvp, clubId)
+      stats.mostMvps[match.mvp.id] = (stats.mostMvps[match.mvp.id] || 0) + 1
+    }
+  })
+  return stats
+}
+
 function finalizeAnnualAwards(saveData, seasonIndex) {
   const season = saveData.settings?.seasons?.[seasonIndex]
   if (!season || season.annualAwards?.finalizedAt) return
@@ -653,6 +694,11 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
       const seasonIndex = (saveData.settings?.seasons || []).findIndex(season => String(season.id) === String(cup.seasonId))
       const season = saveData.settings?.seasons?.[seasonIndex]
       const alreadyPaidAwards = season?.awardsPaidAt || season?.prizePayouts?.some(payout => payout.type === 'player_award')
+      if (season && !cup.statsMergedAt) {
+        season.stats = mergeSeasonStats(season.stats, collectClubCupStats(saveData, cup))
+        cup.statsMergedAt = new Date().toISOString()
+        saveData.settings.seasons[seasonIndex] = season
+      }
       if (season && !alreadyPaidAwards) {
         const combined = {
           topScorers: { ...(season.stats?.topScorers || {}) },
@@ -662,41 +708,6 @@ export async function completeDraftCupMatch(saveId, round, matchIndex, payload) 
           playerSnapshots: { ...(season.stats?.playerSnapshots || {}) },
         }
         const teams = (saveData.teams || []).map(team => ({ ...team }))
-        const snapshotPlayer = (player, clubId) => {
-          if (!player?.id || combined.playerSnapshots[player.id]) return
-          const club = teams.find(team => String(team.club_id) === String(clubId))
-            || teams.find(team => (team.roster || []).some(member => String(member.id) === String(player.id)))
-          combined.playerSnapshots[player.id] = {
-            id: player.id,
-            name: player.name,
-            photo_url: player.photo_url || null,
-            nationality: player.nationality || null,
-            position: player.position || null,
-            club: club ? { id: club.club_id, name: club.club_name, short_name: club.short_name || club.club_name?.slice(0, 3).toUpperCase(), badge_url: club.badge_url || null, badge_color: club.badge_color || null } : null,
-          }
-        }
-        Object.values(cup.rounds || {}).flat().filter(Boolean).forEach(cupMatch => {
-          ;(cupMatch.events || []).forEach(event => {
-            const clubId = event.team === 'home' ? cupMatch.home : event.team === 'away' ? cupMatch.away : null
-            if (event.type === 'goal' && event.player) {
-              snapshotPlayer(event.player, clubId)
-              combined.topScorers[event.player.id] = (combined.topScorers[event.player.id] || 0) + 1
-            }
-            if (event.type === 'goal' && event.assist) {
-              snapshotPlayer(event.assist, clubId)
-              combined.topAssists[event.assist.id] = (combined.topAssists[event.assist.id] || 0) + 1
-            }
-            if (event.type === 'foul' && event.player) {
-              snapshotPlayer(event.player, clubId)
-              combined.mostFouls[event.player.id] = (combined.mostFouls[event.player.id] || 0) + 1
-            }
-          })
-          if (cupMatch.mvp) {
-            const mvpClubId = [cupMatch.home, cupMatch.away].find(clubId => teams.find(team => String(team.club_id) === String(clubId))?.roster?.some(player => String(player.id) === String(cupMatch.mvp.id)))
-            snapshotPlayer(cupMatch.mvp, mvpClubId)
-            combined.mostMvps[cupMatch.mvp.id] = (combined.mostMvps[cupMatch.mvp.id] || 0) + 1
-          }
-        })
 
         if (!season.externalStatsMergedAt) {
           const outsideStats = season.externalPlayerStats || generateOutsideLeagueStats(saveData.teams || [], season, saveData.freeAgents || [])

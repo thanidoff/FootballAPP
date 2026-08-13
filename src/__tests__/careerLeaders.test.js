@@ -40,4 +40,23 @@ describe('career leader aggregation', () => {
     })
     expect(result.topScorers.p1).toBe(9)
   })
+
+  it('recovers a legacy completed cup that finished after league awards were settled', () => {
+    const result = aggregateCareerLeaderStats({
+      seasons: [{ id: 1, awardsPaidAt: '2026-01-01T00:00:00.000Z', stats: { topScorers: { p1: 4 } } }],
+      cups: [{ seasonId: 1, status: 'completed', completedAt: '2026-01-02T00:00:00.000Z', rounds: { 1: [match([goal('p1')], 'p1')] } }],
+      seasonId: 1,
+    })
+    expect(result.topScorers.p1).toBe(5)
+    expect(result.mostMvps.p1).toBe(1)
+  })
+
+  it('does not layer a completed cup carrying an explicit merge marker', () => {
+    const result = aggregateCareerLeaderStats({
+      seasons: [{ id: 1, awardsPaidAt: '2026-01-01T00:00:00.000Z', stats: { topScorers: { p1: 5 } } }],
+      cups: [{ seasonId: 1, status: 'completed', completedAt: '2026-01-02T00:00:00.000Z', statsMergedAt: '2026-01-02T00:00:01.000Z', rounds: { 1: [match([goal('p1')], null)] } }],
+      seasonId: 1,
+    })
+    expect(result.topScorers.p1).toBe(5)
+  })
 })

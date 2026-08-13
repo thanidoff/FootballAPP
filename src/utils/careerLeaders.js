@@ -24,6 +24,7 @@ const competitionMatches = competition => Object.values(competition?.rounds || {
 export function aggregateCareerLeaderStats({ seasons = [], cups = [], nationalCups = [], seasonId = null } = {}) {
   const metrics = emptyMetrics()
   const selectedIds = new Set((seasonId == null ? seasons : seasons.filter(season => String(season.id) === String(seasonId))).map(season => String(season.id)))
+  const seasonById = new Map(seasons.map(season => [String(season.id), season]))
 
   seasons.filter(season => selectedIds.has(String(season.id))).forEach(season => {
     ;Object.keys(metrics).forEach(key => Object.entries(season.stats?.[key] || {}).forEach(([id, value]) => {
@@ -33,7 +34,18 @@ export function aggregateCareerLeaderStats({ seasons = [], cups = [], nationalCu
   // Completed cups are already merged into season.stats by the settlement
   // flow. Only live competitions need to be layered on top of that canonical
   // snapshot, which also keeps older saves whose match events are incomplete.
-  cups.filter(cup => cup.status !== 'completed' && selectedIds.has(String(cup.seasonId))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
+  const needsLiveLayer = competition => {
+    if (!selectedIds.has(String(competition.seasonId))) return false
+    if (competition.status !== 'completed') return true
+    if (competition.statsMergedAt) return false
+    const season = seasonById.get(String(competition.seasonId))
+    // Legacy recovery: the old settlement flow skipped merging a club cup when
+    // league awards had already been paid before that cup was completed.
+    const awardsAt = Date.parse(season?.awardsPaidAt || '')
+    const completedAt = Date.parse(competition.completedAt || '')
+    return Number.isFinite(awardsAt) && Number.isFinite(completedAt) && completedAt >= awardsAt
+  }
+  cups.filter(needsLiveLayer).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
   nationalCups.filter(cup => cup.status !== 'completed' && selectedIds.has(String(cup.seasonId))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
 
   return metrics
