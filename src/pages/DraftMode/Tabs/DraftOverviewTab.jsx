@@ -40,6 +40,9 @@ function Empty({ children, className = '' }) {
 }
 
 function TransferClub({ team, name }) {
+  if (!team && name === 'External Market') {
+    return <span className="flex min-w-0 items-center gap-2" title="External Market"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#0A1318] text-[8px] font-black text-white">EXT</span><span className="truncate text-xs font-semibold text-gray-600">External Market</span></span>
+  }
   const isFreeAgent = !team && (!name || name === 'Free Agent' || name === 'FREE')
   if (isFreeAgent) {
     return (
@@ -84,6 +87,12 @@ export default function DraftOverviewTab() {
         stats: team.stats || emptyStats,
       })))
     .sort((a, b) => (b.stats?.PTS || 0) - (a.stats?.PTS || 0) || (b.stats?.GD || 0) - (a.stats?.GD || 0) || (b.stats?.GF || 0) - (a.stats?.GF || 0))
+
+  const displayTeam = teamId => {
+    if (teamId === 'place_1' || teamId === '1st') return (saveData.teams || []).find(team => String(team.club_id) === String(standings[0]?.club_id)) || { club_id: 'place_1', club_name: '1st Place Team', short_name: '1ST', badge_color: '#FD5461' }
+    if (teamId === '__allstars__' || teamId === 'allstars') return { club_id: '__allstars__', club_name: 'League All-Stars', short_name: 'ALL', badge_url: saveData.settings?.allStarBadgeUrl || null, badge_color: '#FD5461' }
+    return (saveData.teams || []).find(team => String(team.club_id) === String(teamId))
+  }
 
   const upcoming = (activeSeason?.matches || [])
     .flatMap(week => week.matches.map((match, matchIndex) => ({ ...match, week: week.week, matchIndex })))
@@ -266,7 +275,7 @@ export default function DraftOverviewTab() {
             {recentResults.length ? (
               <div className="divide-y divide-gray-50">
                 {recentResults.map((match, index) => {
-                  const home = teamById(match.home), away = teamById(match.away)
+                  const home = displayTeam(match.home), away = displayTeam(match.away)
                   const homeShort = home?.short_name || (home?.club_name || '').slice(0, 3).toUpperCase()
                   const awayShort = away?.short_name || (away?.club_name || '').slice(0, 3).toUpperCase()
                   return (
@@ -304,7 +313,7 @@ export default function DraftOverviewTab() {
             {upcoming.length ? (
               <div className="divide-y divide-gray-50">
                 {upcoming.map((match, index) => {
-                  const home = teamById(match.home), away = teamById(match.away)
+                  const home = displayTeam(match.home), away = displayTeam(match.away)
                   const homeShort = home?.short_name || (home?.club_name || '').slice(0, 3).toUpperCase()
                   const awayShort = away?.short_name || (away?.club_name || '').slice(0, 3).toUpperCase()
                   return (
@@ -381,7 +390,7 @@ export default function DraftOverviewTab() {
               </div>
             ) : featureView === 'transfers' ? (transfers.length ? (
               <div className="w-full overflow-hidden">
-                <div className="grid grid-cols-[minmax(180px,2fr)_minmax(80px,1fr)_minmax(80px,1fr)_76px] gap-2 bg-white border-b border-gray-100 px-5 py-3 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400">
+                <div className="grid grid-cols-[minmax(180px,2fr)_minmax(120px,1fr)_minmax(80px,1fr)_76px] gap-2 bg-white border-b border-gray-100 px-5 py-3 text-[9px] font-heading font-black uppercase tracking-widest text-gray-400">
                   <span>Player</span><span>From</span><span>To</span><span className="text-right">Fee</span>
                 </div>
                 <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto hide-scrollbar">
@@ -405,7 +414,7 @@ export default function DraftOverviewTab() {
                       <div
                         key={item.id || index}
                         onClick={() => playerObj && setSelectedPlayer(playerObj)}
-                        className={`grid grid-cols-[minmax(180px,2fr)_minmax(80px,1fr)_minmax(80px,1fr)_76px] items-center gap-2 px-5 py-3 transition-colors ${playerObj ? 'cursor-pointer hover:bg-red-50/30' : 'hover:bg-gray-50'}`}
+                        className={`grid grid-cols-[minmax(180px,2fr)_minmax(120px,1fr)_minmax(80px,1fr)_76px] items-center gap-2 px-5 py-3 transition-colors ${playerObj ? 'cursor-pointer hover:bg-red-50/30' : 'hover:bg-gray-50'}`}
                       >
                         {/* Player column: OVR Badge + Avatar + Details (Name, Flag, Club, Position) */}
                         <div className="flex items-center gap-2.5 min-w-0">
