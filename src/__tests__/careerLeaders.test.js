@@ -8,8 +8,8 @@ const match = (events, mvp) => ({ played: true, events, mvp: mvp ? { id: mvp } :
 describe('career leader aggregation', () => {
   it('counts league, club cup and national cup events exactly once', () => {
     const result = aggregateCareerLeaderStats({
-      seasons: [{ id: 1, matches: [{ matches: [match([goal('p1', 'p2'), foul('p3')], 'p4')] }] }],
-      cups: [{ seasonId: 1, rounds: { 1: [match([goal('p1', 'p2'), foul('p3')], 'p4')] } }],
+      seasons: [{ id: 1, stats: { topScorers: { p1: 1 }, topAssists: { p2: 1 }, mostFouls: { p3: 1 }, mostMvps: { p4: 1 } } }],
+      cups: [{ seasonId: 1, status: 'active', rounds: { 1: [match([goal('p1', 'p2'), foul('p3')], 'p4')] } }],
       nationalCups: [{ seasonId: 1, status: 'active', rounds: { 1: [match([goal('p1', 'p2'), foul('p3')], 'p4')] } }],
       seasonId: 1,
     })
@@ -22,12 +22,22 @@ describe('career leader aggregation', () => {
   it('ignores unplayed matches and filters by season', () => {
     const result = aggregateCareerLeaderStats({
       seasons: [
-        { id: 1, matches: [{ matches: [match([goal('old')], 'old')] }] },
-        { id: 2, matches: [{ matches: [{ played: false, events: [goal('future')], mvp: { id: 'future' } }] }] },
+        { id: 1, stats: { topScorers: { old: 1 }, mostMvps: { old: 1 } } },
+        { id: 2, stats: {} },
       ],
+      cups: [{ seasonId: 2, status: 'active', rounds: { 1: [{ played: false, events: [goal('future')], mvp: { id: 'future' } }] } }],
       seasonId: 2,
     })
     expect(result.topScorers).toEqual({})
     expect(result.mostMvps).toEqual({})
+  })
+
+  it('does not add a completed cup again after it has been merged into season stats', () => {
+    const result = aggregateCareerLeaderStats({
+      seasons: [{ id: 1, stats: { topScorers: { p1: 9 } } }],
+      cups: [{ seasonId: 1, status: 'completed', rounds: { 1: [match([goal('p1')], null)] } }],
+      seasonId: 1,
+    })
+    expect(result.topScorers.p1).toBe(9)
   })
 })

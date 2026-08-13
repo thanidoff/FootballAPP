@@ -26,10 +26,15 @@ export function aggregateCareerLeaderStats({ seasons = [], cups = [], nationalCu
   const selectedIds = new Set((seasonId == null ? seasons : seasons.filter(season => String(season.id) === String(seasonId))).map(season => String(season.id)))
 
   seasons.filter(season => selectedIds.has(String(season.id))).forEach(season => {
-    ;(season.matches || []).flatMap(week => week.matches || []).forEach(match => includeMatch(metrics, match))
+    ;Object.keys(metrics).forEach(key => Object.entries(season.stats?.[key] || {}).forEach(([id, value]) => {
+      metrics[key][String(id)] = (metrics[key][String(id)] || 0) + (Number(value) || 0)
+    }))
   })
-  cups.filter(cup => selectedIds.has(String(cup.seasonId))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
-  nationalCups.filter(cup => selectedIds.has(String(cup.seasonId))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
+  // Completed cups are already merged into season.stats by the settlement
+  // flow. Only live competitions need to be layered on top of that canonical
+  // snapshot, which also keeps older saves whose match events are incomplete.
+  cups.filter(cup => cup.status !== 'completed' && selectedIds.has(String(cup.seasonId))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
+  nationalCups.filter(cup => cup.status !== 'completed' && selectedIds.has(String(cup.seasonId))).forEach(cup => competitionMatches(cup).forEach(match => includeMatch(metrics, match)))
 
   return metrics
 }
