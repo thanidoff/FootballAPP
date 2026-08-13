@@ -56,6 +56,15 @@ describe('season awards', () => {
     })
   })
 
+  it('does not use player age when calculating seasonal growth', () => {
+    const base = { id: 'age-neutral', name: 'Age Neutral', position: 'MF', ovr: 80, stats: { PAC: 80, SHO: 80, PAS: 80, DRI: 80, DEF: 80, PHY: 80 } }
+    const season = { id: 6, standings: [{ club_id: 'club' }], matches: [], stats: {} }
+    const young = applySeasonalPlayerAdjustments([{ club_id: 'club', roster: [{ ...base, age: 16 }], coaches: [] }], [], 'all', { season })
+    const veteran = applySeasonalPlayerAdjustments([{ club_id: 'club', roster: [{ ...base, age: 45 }], coaches: [] }], [], 'all', { season })
+    expect(young.seasonAdjustments[0].deltaOvr).toBe(veteran.seasonAdjustments[0].deltaOvr)
+    expect(young.seasonAdjustments[0].performance).toEqual(veteran.seasonAdjustments[0].performance)
+  })
+
   it('selects annual and positional winners from combined competitions', () => {
     const stats = mergeSeasonStats({
       topScorers: { fwd: 8 }, topAssists: { fwd: 4 }, mostMvps: { fwd: 3, gk: 5 },

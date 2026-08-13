@@ -43,9 +43,6 @@ function performanceDelta(player, metrics, random) {
   else if (roll < 0.30) { form = 'Poor'; delta = -(Math.floor(random() * 3) + 1) }
   else if (roll >= 0.90) { form = 'Excellent'; delta = Math.floor(random() * 4) + 2 }
   else if (roll >= 0.65) { form = 'Good'; delta = Math.floor(random() * 3) + 1 }
-  const age = Number(player.age) || 25
-  if (age <= 23 && random() < 0.45) delta += 1
-  if (age >= 31 && random() < Math.min(0.8, 0.3 + (age - 31) * 0.1)) delta -= 1
   const attackingOutput = group === 'GK' || group === 'DEF'
     ? mvps / games * 2 + goals / games + assists / games
     : goals / games * 1.5 + assists / games * 1.2 + mvps / games * 1.5
@@ -158,7 +155,7 @@ export function applySeasonalPlayerAdjustments(teams = [], freeAgents = [], coun
       clubBadge: team?.badge_url || null,
       developmentSource: isFreeAgent ? 'Free agent' : coachEffect.label,
       performance: { form: metrics.form || 'Unrated', formRating: metrics.formRating || null },
-      growthReason: hasPerformance ? 'Seasonal form, age and coaching; match statistics have a small influence' : 'Seasonal form, age and coaching',
+      growthReason: hasPerformance ? 'Seasonal form and coaching; match statistics have a small influence' : 'Seasonal form and coaching',
     }
 
     adjustmentsMap.set(player.id, { newStats, newOvr, adjustmentRecord })
