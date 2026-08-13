@@ -16,6 +16,7 @@ export default function SeasonalGrowthModal({
   isLocked = false,
   onReshufflePreview,
   onConfirmSave,
+  onRestorePrevious,
   entityLabel = 'Player',
   saveData = null,
 }) {
@@ -145,12 +146,13 @@ export default function SeasonalGrowthModal({
               )}
               {isLocked ? (
                 <Button
-                  variant="primary"
+                  variant="outline"
                   size="sm"
-                  disabled
-                  className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
+                  onClick={onRestorePrevious}
+                  disabled={!onRestorePrevious}
+                  className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-rose-600"
                 >
-                  <Sparkles size={14} /> Ratings Saved
+                  <RefreshCw size={14} /> Restore Previous Ratings
                 </Button>
               ) : onConfirmSave ? (
                 <Button

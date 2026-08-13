@@ -25,7 +25,7 @@ import { fetchPlayers } from '../../../services/players'
 import { fetchCoaches } from '../../../services/coaches'
 import { Check, Plus, Search, Sparkles, Users, UserCheck } from 'lucide-react'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
-import { applySeasonalCoachAdjustments, applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import { applySeasonalCoachAdjustments, applySeasonalPlayerAdjustments, restoreSeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
 import { annualWageFor, contractFeeFor } from '../../../utils/contracts'
 
 const POS_FILTERS = ['ALL', 'GK', 'DEF', 'MF', 'FWD']
@@ -114,6 +114,20 @@ export default function DraftTransfersTab() {
       console.error('Failed to confirm seasonal player adjustments:', err)
       toast.error('Failed to save rating changes')
     }
+  }
+
+  async function handleRestorePreviousRatings() {
+    if (!seasonAdjustments.length || !window.confirm('Restore every player in this ratings batch to their previous values?')) return
+    const restored = restoreSeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], seasonAdjustments)
+    const nextSettings = { ...saveData.settings, seasons: [...(saveData.settings?.seasons || [])] }
+    const index = nextSettings.seasons.findIndex(season => String(season.id) === String(activeSeason?.id))
+    if (index >= 0) nextSettings.seasons[index] = { ...nextSettings.seasons[index], seasonAdjustments: [], seasonAdjustmentsLocked: false }
+    const nextState = { ...saveData, teams: restored.teams, freeAgents: restored.freeAgents, settings: nextSettings }
+    await updateDraftState(saveId, nextState)
+    setSaveData(nextState)
+    setPreviewGrowthData(null)
+    setGrowthModalOpen(false)
+    toast.success(`Restored ${restored.restored} player ratings`)
   }
 
   const freeAgents = saveData?.freeAgents || []
@@ -756,6 +770,7 @@ export default function DraftTransfersTab() {
         isLocked={isGrowthLocked}
         onReshufflePreview={handleReshufflePreview}
         onConfirmSave={handleConfirmSaveRatings}
+        onRestorePrevious={handleRestorePreviousRatings}
         saveData={saveData}
       />
 

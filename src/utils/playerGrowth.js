@@ -241,6 +241,22 @@ export function rollbackUnconfirmedSeasonalPlayerAdjustments(saveData) {
   }
 }
 
+export function restoreSeasonalPlayerAdjustments(teams = [], freeAgents = [], adjustments = []) {
+  const previousById = new Map(adjustments.map(adjustment => [String(adjustment.playerId), adjustment]))
+  let restored = 0
+  const restorePlayer = player => {
+    const adjustment = previousById.get(String(player.id))
+    if (!adjustment?.oldStats) return player
+    restored += 1
+    return { ...player, stats: { ...adjustment.oldStats }, ovr: adjustment.oldOvr }
+  }
+  return {
+    teams: teams.map(team => ({ ...team, roster: (team.roster || []).map(restorePlayer) })),
+    freeAgents: freeAgents.map(restorePlayer),
+    restored,
+  }
+}
+
 export function applySeasonalCoachAdjustments(teams = [], freeAgents = [], count = 'all') {
   const entries = [
     ...teams.flatMap(team => (team.coaches || []).map(coach => ({ coach, teamId: team.club_id, clubName: team.club_name, clubBadge: team.badge_url }))),

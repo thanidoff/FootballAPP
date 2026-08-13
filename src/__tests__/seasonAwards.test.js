@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { calculateAnnualAwards, generateOutsideLeagueStats, mergeSeasonStats } from '../utils/seasonAwards'
-import { applySeasonalPlayerAdjustments, rollbackUnconfirmedSeasonalPlayerAdjustments } from '../utils/playerGrowth'
+import { applySeasonalPlayerAdjustments, restoreSeasonalPlayerAdjustments, rollbackUnconfirmedSeasonalPlayerAdjustments } from '../utils/playerGrowth'
 
 const teams = [
   { club_id: 'league', club_name: 'League FC', roster: [{ id: 'fwd', name: 'Forward', position: 'FW', overall: 90 }, { id: 'gk', name: 'Keeper', position: 'GK', overall: 91 }] },
@@ -28,6 +28,17 @@ describe('season awards', () => {
     const result = rollbackUnconfirmedSeasonalPlayerAdjustments(saveData)
     expect(result.changed).toBe(false)
     expect(result.saveData).toBe(saveData)
+  })
+
+  it('can explicitly restore a saved ratings batch', () => {
+    const oldStats = { PAC: 80, SHO: 80 }
+    const result = restoreSeasonalPlayerAdjustments(
+      [{ club_id: 'club', roster: [{ id: 'p1', stats: { PAC: 90, SHO: 90 }, ovr: 90 }] }],
+      [],
+      [{ playerId: 'p1', oldStats, oldOvr: 80 }],
+    )
+    expect(result.restored).toBe(1)
+    expect(result.teams[0].roster[0]).toMatchObject({ stats: oldStats, ovr: 80 })
   })
 
   it('generates stable outside-league statistics without including league clubs', () => {

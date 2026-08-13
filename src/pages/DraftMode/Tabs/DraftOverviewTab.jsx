@@ -9,7 +9,7 @@ import Select from '../../../components/ui/Select'
 import ResultScore from '../../../components/draft/ResultScore'
 import PlayerProfileModal from '../../../components/players/PlayerProfileModal'
 import SeasonalGrowthModal from '../../../components/draft/SeasonalGrowthModal'
-import { applySeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
+import { applySeasonalPlayerAdjustments, restoreSeasonalPlayerAdjustments } from '../../../utils/playerGrowth'
 import OvrBadge from '../../../components/ui/OvrBadge'
 import PositionBadge from '../../../components/ui/PositionBadge'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
@@ -275,6 +275,19 @@ export default function DraftOverviewTab() {
     }
   }
 
+  async function handleRestorePreviousRatings() {
+    if (!seasonAdjustments.length || !window.confirm('Restore every player in this ratings batch to their previous values?')) return
+    const restored = restoreSeasonalPlayerAdjustments(saveData.teams || [], saveData.freeAgents || [], seasonAdjustments)
+    const nextSettings = { ...saveData.settings, seasons: [...(saveData.settings?.seasons || [])] }
+    const index = nextSettings.seasons.findIndex(season => String(season.id) === String(activeSeason?.id))
+    if (index >= 0) nextSettings.seasons[index] = { ...nextSettings.seasons[index], seasonAdjustments: [], seasonAdjustmentsLocked: false }
+    const nextState = { ...saveData, teams: restored.teams, freeAgents: restored.freeAgents, settings: nextSettings }
+    await updateDraftState(saveId, nextState)
+    setSaveData(nextState)
+    setPreviewGrowthData(null)
+    setGrowthModalOpen(false)
+  }
+
   return (
     <>
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(460px,0.85fr)_minmax(0,1.15fr)]">
@@ -505,6 +518,7 @@ export default function DraftOverviewTab() {
         isLocked={isGrowthLocked}
         onReshufflePreview={handleReshufflePreview}
         onConfirmSave={handleConfirmSaveRatings}
+        onRestorePrevious={handleRestorePreviousRatings}
         saveData={saveData}
       />
     </>
