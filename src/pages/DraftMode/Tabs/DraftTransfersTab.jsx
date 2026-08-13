@@ -493,7 +493,7 @@ export default function DraftTransfersTab() {
               variant="outline"
               size="sm"
               onClick={() => {
-                if (!isGrowthLocked) handleReshufflePreview(30)
+                setPreviewGrowthData(null)
                 setGrowthModalOpen(true)
               }}
               className="flex items-center gap-2 rounded-xl font-heading text-xs font-bold uppercase tracking-wider text-[#FD5461] border-[#FD5461]/30 hover:bg-red-50/50"

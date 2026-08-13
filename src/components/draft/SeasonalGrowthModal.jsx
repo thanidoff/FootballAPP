@@ -55,10 +55,7 @@ export default function SeasonalGrowthModal({
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      setTargetMode('30')
-                      handleTriggerReshuffle('custom', '30')
-                    }}
+                    onClick={() => setTargetMode('30')}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                       targetMode === '30' ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
                     }`}
@@ -68,10 +65,7 @@ export default function SeasonalGrowthModal({
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setTargetMode('all')
-                      handleTriggerReshuffle('all')
-                    }}
+                    onClick={() => setTargetMode('all')}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                       targetMode === 'all' ? 'bg-[#FD5461] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
                     }`}
@@ -104,14 +98,6 @@ export default function SeasonalGrowthModal({
                     placeholder="e.g. 50"
                     className="w-20 px-2 py-1 text-xs font-bold rounded-lg border border-gray-200 bg-white text-center focus:outline-none focus:ring-2 focus:ring-[#FD5461]"
                   />
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => handleTriggerReshuffle('custom', customCountInput)}
-                    className="rounded-lg font-bold"
-                  >
-                    Apply
-                  </Button>
                 </div>
               )}
             </div>
@@ -159,6 +145,7 @@ export default function SeasonalGrowthModal({
                   variant="primary"
                   size="sm"
                   onClick={onConfirmSave}
+                  disabled={sortedAdjustments.length === 0}
                   className="flex items-center gap-1.5 rounded-xl font-heading text-xs font-bold uppercase tracking-wider"
                 >
                   <Sparkles size={14} /> Save Ratings
