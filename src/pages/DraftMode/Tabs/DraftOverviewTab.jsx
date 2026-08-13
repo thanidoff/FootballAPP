@@ -15,6 +15,7 @@ import PositionBadge from '../../../components/ui/PositionBadge'
 import { FIFA_NATIONS } from '../../../utils/fifaNations'
 import FreeAgentIcon from '../../../components/ui/FreeAgentIcon'
 import { updateDraftState } from '../../../services/draftSave'
+import { aggregateCareerLeaderStats } from '../../../utils/careerLeaders'
 
 const STAT_FILTERS = [
   { key: 'topScorers', label: 'Goals' },
@@ -96,16 +97,12 @@ export default function DraftOverviewTab() {
     .slice(0, 4)
 
   const leaderData = useMemo(() => {
-    const metricKeys = STAT_FILTERS.map(filter => filter.key)
-    const scopedSeasons = statScope === 'league' ? (activeSeason ? [activeSeason] : []) : seasons
-    const scopedCups = statScope === 'league'
-      ? (saveData.settings?.cups || []).filter(cup => String(cup.seasonId) === String(activeSeason?.id))
-      : (saveData.settings?.cups || [])
-
-    const metrics = Object.fromEntries(metricKeys.map(key => [key, {}]))
-    scopedSeasons.forEach(season => metricKeys.forEach(key => Object.entries(season.stats?.[key] || {}).forEach(([id, value]) => {
-      metrics[key][id] = (metrics[key][id] || 0) + value
-    })))
+    const metrics = aggregateCareerLeaderStats({
+      seasons,
+      cups: saveData.settings?.cups || [],
+      nationalCups: saveData.settings?.nationalCups || [],
+      seasonId: statScope === 'league' ? activeSeason?.id : null,
+    })
 
     const discipline = new Map()
     const firstGoal = new Map()
@@ -133,42 +130,16 @@ export default function DraftOverviewTab() {
       })
     }
 
-    // Accumulate Cup stats for scopedCups into metrics
-    scopedCups.forEach(cup => {
-      Object.values(cup.rounds || {}).forEach(roundMatches => {
-        (roundMatches || []).forEach(match => {
-          if (!match.played) return
-          (match.events || []).forEach(event => {
-            if (event.type === 'goal' && event.scorer) {
-              const scorerId = String(event.scorer.id)
-              metrics.topScorers[scorerId] = (metrics.topScorers[scorerId] || 0) + 1
-            }
-            if (event.type === 'goal' && event.assist) {
-              const assistId = String(event.assist.id)
-              metrics.topAssists[assistId] = (metrics.topAssists[assistId] || 0) + 1
-            }
-            if (event.type === 'foul' && event.player) {
-              const playerId = String(event.player.id)
-              metrics.mostFouls = metrics.mostFouls || {}
-              metrics.mostFouls[playerId] = (metrics.mostFouls[playerId] || 0) + 1
-            }
-          })
-          if (match.mvp) {
-            const mvpId = String(match.mvp.id)
-            metrics.mostMvps[mvpId] = (metrics.mostMvps[mvpId] || 0) + 1
-          }
-        })
-      })
-    })
-
-    scopedSeasons.forEach(season => (season.matches || []).forEach(week => (week.matches || []).forEach(match => {
-      processEvents(match.events)
-    })))
+    const scopedSeasons = statScope === 'league' ? (activeSeason ? [activeSeason] : []) : seasons
+    scopedSeasons.forEach(season => (season.matches || []).forEach(week => (week.matches || []).forEach(match => processEvents(match.events))))
 
     const eligibleTeams = statScope === 'league' ? leagueTeams : (saveData.teams || [])
     const positionByClub = new Map(standings.map((team, index) => [String(team.club_id), index]))
     const seen = new Set()
-    const eligiblePlayers = eligibleTeams.flatMap(team => (team.roster || []).map(player => ({ ...player, team }))).filter(player => {
+    const eligiblePlayers = [
+      ...eligibleTeams.flatMap(team => (team.roster || []).map(player => ({ ...player, team }))),
+      ...(saveData.freeAgents || []).map(player => ({ ...player, team: null })),
+    ].filter(player => {
       const id = String(player.id)
       if (seen.has(id)) return false
       seen.add(id)
@@ -197,7 +168,7 @@ export default function DraftOverviewTab() {
         if (aCards.red !== bCards.red) return aCards.red - bCards.red
         if (aCards.yellow !== bCards.yellow) return aCards.yellow - bCards.yellow
       })
-  }, [activeSeason, leaderSearch, leagueTeams, saveData.teams, seasons, standings, statFilter, statScope])
+  }, [activeSeason, leaderSearch, leagueTeams, saveData.freeAgents, saveData.settings?.cups, saveData.settings?.nationalCups, saveData.teams, seasons, standings, statFilter, statScope])
 
   const leaders = leaderData.slice(0, 15)
 
